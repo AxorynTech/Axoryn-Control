@@ -1,18 +1,28 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { AppState } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
-// ✅ Sua URL correta (agora vai funcionar!)
+// SUA URL (que você mandou antes)
 const supabaseUrl = 'https://pcbywklgjmampecvgkqf.supabase.co';
 
-// ✅ Sua Chave Pública
-const supabaseAnonKey = 'sb_publishable_fhphv983nO_0lI-iMQDqTA_eDAy8BbR';
+// SUA CHAVE (que você mandou agora)
+const supabaseKey = 'sb_publishable_fhphv983nO_0lI-iMQDqTA_eDAy8BbR';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
+});
+
+// Listener para atualizar a sessão quando o app volta do background (Deep Link)
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') {
+    supabase.auth.startAutoRefresh();
+  } else {
+    supabase.auth.stopAutoRefresh();
+  }
 });

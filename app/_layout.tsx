@@ -1,47 +1,30 @@
 import { Session } from '@supabase/supabase-js';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { supabase } from '../services/supabase'; // Importe seu client
+import { supabase } from '../services/supabase';
+
+// Mantém a tela de carregamento visível até o app estar pronto
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
-  const [initialized, setInitialized] = useState(false);
-  const router = useRouter();
-  const segments = useSegments();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // 1. Verifica se já tem sessão salva
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setInitialized(true);
+      setIsReady(true);
+      SplashScreen.hideAsync();
     });
 
-    // 2. Escuta mudanças (Login, Logout, etc)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
-
-    return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (!initialized) return;
-
-    // Está na tela de auth?
-    const inAuthGroup = segments[0] === 'auth'; 
-    
-    if (session && inAuthGroup) {
-      // Se tá logado e tenta ir pro login -> manda pra Home
-      router.replace('/(tabs)'); 
-    } else if (!session && !inAuthGroup) {
-      // Se NÃO tá logado e tenta ver o app -> manda pro Login
-      router.replace('/auth');
-    }
-  }, [session, initialized, segments]);
-
-  // Enquanto carrega a sessão, mostra um loading
-  if (!initialized) {
+  if (!isReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
@@ -49,5 +32,18 @@ export default function RootLayout() {
     );
   }
 
-  return <Slot />; // Carrega a navegação normal do app
+  return (
+    // AQUI ESTÁ A CORREÇÃO: Usamos STACK, não TABS
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* Se estiver logado, vai para as abas. Se não, para o auth */}
+      {!session ? (
+        <Stack.Screen name="auth" />
+      ) : (
+        <Stack.Screen name="(tabs)" />
+      )}
+      
+      {/* Configuração do Modal para abrir por cima */}
+      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+    </Stack>
+  );
 }

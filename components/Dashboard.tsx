@@ -6,9 +6,10 @@ type Props = {
   capital: number;
   lucro: number;
   multas: number;
+  vendas: number;
 };
 
-export default function Dashboard({ capital, lucro, multas }: Props) {
+export default function Dashboard({ capital, lucro, multas, vendas }: Props) {
   const [visivel, setVisivel] = useState(true);
 
   const formatarValor = (valor: number, cor: string) => {
@@ -27,19 +28,25 @@ export default function Dashboard({ capital, lucro, multas }: Props) {
 
       <View style={styles.linha}>
         <View style={styles.card}>
-          <Text style={styles.label}>CAPITAL</Text>
+          <Text style={styles.label}>CAPITAL NA RUA</Text>
           {formatarValor(capital, '#E74C3C')}
         </View>
         <View style={styles.card}>
-          <Text style={styles.label}>LUCRO PREVISTO</Text>
+          <Text style={styles.label}>JUROS EMPRÉSTIMOS</Text>
           {/* MUDADO PARA AZUL */}
           {formatarValor(lucro, '#2980B9')} 
         </View>
       </View>
 
-      <View style={[styles.card, { marginTop: 10 }]}>
-        <Text style={styles.label}>MULTAS RECEBIDAS</Text>
-        {formatarValor(multas, '#F39C12')}
+      <View style={[styles.linha, { marginTop: 10 }]}>
+        <View style={styles.card}>
+          <Text style={styles.label}>RECEB. VENDAS</Text>
+          {formatarValor(vendas, '#27AE60')}
+        </View>
+        <View style={styles.card}>
+          <Text style={styles.label}>MULTAS RECEBIDAS</Text>
+          {formatarValor(multas, '#F39C12')}
+        </View>
       </View>
     </View>
   );

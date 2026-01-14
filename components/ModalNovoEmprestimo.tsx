@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView, // Importado
+  Modal,
+  Platform, // Importado
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 type Props = {
   visivel: boolean;
@@ -14,14 +25,16 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
 
   const [clienteId, setClienteId] = useState('');
   const [capital, setCapital] = useState('');
+  const [dataInicio, setDataInicio] = useState('');
   const [taxa, setTaxa] = useState('20');
   const [frequencia, setFrequencia] = useState('MENSAL');
   const [garantia, setGarantia] = useState('');
+  const [multa, setMulta] = useState('');
   const [produtos, setProdutos] = useState('');
   
   // Controle de parcelas
-  const [diasDiario, setDiasDiario] = useState('25'); // Para empréstimo diário
-  const [qtdParcelasVenda, setQtdParcelasVenda] = useState('1'); // Para venda parcelada
+  const [diasDiario, setDiasDiario] = useState('25');
+  const [qtdParcelasVenda, setQtdParcelasVenda] = useState('1');
 
   useEffect(() => {
     if (visivel) {
@@ -29,9 +42,16 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
         const cli = clientes.find(c => c.nome === clientePreSelecionado);
         if (cli) setClienteId(cli.id);
       }
+      
+      const hoje = new Date();
+      const dia = String(hoje.getDate()).padStart(2, '0');
+      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+      setDataInicio(`${dia}/${mes}/${hoje.getFullYear()}`);
+
       setCapital('');
       setGarantia('');
       setProdutos('');
+      setMulta('');
       setTipoOperacao('EMPRESTIMO');
       setFrequencia('MENSAL');
       setQtdParcelasVenda('1');
@@ -41,18 +61,17 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
   const handleSalvar = () => {
     if (!clienteId) return Alert.alert("Erro", "Selecione um cliente.");
     if (!capital) return Alert.alert("Erro", "Digite o valor.");
+    if (!dataInicio) return Alert.alert("Erro", "Informe a data.");
 
     const valCapital = parseFloat(capital.replace(',', '.'));
     const valTaxa = parseFloat(taxa.replace(',', '.'));
+    const valMulta = parseFloat(multa.replace(',', '.') || '0');
 
     const textoDescritivo = tipoOperacao === 'VENDA' 
       ? `PRODUTO: ${produtos}` 
       : garantia;
 
-    // Se for VENDA, forçamos a frequência 'PARCELADO'
     const frequenciaFinal = tipoOperacao === 'VENDA' ? 'PARCELADO' : frequencia;
-    
-    // Se for VENDA, usamos a quantidade de parcelas definida, senão null
     const parcelasFinal = tipoOperacao === 'VENDA' ? qtdParcelasVenda : null;
 
     salvar(clienteId, {
@@ -61,13 +80,19 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       frequencia: frequenciaFinal,
       garantia: textoDescritivo,
       diasDiario: frequencia === 'DIARIO' ? diasDiario : null,
-      totalParcelas: parcelasFinal // Enviamos para o hook calcular
+      totalParcelas: parcelasFinal,
+      dataInicio,
+      valorMultaDiaria: valMulta
     });
   };
 
   return (
     <Modal visible={visivel} transparent animationType="slide" onRequestClose={fechar}>
-      <View style={styles.fundo}>
+      {/* KeyboardAvoidingView substitui a View externa para empurrar o conteúdo */}
+      <KeyboardAvoidingView 
+        style={styles.fundo} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.janela}>
           <Text style={styles.titulo}>Novo Contrato</Text>
 
@@ -92,7 +117,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
             {clientePreSelecionado ? (
               <TextInput style={[styles.input, {backgroundColor:'#EEE'}]} value={clientePreSelecionado} editable={false} />
             ) : (
-              <ScrollView style={{height: 100, marginBottom:10, borderWidth:1, borderColor:'#EEE'}}>
+              <ScrollView style={{height: 100, marginBottom:10, borderWidth:1, borderColor:'#EEE'}} nestedScrollEnabled>
                 {clientes.map(c => (
                   <TouchableOpacity key={c.id} onPress={() => setClienteId(c.id)} style={{padding:10, backgroundColor: clienteId === c.id ? '#D6EAF8' : '#FFF'}}>
                     <Text>{c.nome}</Text>
@@ -101,8 +126,17 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
               </ScrollView>
             )}
 
-            <Text style={styles.label}>{tipoOperacao === 'VENDA' ? 'Valor da Venda (R$)' : 'Valor do Empréstimo (R$)'}</Text>
-            <TextInput style={styles.input} value={capital} onChangeText={setCapital} keyboardType="numeric" placeholder="0.00" />
+            {/* LINHA: VALOR e DATA */}
+            <View style={{flexDirection:'row', gap:10}}>
+                <View style={{flex:1.5}}>
+                    <Text style={styles.label}>{tipoOperacao === 'VENDA' ? 'Valor Venda' : 'Valor Empréstimo'}</Text>
+                    <TextInput style={styles.input} value={capital} onChangeText={setCapital} keyboardType="numeric" placeholder="0.00" />
+                </View>
+                <View style={{flex:1}}>
+                    <Text style={styles.label}>Data</Text>
+                    <TextInput style={styles.input} value={dataInicio} onChangeText={setDataInicio} placeholder="DD/MM/AAAA" />
+                </View>
+            </View>
 
             {tipoOperacao === 'VENDA' ? (
               <>
@@ -115,10 +149,9 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                   placeholder="Ex: 1 Perfume, 1 Kit..." 
                 />
                 
-                {/* CAMPO ESPECÍFICO DE VENDA: QUANTIDADE DE PARCELAS */}
                 <View style={{flexDirection:'row', gap:10}}>
                    <View style={{flex:1}}>
-                      <Text style={styles.label}>Nº Parcelas (Mensais)</Text>
+                      <Text style={styles.label}>Nº Parcelas</Text>
                       <TextInput style={styles.input} value={qtdParcelasVenda} onChangeText={setQtdParcelasVenda} keyboardType="numeric" placeholder="Ex: 3" />
                    </View>
                    <View style={{flex:1}}>
@@ -128,7 +161,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                 </View>
               </>
             ) : (
-              // LÓGICA DE EMPRÉSTIMO (Mantida igual)
+              // LÓGICA DE EMPRÉSTIMO
               <>
                 <Text style={styles.label}>Garantia (Opcional)</Text>
                 <TextInput style={styles.input} value={garantia} onChangeText={setGarantia} placeholder="Ex: Celular..." />
@@ -139,11 +172,16 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                      <TextInput style={styles.input} value={taxa} onChangeText={setTaxa} keyboardType="numeric" />
                   </View>
                   <View style={{flex:1}}>
+                     <Text style={styles.label}>Multa Diária (R$)</Text>
+                     <TextInput style={styles.input} value={multa} onChangeText={setMulta} keyboardType="numeric" placeholder="0.00" />
+                  </View>
+                </View>
+
+                <View style={{marginTop: 10}}>
                      <Text style={styles.label}>Modalidade</Text>
                      <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'MENSAL' ? 'SEMANAL' : frequencia === 'SEMANAL' ? 'DIARIO' : 'MENSAL')}>
                         <Text style={{fontWeight:'bold', color:'#333'}}>{frequencia}</Text>
                      </TouchableOpacity>
-                  </View>
                 </View>
                 
                 {frequencia === 'DIARIO' && (
@@ -166,7 +204,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
              <Text style={{color:'#999'}}>Cancelar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -1,50 +1,49 @@
+import { FontAwesome } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarStyle: Platform.select({
-          ios: { position: 'absolute' },
-          default: {},
-        }),
-      }}>
+    <Tabs screenOptions={{
+      headerShown: false,
+      tabBarActiveTintColor: '#2C3E50', // Azul Escuro
+      tabBarInactiveTintColor: '#999999', // Cinza
+      tabBarStyle: { 
+        height: 60, 
+        paddingBottom: 10, 
+        backgroundColor: '#FFF' 
+      },
+    }}>
       
+      {/* 1. TELA ESQUERDA (Dashboard) -> Vira "CARTEIRA" */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Carteira',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Carteira', // Mudado de 'Resumo' para 'Carteira'
+          tabBarIcon: ({ color }) => <FontAwesome name="money" size={24} color={color} />,
         }}
       />
 
+      {/* 2. TELA DO MEIO (Arquivo resumo.tsx) -> Vira "RESUMO" */}
       <Tabs.Screen
         name="resumo"
         options={{
           title: 'Resumo',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+          tabBarIcon: ({ color }) => <FontAwesome name="bar-chart" size={24} color={color} />,
         }}
       />
 
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Config',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
-        }}
-      />
+      {/* --- ITENS REMOVIDOS --- */}
+
+      {/* Remove o Explore */}
+      <Tabs.Screen name="explore" options={{ href: null }} />
+
+      {/* Garante que outros não apareçam */}
+      <Tabs.Screen name="financeiro" options={{ href: null }} />
+      <Tabs.Screen name="auth" options={{ href: null }} />
+      <Tabs.Screen name="modal" options={{ href: null }} />
+      <Tabs.Screen name="tabs" options={{ href: null }} />
+      <Tabs.Screen name="(tabs)" options={{ href: null }} />
+
     </Tabs>
   );
 }

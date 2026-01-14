@@ -82,17 +82,32 @@ export function useClientes() {
   };
 
   const calcularTotais = () => {
-    let capitalTotal = 0, lucro = 0, multas = 0;
+    let capitalTotal = 0, lucro = 0, multas = 0, vendas = 0;
+
     clientes.forEach(cli => {
       (cli.contratos || []).forEach(con => {
+        // Soma capital se estiver ativo/parcelado
         if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
           capitalTotal += (con.capital || 0);
         }
-        lucro += (con.lucroTotal || 0);
+
+        // Soma multas (geral)
         multas += (con.multasPagas || 0);
+
+        // SEPARAÇÃO: Venda vs Empréstimo
+        if (con.frequencia === 'PARCELADO') {
+            // É VENDA: Soma o total recebido das parcelas (Principal + Juros)
+            // Não soma no 'lucro' para não misturar
+            const recebidoVenda = (con.parcelasPagas || 0) * (con.valorParcela || 0);
+            vendas += recebidoVenda;
+        } else {
+            // É EMPRÉSTIMO (Mensal, Semanal, Diário): Soma apenas o lucro (juros pagos)
+            lucro += (con.lucroTotal || 0);
+        }
       });
     });
-    return { capital: capitalTotal, lucro, multas };
+
+    return { capital: capitalTotal, lucro, multas, vendas };
   };
 
   // --- AÇÕES ---

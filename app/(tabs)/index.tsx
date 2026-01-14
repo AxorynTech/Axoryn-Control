@@ -1,6 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 import { BarraPesquisa } from '../../components/BarraPesquisa';
 import Dashboard from '../../components/Dashboard';
@@ -87,48 +96,60 @@ export default function VertoApp() {
 
   return (
     <View style={styles.container}>
-      {/* TOPO ÚNICO (Contém Logo e Botão Sair) */}
       <Topo dados={clientes} />
-      
       <MenuAbas abaAtual={aba} setAba={setAba} />
 
-      <ScrollView 
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchData} />}
+      {/* MUDANÇA AQUI: behavior='height' para Android */}
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 30}
       >
-        {aba === 'carteira' && (
-          <>
-            <Dashboard capital={totais.capital} lucro={totais.lucro} multas={totais.multas} />
-            
-            <TouchableOpacity style={styles.btnRelatorio} onPress={() => setModalRelatorio(true)}>
-              <Ionicons name="stats-chart" size={20} color="#2C3E50" style={{ marginRight: 8 }} />
-              <Text style={{ fontWeight: 'bold', color: '#2C3E50' }}>Gerar Relatório Financeiro</Text>
-            </TouchableOpacity>
-
-            <BarraPesquisa texto={textoBusca} aoDigitar={setTextoBusca} />
-
-            {clientesFiltrados.map((cli: any, i: number) => (
-              <PastaCliente 
-                key={i}
-                cliente={cli}
-                expandido={pastasAbertas[cli.nome]}
-                aoExpandir={() => setPastasAbertas({...pastasAbertas, [cli.nome]: !pastasAbertas[cli.nome]})}
-                aoNovoEmprestimo={() => setModalNovoEmprestimo({visivel:true, clientePreSelecionado: cli.nome})}
-                aoEditarCliente={() => abrirEdicaoCliente(cli)}
-                aoExcluirCliente={() => excluirCliente(cli.nome)}
-                aoEditarContrato={(con) => abrirEdicaoContrato(con, cli.nome)}
-                aoExcluirContrato={(conId) => excluirContrato(conId)}
-                aoRenovarOuQuitar={(tipo, con) => setModalAcao({visivel:true, tipo, contrato:con, cliente:cli.nome})}
-                aoNegociar={(con) => setModalParcelamento({visivel:true, contrato:con, cliente:cli.nome})}
-                aoPagarParcela={(con) => setModalPagarParcela({visivel:true, contrato:con, clienteNome:cli.nome})}
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchData} />}
+          keyboardShouldPersistTaps="handled"
+        >
+          {aba === 'carteira' && (
+            <>
+              <Dashboard 
+                capital={totais.capital} 
+                lucro={totais.lucro} 
+                multas={totais.multas} 
+                vendas={totais.vendas} 
               />
-            ))}
-          </>
-        )}
+              
+              <TouchableOpacity style={styles.btnRelatorio} onPress={() => setModalRelatorio(true)}>
+                <Ionicons name="stats-chart" size={20} color="#2C3E50" style={{ marginRight: 8 }} />
+                <Text style={{ fontWeight: 'bold', color: '#2C3E50' }}>Gerar Relatório Financeiro</Text>
+              </TouchableOpacity>
 
-        {aba === 'cadastro' && <TelaCadastro aoSalvar={salvarNovoCliente} />}
-        {aba === 'cobranca' && <ListaCobranca clientes={clientes} />}
-      </ScrollView>
+              <BarraPesquisa texto={textoBusca} aoDigitar={setTextoBusca} />
+
+              {clientesFiltrados.map((cli: any, i: number) => (
+                <PastaCliente 
+                  key={i}
+                  cliente={cli}
+                  expandido={pastasAbertas[cli.nome]}
+                  aoExpandir={() => setPastasAbertas({...pastasAbertas, [cli.nome]: !pastasAbertas[cli.nome]})}
+                  aoNovoEmprestimo={() => setModalNovoEmprestimo({visivel:true, clientePreSelecionado: cli.nome})}
+                  aoEditarCliente={() => abrirEdicaoCliente(cli)}
+                  aoExcluirCliente={() => excluirCliente(cli.nome)}
+                  aoEditarContrato={(con) => abrirEdicaoContrato(con, cli.nome)}
+                  aoExcluirContrato={(conId) => excluirContrato(conId)}
+                  aoRenovarOuQuitar={(tipo, con) => setModalAcao({visivel:true, tipo, contrato:con, cliente:cli.nome})}
+                  aoNegociar={(con) => setModalParcelamento({visivel:true, contrato:con, cliente:cli.nome})}
+                  aoPagarParcela={(con) => setModalPagarParcela({visivel:true, contrato:con, clienteNome:cli.nome})}
+                />
+              ))}
+            </>
+          )}
+
+          {aba === 'cadastro' && <TelaCadastro aoSalvar={salvarNovoCliente} />}
+          {aba === 'cobranca' && <ListaCobranca clientes={clientes} />}
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* MODAIS */}
       <ModalNovoEmprestimo 

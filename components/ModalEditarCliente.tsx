@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Props = {
   visivel: boolean;
@@ -35,47 +35,65 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
   };
 
   return (
-    <Modal visible={visivel} transparent animationType="slide" onRequestClose={fechar}>
-      <View style={styles.mF}>
+    <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar}>
+      {/* Container principal com KeyboardAvoidingView */}
+      <KeyboardAvoidingView 
+        style={styles.mF} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.mC}>
-          <Text style={styles.mT}>{clienteOriginal ? "Editar Cliente" : "Novo Cliente"}</Text>
-          
-          <TextInput placeholder="Nome Completo" placeholderTextColor="#999" style={styles.input} value={nome} onChangeText={setNome} />
-          
-          <Text style={{fontWeight:'bold', marginBottom:5, color:'#555'}}>Segmento:</Text>
-          <View style={styles.rowSeg}>
-             <TouchableOpacity onPress={() => setSegmento('EMPRESTIMO')} style={[styles.btnSeg, segmento === 'EMPRESTIMO' && styles.btnSegAtivo]}>
-               <Text style={[styles.txtSeg, segmento === 'EMPRESTIMO' && styles.txtSegAtivo]}>Empréstimo</Text>
-             </TouchableOpacity>
-             <TouchableOpacity onPress={() => setSegmento('VENDA')} style={[styles.btnSeg, segmento === 'VENDA' && styles.btnSegAtivo]}>
-               <Text style={[styles.txtSeg, segmento === 'VENDA' && styles.txtSegAtivo]}>Venda</Text>
-             </TouchableOpacity>
-             <TouchableOpacity onPress={() => setSegmento('AMBOS')} style={[styles.btnSeg, segmento === 'AMBOS' && styles.btnSegAtivo]}>
-               <Text style={[styles.txtSeg, segmento === 'AMBOS' && styles.txtSegAtivo]}>Ambos</Text>
-             </TouchableOpacity>
-          </View>
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.mT}>{clienteOriginal ? "Editar Cliente" : "Novo Cliente"}</Text>
+            
+            <TextInput placeholder="Nome Completo" placeholderTextColor="#999" style={styles.input} value={nome} onChangeText={setNome} />
+            
+            <Text style={{fontWeight:'bold', marginBottom:5, color:'#555'}}>Segmento:</Text>
+            <View style={styles.rowSeg}>
+               <TouchableOpacity onPress={() => setSegmento('EMPRESTIMO')} style={[styles.btnSeg, segmento === 'EMPRESTIMO' && styles.btnSegAtivo]}>
+                 <Text style={[styles.txtSeg, segmento === 'EMPRESTIMO' && styles.txtSegAtivo]}>Empréstimo</Text>
+               </TouchableOpacity>
+               <TouchableOpacity onPress={() => setSegmento('VENDA')} style={[styles.btnSeg, segmento === 'VENDA' && styles.btnSegAtivo]}>
+                 <Text style={[styles.txtSeg, segmento === 'VENDA' && styles.txtSegAtivo]}>Venda</Text>
+               </TouchableOpacity>
+               <TouchableOpacity onPress={() => setSegmento('AMBOS')} style={[styles.btnSeg, segmento === 'AMBOS' && styles.btnSegAtivo]}>
+                 <Text style={[styles.txtSeg, segmento === 'AMBOS' && styles.txtSegAtivo]}>Ambos</Text>
+               </TouchableOpacity>
+            </View>
 
-          <TextInput placeholder="WhatsApp (Só números)" placeholderTextColor="#999" style={styles.input} value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" />
-          <TextInput placeholder="Endereço" placeholderTextColor="#999" style={styles.input} value={endereco} onChangeText={setEndereco} />
-          <TextInput placeholder="Indicação (Opcional)" placeholderTextColor="#999" style={styles.input} value={indicacao} onChangeText={setIndicacao} />
-          <TextInput placeholder="Reputação" placeholderTextColor="#999" style={styles.input} value={reputacao} onChangeText={setReputacao} />
-          
-          <TouchableOpacity style={styles.btnP} onPress={handleSalvar}>
-            <Text style={styles.btnTxt}>SALVAR MUDANÇAS</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={fechar} style={styles.btnCancel}>
-            <Text style={{color:'#999'}}>Cancelar</Text>
-          </TouchableOpacity>
+            <TextInput placeholder="WhatsApp (Só números)" placeholderTextColor="#999" style={styles.input} value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" />
+            <TextInput placeholder="Endereço" placeholderTextColor="#999" style={styles.input} value={endereco} onChangeText={setEndereco} />
+            <TextInput placeholder="Indicação (Opcional)" placeholderTextColor="#999" style={styles.input} value={indicacao} onChangeText={setIndicacao} />
+            <TextInput placeholder="Reputação" placeholderTextColor="#999" style={styles.input} value={reputacao} onChangeText={setReputacao} />
+            
+            <TouchableOpacity style={styles.btnP} onPress={handleSalvar}>
+              <Text style={styles.btnTxt}>SALVAR MUDANÇAS</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={fechar} style={styles.btnCancel}>
+              <Text style={{color:'#999'}}>Cancelar</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  mF: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  mC: { backgroundColor: '#FFF', width: '85%', padding: 20, borderRadius: 15 },
+  mF: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  mC: { 
+    backgroundColor: '#FFF', 
+    width: '100%', 
+    maxWidth: 400,
+    borderRadius: 15, 
+    padding: 20,
+    maxHeight: '85%', // Limite de altura
+    flexShrink: 1, // Permite encolher se o teclado apertar
+    elevation: 5
+  },
   mT: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
   input: { backgroundColor: '#F1F3F4', padding: 12, borderRadius: 8, marginBottom: 10, color: '#333', fontSize: 16 },
   

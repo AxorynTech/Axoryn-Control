@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Props = {
   aoSalvar: (dados: any) => void;
@@ -11,7 +11,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
   const [endereco, setEndereco] = useState('');
   const [indicacao, setIndicacao] = useState('');
   const [reputacao, setReputacao] = useState('');
-  const [segmento, setSegmento] = useState('EMPRESTIMO'); // Padrão
+  const [segmento, setSegmento] = useState('EMPRESTIMO');
 
   const handleSalvar = () => {
     if (!nome.trim()) return Alert.alert("Erro", "Nome é obrigatório");
@@ -22,7 +22,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
       endereco: endereco.trim(),
       indicacao: indicacao.trim(),
       reputacao: reputacao.trim(),
-      segmento // Passa o segmento escolhido
+      segmento
     });
 
     setNome(''); setWhatsapp(''); setEndereco(''); setIndicacao(''); setReputacao(''); setSegmento('EMPRESTIMO');
@@ -30,14 +30,13 @@ export default function TelaCadastro({ aoSalvar }: Props) {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <Text style={styles.titulo}>Novo Cliente</Text>
       
       <View style={styles.form}>
         <Text style={styles.label}>Nome Completo *</Text>
         <TextInput style={styles.input} value={nome} onChangeText={setNome} placeholder="Ex: João da Silva" placeholderTextColor="#999"/>
 
-        {/* SELETOR DE SEGMENTO */}
         <Text style={styles.label}>Segmento</Text>
         <View style={styles.rowSegmento}>
            <TouchableOpacity onPress={() => setSegmento('EMPRESTIMO')} style={[styles.btnSeg, segmento === 'EMPRESTIMO' && styles.btnSegAtivo]}>
@@ -67,7 +66,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           <Text style={styles.txtBtn}>CADASTRAR CLIENTE</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -78,7 +77,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, color: '#333', marginBottom: 5, fontWeight: 'bold' },
   input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16, color: '#333', backgroundColor: '#FAFAFA' },
   
-  // Estilos do Segmento
   rowSegmento: { flexDirection: 'row', gap: 10, marginBottom: 15 },
   btnSeg: { flex: 1, padding: 10, borderRadius: 6, backgroundColor: '#F0F0F0', alignItems: 'center', borderWidth: 1, borderColor: '#DDD' },
   btnSegAtivo: { backgroundColor: '#2980B9', borderColor: '#2980B9' },
