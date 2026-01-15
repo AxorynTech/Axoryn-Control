@@ -1,15 +1,14 @@
-import * as Linking from 'expo-linking'; // <--- Importação Nova
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../services/supabase';
 
@@ -31,19 +30,20 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
     try {
       setLoading(true);
       
-      // MUDANÇA AQUI: Cria o link compatível com onde você está rodando (Expo Go ou APK)
-      const urlRedirecionamento = Linking.createURL('reset-password');
-      console.log("🔗 URL Gerada (Adicione no Supabase):", urlRedirecionamento);
+      // ✅ SEU LINK NOVO (ATUALIZADO):
+      const siteDeRecuperacao = 'https://6968364146313f00be0de080--regal-capybara-c7ac2c.netlify.app/'; 
+
+      console.log("🔗 Enviando para:", siteDeRecuperacao);
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: urlRedirecionamento,
+        redirectTo: siteDeRecuperacao,
       });
 
       if (error) throw error;
 
       Alert.alert(
-        "Verifique seu E-mail",
-        "Link enviado! \n\nIMPORTANTE: Verifique o console do seu computador e adicione a URL que apareceu lá no painel do Supabase.",
+        "E-mail Enviado",
+        "Acesse sua caixa de entrada e clique no link recebido. \n\nEle abrirá uma página web segura onde você poderá criar sua nova senha.",
         [{ text: "OK", onPress: () => { setEmail(''); fechar(); } }]
       );
     } catch (error: any) {
@@ -63,7 +63,7 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
         <View style={styles.janela}>
           <Text style={styles.titulo}>Recuperar Senha 🔒</Text>
           <Text style={styles.descricao}>
-            Digite o e-mail cadastrado e enviaremos um link para você criar uma nova senha.
+            Digite o e-mail cadastrado. Enviaremos um link para você redefinir a senha através do nosso site.
           </Text>
 
           <Text style={styles.label}>E-mail</Text>

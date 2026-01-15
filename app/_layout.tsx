@@ -11,13 +11,11 @@ export default function RootLayout() {
   const segments = useSegments();
 
   useEffect(() => {
-    // 1. Checa se já existe um usuário salvo ao abrir o app
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsMounted(true);
     });
 
-    // 2. Fica ouvindo: se alguém logar ou sair, atualiza a variável 'session'
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -25,23 +23,26 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 3. O "SEGURANÇA": Redireciona automaticamente baseado na sessão
   useEffect(() => {
     if (!isMounted) return;
 
-    // Verifica se o usuário está tentando acessar as abas ((tabs))
     const inTabsGroup = segments[0] === '(tabs)';
+    // ✅ NOVO: Verifica se estamos na tela de resetar senha
+    const inResetPassword = segments[0] === 'reset-password';
 
-    if (session && !inTabsGroup) {
-      // TEM sessão, mas está fora (na tela de login) -> Manda pra DENTRO
-      router.replace('/(tabs)');
-    } else if (!session && inTabsGroup) {
-      // NÃO TEM sessão, mas está dentro -> Manda pra FORA (Login)
-      router.replace('/auth');
+    if (session) {
+      // Se tem sessão, mas não está nas abas E nem na tela de reset
+      if (!inTabsGroup && !inResetPassword) {
+        router.replace('/(tabs)');
+      }
+    } else {
+      // Se NÃO tem sessão, e tenta acessar abas ou reset, manda pro login
+      if (inTabsGroup || inResetPassword) {
+        router.replace('/auth');
+      }
     }
   }, [session, isMounted, segments]);
 
-  // Tela de carregamento enquanto verifica a sessão inicial
   if (!isMounted) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -54,6 +55,8 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="auth" />
       <Stack.Screen name="(tabs)" />
+      {/* ✅ Adicione a tela aqui caso precise de opções específicas, mas o default já funciona */}
+      <Stack.Screen name="reset-password" /> 
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );

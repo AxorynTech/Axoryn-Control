@@ -1,5 +1,5 @@
 import * as Linking from 'expo-linking';
-import { router } from 'expo-router'; // <--- IMPORTANTE
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -13,7 +13,9 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import ModalNovaSenha from '../components/ModalNovaSenha';
+import ModalNovaSenha from '../components/ModalNovaSenha'; // Seu componente importado
+// IMPORTANTE: Importe o ModalRecuperarSenha se for usar o componente externo
+import ModalRecuperarSenha from '../components/ModalRecuperarSenha';
 import { supabase } from '../services/supabase';
 
 export default function Auth() {
@@ -25,13 +27,60 @@ export default function Auth() {
   const [modalRecuperar, setModalRecuperar] = useState(false);
   const [modalNovaSenha, setModalNovaSenha] = useState(false);
 
-  // --- Função com Timeout para evitar travamento eterno ---
+  // --- NOVO: Lógica para pegar o link de recuperação de senha ---
+  useEffect(() => {
+    // Função para tratar a URL que abriu o app
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      console.log("🔗 App aberto via link:", url);
+
+      // Verifica se é um link de reset de senha (contém o path 'reset-password' e tokens no hash)
+      if (url.includes('reset-password') && url.includes('access_token')) {
+        try {
+          // Extrai os parâmetros da hash da URL (#access_token=...&refresh_token=...)
+          // O supabase envia os tokens na hash, não na query string
+          const params = new URLSearchParams(url.split('#')[1]);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            // Cria a sessão manualmente com os tokens recebidos
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (error) throw error;
+
+            console.log("✅ Sessão de recuperação iniciada!");
+            // Abre o modal para o usuário digitar a nova senha
+            setModalNovaSenha(true);
+          }
+        } catch (error: any) {
+          console.log("Erro ao processar link de recuperação:", error.message);
+          Alert.alert("Erro", "O link de recuperação expirou ou é inválido.");
+        }
+      }
+    };
+
+    // Escuta links enquanto o app está aberto
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Checa se o app foi aberto fechado (Cold Start)
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+  // -----------------------------------------------------------
+
   const loginComTimeout = async (acao: Promise<any>) => {
-    // Cria um erro se demorar mais de 10 segundos
     const tempoLimite = new Promise((_, reject) => 
       setTimeout(() => reject(new Error("O servidor demorou para responder. Verifique sua internet.")), 10000)
     );
-    // Corrida entre o login e o tempo limite
     return Promise.race([acao, tempoLimite]);
   };
 
@@ -41,63 +90,24 @@ export default function Auth() {
     setLoading(true);
     try {
       if (isSignUp) {
-        // --- CADASTRO ---
         const { error }: any = await loginComTimeout(
           supabase.auth.signUp({ email, password })
         );
         if (error) throw error;
         Alert.alert("Sucesso", "Cadastro realizado! Verifique seu e-mail.");
       } else {
-        // --- LOGIN ---
-        console.log("Tentando logar...");
         const { error, data }: any = await loginComTimeout(
           supabase.auth.signInWithPassword({ email, password })
         );
 
-        if (error) {
-           console.log("Erro Supabase:", error.message);
-           throw error;
-        }
+        if (error) throw error;
 
-        console.log("Login OK! Usuário:", data.session?.user?.email);
-        
-        // --- FORÇA A NAVEGAÇÃO IMEDIATA ---
         if (data.session) {
            router.replace('/(tabs)'); 
-        } else {
-           throw new Error("Login pareceu funcionar, mas sem sessão.");
         }
       }
     } catch (error: any) {
-      console.log("Caiu no Catch:", error);
       Alert.alert("Atenção", error.message || "Erro desconhecido");
-    } finally {
-      // Garante que o botão destrave
-      if(mounted) setLoading(false);
-    }
-  }
-  
-  // Controle de montagem para evitar erro de estado
-  let mounted = true;
-  useEffect(() => {
-     return () => { mounted = false; };
-  }, []);
-
-  // --- (O resto do código de recuperação de senha permanece igual) ---
-  // --- MANTENHA A PARTE VISUAL ABAIXO ---
-
-  async function enviarEmailRecuperacao() {
-    try {
-      setLoading(true);
-      const urlRedirecionamento = Linking.createURL('reset-password');
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: urlRedirecionamento,
-      });
-      if (error) throw error;
-      Alert.alert("E-mail Enviado!", "Verifique sua caixa de entrada.");
-      setModalRecuperar(false);
-    } catch (e: any) {
-      Alert.alert("Erro", e.message);
     } finally {
       setLoading(false);
     }
@@ -108,7 +118,7 @@ export default function Auth() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
         <View style={styles.header}>
-          {/* Se a imagem der erro, remova temporariamente para testar */}
+           {/* Se der erro na imagem, comente a linha abaixo */}
           <Image source={require('../assets/images/icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Axoryn Control</Text>
           <Text style={styles.subtitle}>{isSignUp ? "Crie sua conta" : "Entre para continuar"}</Text>
@@ -157,42 +167,19 @@ export default function Auth() {
           </TouchableOpacity>
         </View>
 
-        <ModalRecuperarSenhaVisivel 
+        {/* Use o componente importado que você já criou */}
+        <ModalRecuperarSenha 
            visivel={modalRecuperar} 
            fechar={() => setModalRecuperar(false)} 
-           email={email} 
-           setEmail={setEmail}
-           acaoEnviar={enviarEmailRecuperacao}
         />
-        <ModalNovaSenha visivel={modalNovaSenha} fechar={() => setModalNovaSenha(false)} />
+        
+        <ModalNovaSenha 
+           visivel={modalNovaSenha} 
+           fechar={() => setModalNovaSenha(false)} 
+        />
 
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
-
-// Componente visual do modal (copie se não tiver outro arquivo)
-function ModalRecuperarSenhaVisivel({ visivel, fechar, email, setEmail, acaoEnviar }: any) {
-  if (!visivel) return null;
-  return (
-    <View style={styles.modalOverlay}>
-       <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Recuperar Senha</Text>
-          <TextInput 
-            style={styles.input} 
-            value={email} 
-            onChangeText={setEmail} 
-            placeholder="Confirme seu e-mail" 
-            autoCapitalize="none"
-          />
-          <TouchableOpacity style={styles.btnPrimary} onPress={acaoEnviar}>
-              <Text style={styles.txtPrimary}>ENVIAR LINK</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{marginTop:15}} onPress={fechar}>
-              <Text style={{color:'#999'}}>Cancelar</Text>
-          </TouchableOpacity>
-       </View>
-    </View>
   );
 }
 
@@ -213,7 +200,4 @@ const styles = StyleSheet.create({
   txtPrimary: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
   btnSecondary: { marginTop: 20, alignItems: 'center' },
   txtSecondary: { color: '#2980B9', fontSize: 15 },
-  modalOverlay: { position: 'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center', zIndex: 1000 },
-  modalCard: { width: '85%', backgroundColor:'#FFF', padding:20, borderRadius:12, alignItems:'center', elevation:5 },
-  modalTitle: { fontSize: 18, fontWeight:'bold', marginBottom:15 }
 });
