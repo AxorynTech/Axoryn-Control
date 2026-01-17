@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -13,9 +14,11 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import ModalNovaSenha from '../components/ModalNovaSenha'; // Seu componente importado
-// IMPORTANTE: Importe o ModalRecuperarSenha se for usar o componente externo
+
+// Importações dos componentes (Verifique se os arquivos existem na pasta components)
+import ModalNovaSenha from '../components/ModalNovaSenha';
 import ModalRecuperarSenha from '../components/ModalRecuperarSenha';
+import ModalTermos from '../components/ModalTermos';
 import { supabase } from '../services/supabase';
 
 export default function Auth() {
@@ -24,59 +27,52 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   
+  // States dos Modais
   const [modalRecuperar, setModalRecuperar] = useState(false);
   const [modalNovaSenha, setModalNovaSenha] = useState(false);
+  
+  // States para os Termos
+  const [termosAceitos, setTermosAceitos] = useState(false);
+  const [modalTermosVisivel, setModalTermosVisivel] = useState(false);
 
-  // --- NOVO: Lógica para pegar o link de recuperação de senha ---
+  // --- Lógica de Deep Link para Recuperação de Senha ---
   useEffect(() => {
-    // Função para tratar a URL que abriu o app
     const handleDeepLink = async (event: { url: string }) => {
       const url = event.url;
       console.log("🔗 App aberto via link:", url);
 
-      // Verifica se é um link de reset de senha (contém o path 'reset-password' e tokens no hash)
-      if (url.includes('reset-password') && url.includes('access_token')) {
+      // Verifica se é link de reset (tem access_token e refresh_token na URL)
+      if (url.includes('access_token') && url.includes('refresh_token')) {
         try {
-          // Extrai os parâmetros da hash da URL (#access_token=...&refresh_token=...)
-          // O supabase envia os tokens na hash, não na query string
+          // Extrai tokens da hash URL
           const params = new URLSearchParams(url.split('#')[1]);
           const accessToken = params.get('access_token');
           const refreshToken = params.get('refresh_token');
 
           if (accessToken && refreshToken) {
-            // Cria a sessão manualmente com os tokens recebidos
             const { error } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
-
             if (error) throw error;
-
             console.log("✅ Sessão de recuperação iniciada!");
-            // Abre o modal para o usuário digitar a nova senha
             setModalNovaSenha(true);
           }
         } catch (error: any) {
-          console.log("Erro ao processar link de recuperação:", error.message);
+          console.log("Erro ao processar link:", error.message);
           Alert.alert("Erro", "O link de recuperação expirou ou é inválido.");
         }
       }
     };
 
-    // Escuta links enquanto o app está aberto
     const subscription = Linking.addEventListener('url', handleDeepLink);
-
-    // Checa se o app foi aberto fechado (Cold Start)
     Linking.getInitialURL().then((url) => {
       if (url) handleDeepLink({ url });
     });
-
-    return () => {
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, []);
-  // -----------------------------------------------------------
 
+  // Helper para timeout
   const loginComTimeout = async (acao: Promise<any>) => {
     const tempoLimite = new Promise((_, reject) => 
       setTimeout(() => reject(new Error("O servidor demorou para responder. Verifique sua internet.")), 10000)
@@ -87,21 +83,26 @@ export default function Auth() {
   async function handleAuth() {
     if (!email || !password) return Alert.alert("Erro", "Preencha e-mail e senha.");
     
+    // --- VALIDAÇÃO DE TERMOS (Apenas no Cadastro) ---
+    if (isSignUp && !termosAceitos) {
+      return Alert.alert("Atenção", "Você precisa ler e aceitar os Termos de Uso para se cadastrar.");
+    }
+
     setLoading(true);
     try {
       if (isSignUp) {
+        // Fluxo de Cadastro
         const { error }: any = await loginComTimeout(
           supabase.auth.signUp({ email, password })
         );
         if (error) throw error;
         Alert.alert("Sucesso", "Cadastro realizado! Verifique seu e-mail.");
       } else {
+        // Fluxo de Login
         const { error, data }: any = await loginComTimeout(
           supabase.auth.signInWithPassword({ email, password })
         );
-
         if (error) throw error;
-
         if (data.session) {
            router.replace('/(tabs)'); 
         }
@@ -118,7 +119,6 @@ export default function Auth() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
         <View style={styles.header}>
-           {/* Se der erro na imagem, comente a linha abaixo */}
           <Image source={require('../assets/images/app-icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Axoryn Control</Text>
           <Text style={styles.subtitle}>{isSignUp ? "Crie sua conta" : "Entre para continuar"}</Text>
@@ -150,6 +150,28 @@ export default function Auth() {
             </TouchableOpacity>
           )}
 
+          {/* --- CHECKBOX DOS TERMOS (Apenas no Cadastro) --- */}
+          {isSignUp && (
+            <View style={styles.termosContainer}>
+              <TouchableOpacity 
+                style={styles.checkbox} 
+                onPress={() => setTermosAceitos(!termosAceitos)}
+              >
+                <Ionicons 
+                  name={termosAceitos ? "checkbox" : "square-outline"} 
+                  size={24} 
+                  color={termosAceitos ? "#27AE60" : "#888"} 
+                />
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={() => setModalTermosVisivel(true)}>
+                <Text style={styles.termosTexto}>
+                  Li e concordo com os <Text style={styles.linkTermos}>Termos de Uso</Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <TouchableOpacity 
             style={[styles.btnPrimary, loading && styles.btnDisabled]} 
             onPress={handleAuth} 
@@ -167,7 +189,7 @@ export default function Auth() {
           </TouchableOpacity>
         </View>
 
-        {/* Use o componente importado que você já criou */}
+        {/* --- MODAIS --- */}
         <ModalRecuperarSenha 
            visivel={modalRecuperar} 
            fechar={() => setModalRecuperar(false)} 
@@ -176,6 +198,15 @@ export default function Auth() {
         <ModalNovaSenha 
            visivel={modalNovaSenha} 
            fechar={() => setModalNovaSenha(false)} 
+        />
+
+        <ModalTermos 
+          visivel={modalTermosVisivel} 
+          fechar={() => setModalTermosVisivel(false)}
+          aceitar={() => {
+            setTermosAceitos(true);
+            setModalTermosVisivel(false);
+          }}
         />
 
       </ScrollView>
@@ -200,4 +231,25 @@ const styles = StyleSheet.create({
   txtPrimary: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
   btnSecondary: { marginTop: 20, alignItems: 'center' },
   txtSecondary: { color: '#2980B9', fontSize: 15 },
+  
+  // Estilos Termos
+  termosContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 5,
+  },
+  checkbox: {
+    marginRight: 10,
+  },
+  termosTexto: {
+    color: '#333',
+    fontSize: 14,
+    flexShrink: 1,
+  },
+  linkTermos: {
+    color: '#2980B9',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
 });

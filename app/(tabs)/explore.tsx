@@ -5,7 +5,8 @@ import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
 import { supabase } from '@/services/supabase';
-import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons'; // Importação adicionada para o ícone
+import { Alert, Linking, StyleSheet, TouchableOpacity, View } from 'react-native'; // Linking adicionado
 
 export default function TabTwoScreen() {
 
@@ -38,6 +39,18 @@ export default function TabTwoScreen() {
     );
   };
 
+  // Função para abrir o WhatsApp
+  const handleSuporte = () => {
+    const telefone = "5515991189779"; // SUBSTITUA PELO SEU NÚMERO REAL
+    const mensagem = "Olá, preciso de ajuda com o Axoryn Control.";
+    
+    const url = `https://wa.me/${telefone}?text=${encodeURIComponent(mensagem)}`;
+    
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Erro", "Não foi possível abrir o WhatsApp.");
+    });
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
@@ -57,6 +70,12 @@ export default function TabTwoScreen() {
       </ThemedView>
 
       <View style={styles.contentContainer}>
+        {/* Botão de Suporte WhatsApp */}
+        <TouchableOpacity style={styles.btnWhatsapp} onPress={handleSuporte}>
+          <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
+          <ThemedText style={styles.txtWhatsapp}>Falar com Suporte</ThemedText>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.btnLogout} onPress={handleSair}>
           <IconSymbol name="arrow.right.square" size={20} color="#333" />
           <ThemedText style={styles.txtLogout}>Sair da Conta</ThemedText>
@@ -75,6 +94,19 @@ const styles = StyleSheet.create({
   headerImage: { color: '#808080', bottom: -90, left: -35, position: 'absolute' },
   titleContainer: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   contentContainer: { marginTop: 20, gap: 15 },
+  
+  // Estilos do WhatsApp
+  btnWhatsapp: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#25D366', 
+    padding: 15, 
+    borderRadius: 10, 
+    gap: 10,
+    marginBottom: 5 
+  },
+  txtWhatsapp: { fontSize: 16, fontWeight: 'bold', color: '#FFF' },
+
   btnLogout: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E0E0E0', padding: 15, borderRadius: 10, gap: 10 },
   txtLogout: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   btnDelete: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FF3B30', padding: 15, borderRadius: 10, gap: 10, justifyContent: 'center' },

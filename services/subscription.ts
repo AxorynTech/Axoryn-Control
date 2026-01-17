@@ -18,6 +18,13 @@ export const verificarAcesso = async () => {
       // Se der erro (ex: perfil não criado), vamos assumir que é usuário novo e liberar pelo teste
     }
 
+    // --- NOVA REGRA: ACESSO VIP / PARCEIRO (Adicionada) ---
+    // Se o status for 'vitalicio', libera direto sem checar data
+    if (profile?.status_assinatura === 'vitalicio') { //
+      console.log("Acesso LIBERADO: Usuário Parceiro/Vitalício 👑");
+      return true;
+    }
+
     // --- REGRA 1: Assinatura Paga e Valida ---
     // Se o status for 'ativo' e a data de fim for no futuro
     if (profile?.status_assinatura === 'ativo' && profile?.data_fim_assinatura) {
@@ -39,12 +46,12 @@ export const verificarAcesso = async () => {
     const diferencaEmTempo = hoje.getTime() - dataCriacao.getTime();
     const diasDeUso = diferencaEmTempo / (1000 * 3600 * 24);
 
-    if (diasDeUso <= 7) {
+    if (diasDeUso <= 0) {
       console.log(`Acesso LIBERADO: Período de teste (${Math.floor(diasDeUso)} dias usados) 🎁`);
       return true;
     }
 
-    // Se chegou aqui: Não pagou E passou de 7 dias
+    // Se chegou aqui: Não é vitalício, não pagou e passou de 7 dias
     console.log("Acesso NEGADO: Teste acabou e não tem assinatura ❌");
     return false;
 
