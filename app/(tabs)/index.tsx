@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -28,7 +28,9 @@ import ModalParcelamento from '../../components/ModalParcelamento';
 import ModalRelatorio from '../../components/ModalRelatorio';
 
 import { useClientes } from '../../hooks/useClientes';
-import { verificarNotificacoes } from '../../services/NotificacaoService';
+
+// TESTE DE ISOLAMENTO: Comentando o serviço de notificação para o app não crashar
+// import { verificarNotificacoes } from '../../services/NotificacaoService';
 
 export default function VertoApp() {
   const { 
@@ -54,9 +56,11 @@ export default function VertoApp() {
   const [clienteEditandoNome, setClienteEditandoNome] = useState<any>(null);
   const [contratoSendoEditado, setContratoSendoEditado] = useState<any>(null);
 
-  useEffect(() => {
-    if (clientes.length > 0) verificarNotificacoes(clientes);
-  }, [clientes]);
+  // TESTE DE ISOLAMENTO: Comentando o useEffect da notificação
+  // useEffect(() => {
+  //   if (clientes.length > 0) verificarNotificacoes(clientes);
+  //   // registrarTokenPush(); <--- Se existisse essa função aqui, também estaria desligada
+  // }, [clientes]);
 
   const clientesFiltrados = clientes.filter((cli: any) => 
     cli.nome.toLowerCase().includes(textoBusca.toLowerCase())
