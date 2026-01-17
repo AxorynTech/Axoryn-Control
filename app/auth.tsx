@@ -119,7 +119,7 @@ export default function Auth() {
         
         <View style={styles.header}>
            {/* Se der erro na imagem, comente a linha abaixo */}
-          <Image source={require('../assets/images/icon.png')} style={styles.logo} resizeMode="contain" />
+          <Image source={require('../assets/images/app-icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Axoryn Control</Text>
           <Text style={styles.subtitle}>{isSignUp ? "Crie sua conta" : "Entre para continuar"}</Text>
         </View>
