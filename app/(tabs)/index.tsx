@@ -13,8 +13,12 @@ import {
   View
 } from 'react-native';
 
+// ✅ NOVOS IMPORTS PARA O TOKEN
+import { supabase } from '@/services/supabase';
+import * as Notifications from 'expo-notifications';
+
 // Serviços
-import { verificarNotificacoes } from '@/services/NotificacaoService'; // ✅ (1) Import Recolocado
+import { verificarNotificacoes } from '@/services/NotificacaoService';
 import { verificarAcesso } from '@/services/subscription';
 
 // Componentes
@@ -55,6 +59,42 @@ export default function VertoApp() {
   const [pastasAbertas, setPastasAbertas] = useState<any>({});
   const [textoBusca, setTextoBusca] = useState('');
 
+  // --- ✅ NOVA FUNÇÃO: SALVAR TOKEN NO SUPABASE ---
+  async function registrarTokenDeNotificacao() {
+    try {
+      // 1. Pede permissão para notificações
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log("Permissão de notificação negada.");
+        return;
+      }
+
+      // 2. Pega o token do dispositivo
+      const tokenData = await Notifications.getExpoPushTokenAsync();
+      const token = tokenData.data;
+      console.log("📍 Token do dispositivo:", token);
+
+      // 3. Pega o usuário logado
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user && token) {
+        // 4. Salva na tabela 'profiles' (na coluna nova 'expo_token')
+        const { error } = await supabase
+          .from('profiles')
+          .update({ expo_token: token })
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error("❌ Erro ao salvar token no Supabase:", error.message);
+        } else {
+          console.log("✅ Token vinculado ao usuário com sucesso!");
+        }
+      }
+    } catch (error) {
+      console.log("Erro no registro de notificação:", error);
+    }
+  }
+
   // --- 1. LÓGICA DE PROTEÇÃO (Paywall) ---
   useEffect(() => {
     let isMounted = true;
@@ -83,14 +123,19 @@ export default function VertoApp() {
     return () => { isMounted = false; };
   }, []);
 
-  // --- 2. NOTIFICAÇÕES (✅ Religado!) ---
+  // --- 2. NOTIFICAÇÕES & TOKEN (✅ Atualizado!) ---
   useEffect(() => {
-    // Só chama o Firebase se o usuário já passou pelo Paywall e tem clientes carregados
-    if (acessoLiberado && clientes.length > 0) {
-      console.log("Verificando notificações automáticas...");
-      verificarNotificacoes(clientes);
+    if (acessoLiberado) {
+      // 1. Salva o token no servidor para as notificações automáticas (Edge Functions)
+      registrarTokenDeNotificacao();
+
+      // 2. Verifica notificações locais (caso o servidor falhe ou para feedback imediato)
+      if (clientes.length > 0) {
+        console.log("Verificando notificações locais...");
+        verificarNotificacoes(clientes);
+      }
     }
-  }, [clientes, acessoLiberado]);
+  }, [acessoLiberado, clientes]);
 
   // Modais State
   const [modalNovoEmprestimo, setModalNovoEmprestimo] = useState({ visivel: false, clientePreSelecionado: '' });
