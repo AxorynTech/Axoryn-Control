@@ -2,6 +2,7 @@
   "expo": {
     "name": "Axoryn Control",
     "slug": "axoryn-control",
+    "owner": "NOME_DA_SUA_NOVA_CONTA",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
