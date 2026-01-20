@@ -59,7 +59,7 @@ export default function VertoApp() {
   const [pastasAbertas, setPastasAbertas] = useState<any>({});
   const [textoBusca, setTextoBusca] = useState('');
 
-  // --- ✅ NOVA FUNÇÃO: SALVAR TOKEN NO SUPABASE ---
+  // --- ✅ FUNÇÃO: SALVAR TOKEN NO SUPABASE ---
   async function registrarTokenDeNotificacao() {
     try {
       // 1. Pede permissão para notificações
@@ -78,7 +78,7 @@ export default function VertoApp() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user && token) {
-        // 4. Salva na tabela 'profiles' (na coluna nova 'expo_token')
+        // 4. Salva na tabela 'profiles'
         const { error } = await supabase
           .from('profiles')
           .update({ expo_token: token })
@@ -123,19 +123,62 @@ export default function VertoApp() {
     return () => { isMounted = false; };
   }, []);
 
-  // --- 2. NOTIFICAÇÕES & TOKEN (✅ Atualizado!) ---
+  // --- 2. NOTIFICAÇÕES & TOKEN ---
   useEffect(() => {
     if (acessoLiberado) {
-      // 1. Salva o token no servidor para as notificações automáticas (Edge Functions)
+      // 1. Salva o token no servidor
       registrarTokenDeNotificacao();
 
-      // 2. Verifica notificações locais (caso o servidor falhe ou para feedback imediato)
+      // 2. Verifica notificações locais
       if (clientes.length > 0) {
         console.log("Verificando notificações locais...");
         verificarNotificacoes(clientes);
       }
     }
   }, [acessoLiberado, clientes]);
+
+  // --- 3. ✅ ATIVAÇÃO DO REALTIME (ATUALIZADO PARA DUAS TABELAS) ---
+  useEffect(() => {
+    if (!acessoLiberado) return;
+
+    console.log("📡 Conectando ao Realtime do Supabase (Contratos e Clientes)...");
+
+    // Cria o canal para escutar o banco de dados
+    const canalRealtime = supabase
+      .channel('atualizacao-global')
+      // 1. Escuta mudanças na tabela CONTRATOS (Pagamentos, empréstimos, etc)
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'contratos' 
+        }, 
+        (payload) => {
+          console.log('🔄 Mudança em CONTRATOS detectada! Atualizando...', payload);
+          fetchData(); 
+        }
+      )
+      // 2. Escuta mudanças na tabela CLIENTES (Novos cadastros, edições)
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'clientes' 
+        }, 
+        (payload) => {
+          console.log('👤 Mudança em CLIENTES detectada! Atualizando...', payload);
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    // Limpa a conexão ao sair da tela
+    return () => {
+      supabase.removeChannel(canalRealtime);
+    };
+  }, [acessoLiberado]); 
 
   // Modais State
   const [modalNovoEmprestimo, setModalNovoEmprestimo] = useState({ visivel: false, clientePreSelecionado: '' });

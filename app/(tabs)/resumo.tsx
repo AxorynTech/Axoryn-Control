@@ -1,20 +1,49 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useClientes } from '@/hooks/useClientes';
-// FIX: Importação correta para evitar erros
+import { supabase } from '@/services/supabase'; // <--- IMPORTADO
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react'; // <--- useEffect adicionado
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ResumoScreen() {
-  const { clientes } = useClientes();
+  // Agora desestruturamos o fetchData também
+  const { clientes, fetchData } = useClientes(); 
   const [totais, setTotais] = useState({ dia: 0, semana: 0, mes: 0 });
   const [historicoRecente, setHistoricoRecente] = useState<any[]>([]);
 
+  // Atualiza os cálculos locais sempre que a lista de 'clientes' mudar
+  useEffect(() => {
+    calcularFinancas();
+  }, [clientes]);
+
+  // Recarrega dados do banco ao entrar na tela (Foco)
   useFocusEffect(
     useCallback(() => {
-      calcularFinancas();
-    }, [clientes])
+      fetchData();
+    }, [])
   );
+
+  // --- ✅ NOVO: REALTIME NO RESUMO ---
+  useEffect(() => {
+    console.log("📊 Iniciando Realtime na tela de Resumo...");
+    
+    const canalResumo = supabase
+      .channel('atualizacao-resumo')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'contratos' }, // Monitora pagamentos/emprestimos
+        (payload) => {
+          console.log('💰 Pagamento/Alteração detectada! Atualizando Resumo...', payload);
+          fetchData(); // Busca os dados atualizados do Supabase
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalResumo);
+    };
+  }, []);
+  // --------------------------------
 
   const calcularFinancas = () => {
     let somaDia = 0;
