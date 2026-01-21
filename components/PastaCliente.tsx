@@ -39,12 +39,37 @@ export default function PastaCliente({
     setHistoricoVisivel(true);
   };
 
-  // --- FUNÇÃO DE PDF COMPLETA E BONITA (RESTAURADA) ---
+  // --- FUNÇÃO DE PDF PROFISSIONAL (ATUALIZADA) ---
   const gerarPDF = async (con: Contrato) => {
     try {
-      const linhasHistorico = (con.movimentacoes || []).map(m => `
-        <tr><td style="padding: 10px; border-bottom: 1px solid #ddd; color: #555;">${m}</td></tr>
+      // Data de hoje para o cabeçalho
+      const dataEmissao = new Date().toLocaleDateString('pt-BR');
+      
+      // Define se é Venda ou Empréstimo para o label
+      const isVenda = con.frequencia === 'PARCELADO' || (con.garantia && con.garantia.startsWith('PRODUTO:'));
+      const labelGarantia = isVenda ? '📦 Produto/Serviço' : '🔐 Garantia';
+      const textoGarantia = con.garantia ? con.garantia.replace('PRODUTO:', '').trim() : 'Não informada';
+
+      // Monta as linhas do histórico com visual zebrado
+      const linhasHistorico = (con.movimentacoes || []).map((m, index) => `
+        <tr style="background-color: ${index % 2 === 0 ? '#fff' : '#f9f9f9'}">
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #555; font-size: 12px;">${m}</td>
+        </tr>
       `).join('');
+
+      // Informações Condicionais (Parcelamento vs Juros)
+      let infoExtra = '';
+      if (con.status === 'PARCELADO') {
+        infoExtra = `
+          <div class="item"><span>Parcelas:</span> <b>${con.parcelasPagas}/${con.totalParcelas}</b></div>
+          <div class="item"><span>Valor Parcela:</span> <b>R$ ${(con.valorParcela || 0).toFixed(2)}</b></div>
+        `;
+      } else {
+        infoExtra = `
+          <div class="item"><span>Taxa de Juros:</span> <b>${con.taxa}%</b></div>
+          <div class="item"><span>Multa Diária:</span> <b>R$ ${(con.valorMultaDiaria || 0).toFixed(2)}</b></div>
+        `;
+      }
 
       const html = `
         <html>
@@ -52,26 +77,92 @@ export default function PastaCliente({
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <style>
-              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 30px; color: #333; }
-              .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2980B9; padding-bottom: 15px; }
-              .title { font-size: 24px; font-weight: bold; color: #2C3E50; margin: 0; }
-              .box { background-color: #F4F6F7; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #E5E8E8; }
-              .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
+              
+              /* Cabeçalho */
+              .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2980B9; padding-bottom: 10px; margin-bottom: 20px; }
+              .brand { font-size: 24px; font-weight: bold; color: #2C3E50; }
+              .meta { text-align: right; font-size: 10px; color: #7F8C8D; }
+              
+              /* Título */
+              h2 { color: #2980B9; margin-bottom: 5px; margin-top: 0; font-size: 18px; }
+              
+              /* Grid de Informações */
+              .grid-container { display: flex; gap: 20px; margin-bottom: 20px; }
+              .box { flex: 1; background-color: #F4F6F7; padding: 15px; border-radius: 6px; border: 1px solid #E5E8E8; }
+              
+              .label { font-size: 10px; color: #7F8C8D; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
+              .value { font-size: 14px; color: #2C3E50; font-weight: bold; margin-bottom: 8px; display: block; }
+              
+              .row-items { display: flex; flex-wrap: wrap; gap: 15px; }
+              .item { flex: 1; min-width: 45%; font-size: 12px; margin-bottom: 4px; }
+              .item span { color: #7f8c8d; }
+              
+              /* Tabela */
+              h3 { border-left: 4px solid #E67E22; padding-left: 10px; font-size: 16px; color: #2C3E50; margin-top: 30px; }
               table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-              .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #BDC3C7; border-top: 1px solid #EEE; padding-top: 10px; }
+              th { text-align: left; background-color: #EEE; padding: 8px; font-size: 12px; }
+              
+              /* Footer */
+              .footer { margin-top: 50px; text-align: center; font-size: 9px; color: #BDC3C7; border-top: 1px solid #EEE; padding-top: 10px; }
             </style>
           </head>
           <body>
-            <div class="header"><h1 class="title">Extrato Financeiro - Axoryn</h1></div>
-            <div class="box">
-              <h3>👤 ${cliente.nome}</h3>
-              <div class="row"><span>Status:</span> <b>${con.status}</b></div>
-              <div class="row"><span>Valor Original:</span> <b>R$ ${con.capital.toFixed(2)}</b></div>
-              <div class="row"><span>Lucro Gerado:</span> <b style="color:#2980B9">R$ ${(con.lucroTotal || 0).toFixed(2)}</b></div>
+          
+            <div class="header">
+              <div class="brand">Axoryn Control</div>
+              <div class="meta">
+                EMISSÃO: ${dataEmissao}<br/>
+                CONTRATO Nº: <b>${con.id}</b>
+              </div>
             </div>
-            <h3>Histórico Completo</h3>
-            <table>${linhasHistorico}</table>
-            <div class="footer">Gerado por Axoryn Control</div>
+
+            <div class="grid-container">
+              <div class="box">
+                <div class="label">CLIENTE</div>
+                <span class="value">${cliente.nome}</span>
+                <div class="item"><span>WhatsApp:</span> ${cliente.whatsapp || '-'}</div>
+                <div class="item"><span>Endereço:</span> ${cliente.endereco || '-'}</div>
+              </div>
+
+              <div class="box">
+                <div class="label">RESUMO FINANCEIRO</div>
+                <div class="row-items">
+                  <div class="item"><span>Status:</span> <b>${con.status}</b></div>
+                  <div class="item"><span>Frequência:</span> <b>${con.frequencia}</b></div>
+                  <div class="item"><span>Início:</span> ${con.dataInicio || '-'}</div>
+                  <div class="item"><span>Vencimento:</span> <b style="color:#C0392B">${con.proximoVencimento}</b></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="box" style="background-color: #FFF; border: 2px solid #F0F2F5;">
+               <div class="row-items">
+                  <div class="item" style="font-size:14px"><span>Valor Principal:</span> <b style="color:#27AE60">R$ ${con.capital.toFixed(2)}</b></div>
+                  <div class="item" style="font-size:14px"><span>Lucro/Juros Recebidos:</span> <b style="color:#2980B9">R$ ${(con.lucroTotal || 0).toFixed(2)}</b></div>
+               </div>
+               <hr style="border:0; border-top:1px solid #eee; margin: 10px 0;"/>
+               <div class="row-items">
+                  <div class="item"><span>${labelGarantia}:</span> <b>${textoGarantia}</b></div>
+                  ${infoExtra}
+               </div>
+            </div>
+
+            <h3>Histórico de Movimentações</h3>
+            <table>
+              <thead>
+                <tr><th>DESCRIÇÃO DA OPERAÇÃO</th></tr>
+              </thead>
+              <tbody>
+                ${linhasHistorico}
+              </tbody>
+            </table>
+
+            <div class="footer">
+              Documento gerado eletronicamente pelo sistema Axoryn Control.<br/>
+              Este extrato serve para simples conferência.
+            </div>
+
           </body>
         </html>
       `;

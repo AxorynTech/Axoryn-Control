@@ -18,7 +18,7 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
   const [dataFim, setDataFim] = useState(hoje.toLocaleDateString('pt-BR'));
   const [loading, setLoading] = useState(false);
 
-  // --- PARSER DE DATA ---
+  // --- PARSERS E HELPERS ---
   const parseData = (dataStr: string) => {
     try {
       if (!dataStr) return new Date('');
@@ -26,9 +26,7 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
       if (matchBR) {
         return new Date(parseInt(matchBR[3]), parseInt(matchBR[2]) - 1, parseInt(matchBR[1]));
       }
-      const dateISO = new Date(dataStr);
-      if (!isNaN(dateISO.getTime())) return dateISO;
-      return new Date('');
+      return new Date(dataStr);
     } catch (e) { return new Date(''); }
   };
 
@@ -49,42 +47,26 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
   const extrairTotal = (texto: string) => {
     const matchRecebido = texto.match(/Recebido R\$\s?([\d\.,]+)/i);
     if (matchRecebido) return limparValor(matchRecebido[1]);
-
     const matchCombinado = texto.match(/Parcela.*\(R\$\s?([\d\.,]+)\).*\+ Multa R\$\s?([\d\.,]+)/i);
-    if (matchCombinado) {
-       return limparValor(matchCombinado[1]) + limparValor(matchCombinado[2]);
-    }
-    
+    if (matchCombinado) return limparValor(matchCombinado[1]) + limparValor(matchCombinado[2]);
     const match = texto.match(/R\$\s?([\d\.,]+)/i);
-    if (match) return limparValor(match[1]);
-    return 0;
+    return match ? limparValor(match[1]) : 0;
   };
 
+  // --- LÓGICA DE NEGÓCIO ---
+
   const obterCapitalOriginal = (con: Contrato) => {
-    // Tenta pegar do log de criação
-    if (con.movimentacoes && con.movimentacoes.length > 0) {
-        const logCriacao = con.movimentacoes[con.movimentacoes.length - 1]; 
-        
+    const movs = con.movimentacoes || [];
+    if (movs.length > 0) {
+        const logCriacao = movs[movs.length - 1]; 
         const matchCap = logCriacao.match(/Capital R\$\s?([\d\.,]+)/i);
         if (matchCap) return limparValor(matchCap[1]);
-
-        const matchParcelado = logCriacao.match(/(\d+)x de R\$\s?([\d\.,]+)/i) || logCriacao.match(/(\d+) dias de R\$\s?([\d\.,]+)/i);
+        
+        const matchParcelado = logCriacao.match(/(\d+)x de R\$\s?([\d\.,]+)/i);
         if (matchParcelado) {
-            const qtd = parseInt(matchParcelado[1]);
-            const valParcela = limparValor(matchParcelado[2]);
-            const totalReceber = qtd * valParcela;
-            if (con.taxa > 0) return totalReceber / (1 + (con.taxa / 100));
-            return totalReceber;
+            const total = parseInt(matchParcelado[1]) * limparValor(matchParcelado[2]);
+            return con.taxa > 0 ? total / (1 + (con.taxa / 100)) : total;
         }
-
-        const matchQualquer = logCriacao.match(/R\$\s?([\d\.,]+)/i);
-        if (matchQualquer) return limparValor(matchQualquer[1]);
-    }
-    // Fallback matemático
-    if (con.valorParcela && con.totalParcelas) {
-        const total = con.valorParcela * con.totalParcelas;
-        if (con.taxa > 0) return total / (1 + (con.taxa / 100));
-        return total;
     }
     return con.capital || 0;
   };
@@ -100,206 +82,280 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
         setLoading(false);
         return;
       }
-      
       dtFim.setHours(23, 59, 59);
 
-      let totalInvestido = 0;
-      let totalRecebidoBruto = 0;
-      let totalLucroLiquido = 0; 
-      let totalMultasRecolhidas = 0;
+      // --- ESTATÍSTICAS ---
+      let stats = {
+        investido: 0, recebidoBruto: 0, capitalRecuperado: 0,
+        lucroLiquido: 0, multas: 0, qtdNovosContratos: 0,
+        qtdQuitados: 0, qtdPagamentos: 0
+      };
 
-      let htmlInvestimentos = '';
+      // --- INVENTÁRIO ---
+      let inventarioGarantias: any[] = [];
+      let totalEmRua = 0;
+      let totalContratosAtivos = 0;
+
       let htmlEntradas = '';
-      let htmlQuitados = '';
+      let htmlInvestimentos = '';
 
       clientes.forEach(cli => {
         (cli.contratos || []).forEach(con => {
-          
-          // --- TABELA 1: SAÍDAS (INVESTIMENTOS) ---
-          let dataCon = parseData(con.dataInicio || '');
-          if (isNaN(dataCon.getTime()) && con.movimentacoes?.length > 0) {
-             const primeiraMov = con.movimentacoes[con.movimentacoes.length - 1]; 
-             dataCon = parseData(primeiraMov);
-          }
+            const movs = con.movimentacoes || [];
 
-          if (!isNaN(dataCon.getTime()) && dataCon >= dtInicio && dataCon <= dtFim) {
-            const valorOriginal = obterCapitalOriginal(con);
-            const displayValor = valorOriginal > 0 ? valorOriginal : (con.capital || 0);
+            // 1. INVENTÁRIO (Status Atual)
+            if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
+                totalEmRua += (con.capital || 0);
+                totalContratosAtivos++;
+                
+                if (con.garantia && con.garantia.length > 2) {
+                    const isProd = con.garantia.includes('PRODUTO:');
+                    inventarioGarantias.push({
+                        cliente: cli.nome,
+                        item: con.garantia.replace('PRODUTO:', '').trim(),
+                        valor: con.capital,
+                        tipo: isProd ? 'Venda' : 'Garantia',
+                        vencimento: con.proximoVencimento,
+                        contratoId: con.id
+                    });
+                }
+            }
+
+            // 2. MOVIMENTAÇÕES (Período)
             
-            if (displayValor > 0) {
-                totalInvestido += displayValor; 
-                htmlInvestimentos += `<tr><td>${dataCon.toLocaleDateString('pt-BR')}</td><td>${cli.nome}</td><td>R$ ${displayValor.toFixed(2)}</td></tr>`;
+            // A) Investimentos
+            let dataInicioCon = parseData(con.dataInicio || '');
+            if (isNaN(dataInicioCon.getTime()) && movs.length > 0) {
+                 dataInicioCon = parseData(movs[movs.length - 1]);
             }
-          }
 
-          // --- TABELA 2: ENTRADAS ---
-          (con.movimentacoes || []).forEach(mov => {
-            const dataMov = parseData(mov);
-            const descricao = mov;
+            if (!isNaN(dataInicioCon.getTime()) && dataInicioCon >= dtInicio && dataInicioCon <= dtFim) {
+                const capOrig = obterCapitalOriginal(con);
+                const valorReal = capOrig > 0 ? capOrig : (con.capital || 0);
+                if (valorReal > 0) {
+                    stats.investido += valorReal;
+                    stats.qtdNovosContratos++;
+                    htmlInvestimentos += `<tr><td>${dataInicioCon.toLocaleDateString('pt-BR')}</td><td>${cli.nome}</td><td>R$ ${valorReal.toFixed(2)}</td></tr>`;
+                }
+            }
 
-            if (!isNaN(dataMov.getTime()) && dataMov >= dtInicio && dataMov <= dtFim) {
-              if (descricao.toLowerCase().includes('iniciado') || descricao.toLowerCase().includes('acordo')) return;
+            // B) Recebimentos
+            movs.forEach(mov => {
+                const dataMov = parseData(mov);
+                if (!isNaN(dataMov.getTime()) && dataMov >= dtInicio && dataMov <= dtFim) {
+                    const desc = mov.toLowerCase();
+                    if (desc.includes('iniciado') || desc.includes('acordo')) return;
 
-              let valTotal = extrairTotal(descricao);
-              let valMulta = 0;
-              let valLucro = 0;
-              let valCapital = 0;
-              let tipo = 'Pagamento';
+                    let valTotal = extrairTotal(mov);
+                    let valLucro = 0;
+                    let valMulta = 0;
+                    let valCapital = 0;
+                    let tipo = 'Pagamento';
 
-              const temLucro = buscarValor(descricao, 'Lucro');
-              const temMulta = buscarValor(descricao, 'Multa');
-              const temCapital = buscarValor(descricao, 'Capital');
+                    const buscaLucro = buscarValor(mov, 'Lucro');
+                    const buscaMulta = buscarValor(mov, 'Multa');
+                    const buscaCapital = buscarValor(mov, 'Capital');
 
-              // DECISÃO DE VALORES
-              if (temLucro > 0 || temCapital > 0) {
-                 // LOG NOVO (Detalhado)
-                 valLucro = temLucro;
-                 valMulta = temMulta;
-                 valCapital = temCapital;
-                 // Ajuste se soma total não bater
-                 if (valTotal < valLucro + valMulta + valCapital) {
-                     valTotal = valLucro + valMulta + valCapital;
-                 }
-              } else {
-                 // LOG ANTIGO (Estimativa)
-                 valMulta = buscarValor(descricao, 'Multa');
-
-                 if (descricao.toLowerCase().includes('quitado')) {
-                    const capitalOriginal = obterCapitalOriginal(con);
-                    const capitalRef = (con.capital && con.capital > 0) ? con.capital : capitalOriginal;
-                    
-                    if (valMulta === 0 && con.taxa > 0) {
-                        const jurosEsperados = capitalRef * (con.taxa / 100);
-                        const pagoExtra = valTotal - capitalRef;
-                        if (pagoExtra > jurosEsperados + 1.00) {
-                           valLucro = jurosEsperados;
-                           valMulta = pagoExtra - jurosEsperados;
-                           valCapital = capitalRef;
-                        } else {
-                           valCapital = capitalRef;
-                           valLucro = valTotal - valCapital;
-                        }
+                    if (buscaLucro > 0 || buscaCapital > 0) {
+                        valLucro = buscaLucro;
+                        valMulta = buscaMulta;
+                        valCapital = buscaCapital;
                     } else {
-                        valCapital = capitalRef;
-                        valLucro = valTotal - valCapital - valMulta;
+                        valMulta = buscaMulta;
+                        if (desc.includes('quitado')) {
+                            tipo = 'Quitação';
+                            stats.qtdQuitados++;
+                            const capRef = obterCapitalOriginal(con);
+                            if (valMulta === 0 && con.taxa > 0) {
+                                valCapital = (con.capital && con.capital > 0) ? con.capital : capRef;
+                                if(valCapital > valTotal) valCapital = valTotal; 
+                                valLucro = valTotal - valCapital;
+                            } else {
+                                valCapital = (con.capital && con.capital > 0) ? con.capital : capRef;
+                                valLucro = valTotal - valCapital - valMulta;
+                            }
+                        } else {
+                            tipo = desc.includes('renova') ? 'Renovação' : 'Parcela';
+                            if (tipo === 'Renovação') {
+                                valLucro = valTotal - valMulta;
+                                valCapital = 0;
+                            } else {
+                                if (con.lucroJurosPorParcela) valLucro = con.lucroJurosPorParcela;
+                                valCapital = valTotal - valMulta - valLucro;
+                            }
+                        }
                     }
-                    if (valCapital > valTotal) valCapital = valTotal - valMulta;
 
-                 } else if (descricao.toLowerCase().includes('parcela')) {
-                    if (con.lucroJurosPorParcela) valLucro = con.lucroJurosPorParcela;
-                    else valLucro = 0;
-                    valCapital = valTotal - valMulta - valLucro;
+                    if (valLucro < 0) valLucro = 0;
+                    if (valCapital < 0) valCapital = 0;
+                    
+                    stats.recebidoBruto += valTotal;
+                    stats.capitalRecuperado += valCapital;
+                    stats.lucroLiquido += valLucro;
+                    stats.multas += valMulta;
+                    stats.qtdPagamentos++;
 
-                 } else if (descricao.toLowerCase().includes('renova')) {
-                    valLucro = valTotal - valMulta;
-                    valCapital = 0;
-                 } else {
-                    valCapital = valTotal - valMulta;
-                 }
-              }
+                    const corLucro = valLucro > 0 ? '#27AE60' : '#BDC3C7';
+                    const corMulta = valMulta > 0 ? '#E67E22' : '#BDC3C7';
 
-              // Tipos
-              if (descricao.toLowerCase().includes('quitado')) tipo = 'Quitação';
-              else if (descricao.toLowerCase().includes('parcela')) tipo = 'Parcela';
-              else if (descricao.toLowerCase().includes('renova')) tipo = 'Renovação';
+                    // --- NOVA LÓGICA DE MODALIDADE ---
+                    let modLabel = con.frequencia || 'OUTROS';
+                    if (con.garantia && con.garantia.includes('PRODUTO:')) modLabel = 'VENDA';
+                    else if (modLabel === 'PARCELADO') modLabel = 'VENDA';
+                    
+                    // Formatação Visual da Modalidade
+                    let modStyle = "background:#EEE; color:#555;";
+                    if (modLabel === 'VENDA') modStyle = "background:#D5F5E3; color:#186A3B;"; // Verde claro
+                    if (modLabel === 'MENSAL') modStyle = "background:#D6EAF8; color:#21618C;"; // Azul claro
+                    if (modLabel === 'SEMANAL') modStyle = "background:#FCF3CF; color:#9A7D0A;"; // Amarelo
+                    if (modLabel === 'DIARIO') modStyle = "background:#FADBD8; color:#943126;"; // Vermelho
 
-              // Ajustes Finais
-              if (valLucro < 0) valLucro = 0;
-              if (valCapital < 0) valCapital = 0;
-
-              totalRecebidoBruto += valTotal;
-              totalMultasRecolhidas += valMulta;
-              totalLucroLiquido += valLucro;
-
-              const styleLucro = valLucro > 0 ? 'color:#27AE60; font-weight:bold;' : 'color:#CCC;';
-              const styleMulta = valMulta > 0 ? 'color:#E67E22; font-weight:bold;' : 'color:#CCC;';
-              
-              // --- TABELA 3: QUITADOS (AGORA FORA DO IF/ELSE) ---
-              // Se for quitação, adiciona na lista de conferência INDEPENDENTE se é log novo ou velho
-              if (tipo === 'Quitação') {
-                  const capOrigReal = obterCapitalOriginal(con);
-                  htmlQuitados += `
-                    <tr>
-                      <td>${dataMov.toLocaleDateString('pt-BR')}</td>
-                      <td>${cli.nome}</td>
-                      <td style="color:#7F8C8D;">R$ ${capOrigReal.toFixed(2)}</td>
-                      <td style="font-weight:bold;">R$ ${valTotal.toFixed(2)}</td>
-                    </tr>
-                  `;
-              }
-
-              htmlEntradas += `
-                <tr>
-                  <td>${dataMov.toLocaleDateString('pt-BR')}</td>
-                  <td>${cli.nome}</td>
-                  <td><span style="font-size:9px; background:#EEE; padding:2px 4px; border-radius:4px;">${tipo}</span></td>
-                  <td style="font-weight:bold;">R$ ${valTotal.toFixed(2)}</td>
-                  <td style="color:#555;">R$ ${valCapital.toFixed(2)}</td>
-                  <td style="${styleLucro}">R$ ${valLucro.toFixed(2)}</td>
-                  <td style="${styleMulta}">R$ ${valMulta.toFixed(2)}</td>
-                </tr>
-              `;
-            }
-          });
+                    htmlEntradas += `
+                        <tr>
+                            <td>${dataMov.toLocaleDateString('pt-BR')}</td>
+                            <td>${cli.nome}</td>
+                            <td style="text-align:center;">#${con.id}</td>
+                            <td><span style="font-size:8px; padding:2px 4px; border-radius:3px; font-weight:bold; ${modStyle}">${modLabel}</span></td>
+                            <td><span class="badge">${tipo}</span></td>
+                            <td style="font-weight:bold">R$ ${valTotal.toFixed(2)}</td>
+                            <td style="color:#7F8C8D">R$ ${valCapital.toFixed(2)}</td>
+                            <td style="color:${corLucro}; font-weight:bold;">R$ ${valLucro.toFixed(2)}</td>
+                            <td style="color:${corMulta}; font-weight:bold;">R$ ${valMulta.toFixed(2)}</td>
+                        </tr>
+                    `;
+                }
+            });
         });
       });
+
+      const roi = stats.investido > 0 ? ((stats.lucroLiquido + stats.multas) / stats.investido) * 100 : 0;
+      const margemLucro = stats.recebidoBruto > 0 ? ((stats.lucroLiquido + stats.multas) / stats.recebidoBruto) * 100 : 0;
+      const ticketMedio = stats.qtdPagamentos > 0 ? (stats.recebidoBruto / stats.qtdPagamentos) : 0;
 
       const html = `
         <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <style>
-              body { font-family: Helvetica, sans-serif; padding: 15px; color: #333; }
-              h1 { text-align: center; color: #2C3E50; font-size: 22px; }
-              .periodo { text-align: center; color: #7F8C8D; margin-bottom: 25px; font-size: 12px; }
-              .resumo-grid { display: flex; justify-content: space-between; margin-bottom: 30px; gap: 8px; }
-              .card { flex: 1; background: #F8F9FA; padding: 10px 5px; border-radius: 8px; border: 1px solid #E0E0E0; text-align: center; }
-              .card-lbl { font-size: 9px; color: #666; font-weight: bold; text-transform: uppercase; }
-              .card-val { font-size: 16px; font-weight: bold; }
-              .red { color: #C0392B; } .blue { color: #2980B9; } .green { color: #27AE60; } .orange { color: #D35400; }
-              table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 10px; }
-              th { background: #34495E; color: #FFF; padding: 6px; text-align: left; }
-              td { border-bottom: 1px solid #EEE; padding: 8px 6px; }
-              tr:nth-child(even) { background: #FCFDFE; }
-              h3 { border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 25px; font-size: 14px; text-transform: uppercase; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; color: #34495E; background: #FFF; }
+              .header { text-align: center; margin-bottom: 30px; border-bottom: 4px solid #2C3E50; padding-bottom: 15px; }
+              h1 { margin: 0; color: #2C3E50; font-size: 26px; text-transform: uppercase; letter-spacing: 1px; }
+              .sub-header { color: #7F8C8D; font-size: 12px; margin-top: 5px; }
+              
+              /* KPI Cards */
+              .kpi-container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; }
+              .kpi-box { flex: 1; min-width: 30%; background: #F4F6F7; padding: 15px; border-radius: 8px; border-left: 5px solid #BDC3C7; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+              .kpi-label { font-size: 10px; text-transform: uppercase; color: #7F8C8D; font-weight: bold; margin-bottom: 5px; }
+              .kpi-value { font-size: 18px; font-weight: bold; color: #2C3E50; }
+              .border-blue { border-left-color: #2980B9; } .border-green { border-left-color: #27AE60; }
+              .border-red { border-left-color: #C0392B; } .border-orange { border-left-color: #E67E22; }
+
+              h3 { font-size: 14px; color: #2C3E50; border-bottom: 2px solid #ECF0F1; padding-bottom: 5px; margin-top: 30px; margin-bottom: 10px; text-transform: uppercase; }
+              table { width: 100%; border-collapse: collapse; font-size: 9px; }
+              th { background: #2C3E50; color: #FFF; padding: 6px; text-align: left; font-weight: 600; }
+              td { padding: 6px; border-bottom: 1px solid #ECF0F1; color: #555; vertical-align: middle; }
+              tr:nth-child(even) { background: #F9F9F9; }
+              .badge { background: #ECF0F1; padding: 2px 5px; border-radius: 4px; font-size: 8px; font-weight: bold; color: #7F8C8D; }
+              .footer { margin-top: 50px; text-align: center; font-size: 9px; color: #BDC3C7; border-top: 1px solid #EEE; padding-top: 10px; }
             </style>
           </head>
           <body>
-            <h1>Relatório Financeiro</h1>
-            <div class="periodo">${dataIni} até ${dataFim}</div>
-            
-            <div class="resumo-grid">
-              <div class="card"><div class="card-lbl">Investido</div><div class="card-val red">R$ ${totalInvestido.toFixed(2)}</div></div>
-              <div class="card"><div class="card-lbl">Recebido</div><div class="card-val blue">R$ ${totalRecebidoBruto.toFixed(2)}</div></div>
-              <div class="card"><div class="card-lbl">Lucro</div><div class="card-val green">R$ ${totalLucroLiquido.toFixed(2)}</div></div>
-              <div class="card"><div class="card-lbl">Multas</div><div class="card-val orange">R$ ${totalMultasRecolhidas.toFixed(2)}</div></div>
+            <div class="header">
+              <h1>Relatório Analítico</h1>
+              <div class="sub-header">PERÍODO: ${dataIni} até ${dataFim}</div>
+              <div class="sub-header">EMISSÃO: ${new Date().toLocaleString('pt-BR')}</div>
             </div>
 
-            <h3>Entradas (Recebimentos)</h3>
+            <h3>📊 Performance Financeira</h3>
+            <div class="kpi-container">
+              <div class="kpi-box border-green">
+                <div class="kpi-label">Lucro Líquido + Multas</div>
+                <div class="kpi-value" style="color:#27AE60">R$ ${(stats.lucroLiquido + stats.multas).toFixed(2)}</div>
+              </div>
+              <div class="kpi-box border-blue">
+                <div class="kpi-label">Faturamento Bruto</div>
+                <div class="kpi-value">R$ ${stats.recebidoBruto.toFixed(2)}</div>
+              </div>
+              <div class="kpi-box border-red">
+                <div class="kpi-label">Total Investido</div>
+                <div class="kpi-value">R$ ${stats.investido.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div class="kpi-container">
+               <div class="kpi-box border-orange"><div class="kpi-label">ROI</div><div class="kpi-value">${roi.toFixed(1)}%</div></div>
+               <div class="kpi-box"><div class="kpi-label">Margem</div><div class="kpi-value">${margemLucro.toFixed(1)}%</div></div>
+               <div class="kpi-box"><div class="kpi-label">Ticket Médio</div><div class="kpi-value">R$ ${ticketMedio.toFixed(2)}</div></div>
+            </div>
+
+            <h3>💰 Detalhamento de Entradas (Fluxo de Caixa)</h3>
             ${htmlEntradas ? `
               <table>
-                <thead><tr><th>Data</th><th>Cliente</th><th>Tipo</th><th>Total</th><th>Capital</th><th>Lucro</th><th>Multa</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th width="12%">Data</th>
+                    <th width="18%">Cliente</th>
+                    <th width="8%">Cont.</th>
+                    <th width="10%">Mod.</th>
+                    <th width="10%">Tipo</th>
+                    <th width="12%">Total</th>
+                    <th width="10%">Princ.</th>
+                    <th width="10%">Lucro</th>
+                    <th width="10%">Multa</th>
+                  </tr>
+                </thead>
                 <tbody>${htmlEntradas}</tbody>
+                <tfoot>
+                  <tr style="background:#ECF0F1; font-weight:bold;">
+                    <td colspan="5" style="text-align:right">TOTAIS:</td>
+                    <td>R$ ${stats.recebidoBruto.toFixed(2)}</td>
+                    <td>R$ ${stats.capitalRecuperado.toFixed(2)}</td>
+                    <td style="color:#27AE60">R$ ${stats.lucroLiquido.toFixed(2)}</td>
+                    <td style="color:#E67E22">R$ ${stats.multas.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
               </table>
-            ` : '<p>Sem registros.</p>'}
+            ` : '<p style="font-size:10px; color:#999; text-align:center;">Nenhuma entrada registrada.</p>'}
 
-            <h3>Saídas (Novos Empréstimos)</h3>
+            <h3>📉 Saídas (Investimentos)</h3>
             ${htmlInvestimentos ? `
               <table>
-                <thead><tr><th>Data</th><th>Cliente</th><th>Valor Investido</th></tr></thead>
+                <thead><tr><th>Data</th><th>Cliente</th><th>Valor Liberado</th></tr></thead>
                 <tbody>${htmlInvestimentos}</tbody>
               </table>
-            ` : '<p>Sem registros.</p>'}
+            ` : '<p style="font-size:10px; color:#999; text-align:center;">Nenhum novo contrato.</p>'}
 
-            ${htmlQuitados ? `
-              <h3>Empréstimos Quitados (Conferência)</h3>
+            <div style="page-break-before: always;"></div>
+            <h3>🔐 Inventário de Ativos (Posição Atual)</h3>
+            <div style="background:#F8F9FA; padding:10px; border:1px solid #EEE; margin-bottom:15px; border-radius:5px;">
+                <span style="font-size:11px; font-weight:bold; margin-right:20px;">CAPITAL NA RUA: R$ ${totalEmRua.toFixed(2)}</span>
+                <span style="font-size:11px; font-weight:bold;">CONTRATOS ATIVOS: ${totalContratosAtivos}</span>
+            </div>
+
+            ${inventarioGarantias.length > 0 ? `
               <table>
-                <thead><tr><th>Data Quitação</th><th>Cliente</th><th>Investido (Orig.)</th><th>Valor Final Pago</th></tr></thead>
-                <tbody>${htmlQuitados}</tbody>
+                <thead>
+                  <tr>
+                    <th width="25%">Cliente</th>
+                    <th width="40%">Item / Garantia</th>
+                    <th width="20%">Valor Contrato</th>
+                    <th width="15%">Vencimento</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${inventarioGarantias.map(item => `
+                    <tr>
+                      <td>${item.cliente} <span style="font-size:8px; color:#999">(#${item.contratoId})</span></td>
+                      <td><b>${item.tipo}:</b> ${item.item}</td>
+                      <td>R$ ${(item.valor || 0).toFixed(2)}</td>
+                      <td style="color:#C0392B">${item.vencimento}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
               </table>
-            ` : ''}
+            ` : '<p style="font-size:10px; color:#999; text-align:center;">Nenhuma garantia ativa.</p>'}
 
-            <p style="text-align:center; font-size:8px; color:#CCC; margin-top:30px;">Relatório Verto App - Atualizado</p>
+            <div class="footer">Axoryn Control © 2026 - Tecnologia Financeira Inteligente.</div>
           </body>
         </html>
       `;
@@ -315,15 +371,20 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
     <Modal visible={visivel} animationType="slide" transparent>
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Text style={styles.titulo}>Relatório Financeiro</Text>
-          <Text style={styles.label}>Início</Text>
-          <TextInput style={styles.input} value={dataIni} onChangeText={setDataIni} keyboardType="numbers-and-punctuation" />
-          <Text style={styles.label}>Fim</Text>
-          <TextInput style={styles.input} value={dataFim} onChangeText={setDataFim} keyboardType="numbers-and-punctuation" />
+          <Text style={styles.titulo}>Gerar Relatório Master</Text>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Data Inicial</Text>
+            <TextInput style={styles.input} value={dataIni} onChangeText={setDataIni} keyboardType="numbers-and-punctuation" placeholder="DD/MM/AAAA" />
+          </View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Data Final</Text>
+            <TextInput style={styles.input} value={dataFim} onChangeText={setDataFim} keyboardType="numbers-and-punctuation" placeholder="DD/MM/AAAA" />
+          </View>
+          
           {loading ? <ActivityIndicator size="large" color="#2C3E50" style={{marginTop:20}}/> : 
             <View style={styles.botoes}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancelar]} onPress={fechar}><Text>Fechar</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnGerar]} onPress={gerarRelatorio}><Text style={{color:'#FFF', fontWeight:'bold'}}>Gerar PDF</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnCancelar]} onPress={fechar}><Text style={styles.txtBtnCanc}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnGerar]} onPress={gerarRelatorio}><Text style={styles.txtBtnGerar}>GERAR RELATÓRIO COMPLETO</Text></TouchableOpacity>
             </View>
           }
         </View>
@@ -333,13 +394,16 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  modal: { width: '85%', backgroundColor: '#FFF', borderRadius: 12, padding: 20, elevation: 5 },
-  titulo: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', color: '#2C3E50' },
-  label: { fontSize: 14, color: '#666', marginBottom: 4, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16, backgroundColor: '#F9F9F9' },
-  botoes: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  btn: { flex: 1, padding: 14, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  btnCancelar: { backgroundColor: '#E0E0E0' },
-  btnGerar: { backgroundColor: '#2C3E50' }
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  modal: { width: '90%', backgroundColor: '#FFF', borderRadius: 16, padding: 25, elevation: 10 },
+  titulo: { fontSize: 22, fontWeight: 'bold', marginBottom: 25, textAlign: 'center', color: '#2C3E50' },
+  formGroup: { marginBottom: 15 },
+  label: { fontSize: 13, color: '#7F8C8D', marginBottom: 6, fontWeight: 'bold', textTransform: 'uppercase' },
+  input: { borderWidth: 1, borderColor: '#ECF0F1', borderRadius: 10, padding: 14, fontSize: 16, backgroundColor: '#F8F9F9', color:'#2C3E50' },
+  botoes: { flexDirection: 'row', gap: 12, marginTop: 15 },
+  btn: { flex: 1, padding: 16, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  btnCancelar: { backgroundColor: '#F0F2F5' },
+  btnGerar: { backgroundColor: '#2C3E50', shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity:0.2, shadowRadius:4, elevation:3 },
+  txtBtnCanc: { color: '#7F8C8D', fontWeight: 'bold' },
+  txtBtnGerar: { color: '#FFF', fontWeight: 'bold', fontSize:13 }
 });

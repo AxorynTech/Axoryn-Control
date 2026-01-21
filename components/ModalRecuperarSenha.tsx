@@ -30,10 +30,8 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
     try {
       setLoading(true);
       
-      // ✅ SEU LINK NOVO (ATUALIZADO):
-      const siteDeRecuperacao = 'https://6968364146313f00be0de080--regal-capybara-c7ac2c.netlify.app/'; 
-
-      console.log("🔗 Enviando para:", siteDeRecuperacao);
+      // 👇 LINK CORRIGIDO AQUI
+      const siteDeRecuperacao = 'https://regal-capybara-c7ac2c.netlify.app/recuperar.html'; 
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: siteDeRecuperacao,
@@ -43,11 +41,10 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
 
       Alert.alert(
         "E-mail Enviado",
-        "Acesse sua caixa de entrada e clique no link recebido. \n\nEle abrirá uma página web segura onde você poderá criar sua nova senha.",
+        "Acesse sua caixa de entrada e clique no link para redefinir sua senha.",
         [{ text: "OK", onPress: () => { setEmail(''); fechar(); } }]
       );
     } catch (error: any) {
-      console.log("Erro Reset:", error.message); 
       Alert.alert("Erro", error.message || "Falha ao enviar e-mail.");
     } finally {
       setLoading(false);
@@ -56,16 +53,10 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
 
   return (
     <Modal visible={visivel} transparent animationType="slide" onRequestClose={fechar}>
-      <KeyboardAvoidingView 
-        style={styles.fundo} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.fundo} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.janela}>
           <Text style={styles.titulo}>Recuperar Senha 🔒</Text>
-          <Text style={styles.descricao}>
-            Digite o e-mail cadastrado. Enviaremos um link para você redefinir a senha através do nosso site.
-          </Text>
-
+          <Text style={styles.descricao}>Digite seu e-mail. Enviaremos um link para criar uma nova senha.</Text>
           <Text style={styles.label}>E-mail</Text>
           <TextInput 
             style={styles.input} 
@@ -73,18 +64,11 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
             onChangeText={setEmail} 
             keyboardType="email-address" 
             autoCapitalize="none" 
-            placeholder="exemplo@email.com"
-            placeholderTextColor="#999"
+            placeholder="exemplo@email.com" 
           />
-
-          <TouchableOpacity 
-            style={[styles.btnEnviar, loading && { opacity: 0.7 }]} 
-            onPress={handleRecuperar}
-            disabled={loading}
-          >
+          <TouchableOpacity style={[styles.btnEnviar, loading && { opacity: 0.7 }]} onPress={handleRecuperar} disabled={loading}>
             <Text style={styles.txtBtn}>{loading ? "ENVIANDO..." : "ENVIAR LINK"}</Text>
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.btnCancelar} onPress={fechar}>
             <Text style={styles.txtCancelar}>Cancelar</Text>
           </TouchableOpacity>

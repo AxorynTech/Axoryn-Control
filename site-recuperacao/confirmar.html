@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmação - Debug</title>
+    <style>
+        body { font-family: monospace; background-color: #E8F8F5; color: #333; text-align: center; padding: 20px; }
+        .btn { display: inline-block; margin-top: 20px; padding: 15px 30px; background-color: #27AE60; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        
+        /* CAIXA PRETA */
+        #console {
+            margin-top: 30px; background-color: #111; color: #0f0; 
+            padding: 15px; text-align: left; height: 300px; 
+            overflow-y: scroll; border: 2px solid #333; font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h3>Validando Cadastro (Debug Mode)</h3>
+    <a id="btnLink" href="#" class="btn" onclick="log('Clique manual detectado!')">ABRIR APP AGORA</a>
+
+    <div id="console">Iniciando logs...<br></div>
+
+    <script>
+        function log(msg) {
+            const box = document.getElementById('console');
+            box.innerHTML += `> ${msg}<br>`;
+            console.log(msg);
+        }
+
+        try {
+            log("Página carregada.");
+            const hash = window.location.hash;
+            const search = window.location.search;
+            
+            log(`Hash: ${hash || 'Vazio'}`);
+            log(`Search: ${search || 'Vazio'}`);
+
+            let deepLink = "axoryn://"; // SEU SCHEME
+
+            // Pega parâmetros
+            let params = hash;
+            if (!params && search) params = "#" + search.substring(1);
+
+            if (params) {
+                deepLink += params;
+                // Força type=signup
+                if (!deepLink.includes('type=')) {
+                    deepLink += "&type=signup";
+                    log("Adicionado &type=signup manualmente.");
+                }
+            } else {
+                log("⚠️ ALERTA: Nenhum token encontrado na URL!");
+            }
+
+            log(`Link Gerado: ${deepLink}`);
+
+            const btn = document.getElementById('btnLink');
+            btn.href = deepLink;
+            log("Botão atualizado com o link.");
+
+            // Tenta abrir
+            setTimeout(() => {
+                log("Tentando redirecionamento automático...");
+                window.location.href = deepLink;
+            }, 1000);
+
+        } catch (err) {
+            log(`ERRO CRÍTICO: ${err.message}`);
+        }
+    </script>
+</body>
+</html>

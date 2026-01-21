@@ -28,12 +28,12 @@ export default function Dashboard({ capital, lucro, multas, vendas }: Props) {
 
       <View style={styles.linha}>
         <View style={styles.card}>
-          <Text style={styles.label}>CAPITAL NA RUA</Text>
+          {/* ALTERADO: De 'CAPITAL NA RUA' para 'CAPITAL ATIVO' */}
+          <Text style={styles.label}>CAPITAL ATIVO</Text>
           {formatarValor(capital, '#E74C3C')}
         </View>
         <View style={styles.card}>
           <Text style={styles.label}>JUROS EMPRÉSTIMOS</Text>
-          {/* MUDADO PARA AZUL */}
           {formatarValor(lucro, '#2980B9')} 
         </View>
       </View>

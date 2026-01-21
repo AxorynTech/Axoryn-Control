@@ -81,6 +81,7 @@ export function useClientes() {
      } catch (e) { return new Date().toISOString().split('T')[0]; }
   };
 
+  // --- LÓGICA ATUALIZADA AQUI ---
   const calcularTotais = () => {
     let capitalTotal = 0, lucro = 0, multas = 0, vendas = 0;
 
@@ -91,18 +92,22 @@ export function useClientes() {
           capitalTotal += (con.capital || 0);
         }
 
-        // Soma multas (geral)
-        multas += (con.multasPagas || 0);
-
         // SEPARAÇÃO: Venda vs Empréstimo
         if (con.frequencia === 'PARCELADO') {
-            // É VENDA: Soma o total recebido das parcelas (Principal + Juros)
-            // Não soma no 'lucro' para não misturar
-            const recebidoVenda = (con.parcelasPagas || 0) * (con.valorParcela || 0);
-            vendas += recebidoVenda;
+            // É VENDA: Soma Parcelas Recebidas + Multas desta venda
+            const recebidoParcelas = (con.parcelasPagas || 0) * (con.valorParcela || 0);
+            const multasVenda = (con.multasPagas || 0);
+            
+            // Agora a multa da venda entra aqui também
+            vendas += (recebidoParcelas + multasVenda);
+            
         } else {
-            // É EMPRÉSTIMO (Mensal, Semanal, Diário): Soma apenas o lucro (juros pagos)
+            // É EMPRÉSTIMO (Mensal, Semanal, Diário): 
+            // Lucro vai para "Juros Empréstimos"
             lucro += (con.lucroTotal || 0);
+            
+            // Multa vai para "Multas Recebidas" (somente de empréstimos)
+            multas += (con.multasPagas || 0);
         }
       });
     });
