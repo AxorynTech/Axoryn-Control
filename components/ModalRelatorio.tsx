@@ -45,10 +45,25 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
   };
 
   const extrairTotal = (texto: string) => {
+    // 1. Recebimento padrão (Parcela)
     const matchRecebido = texto.match(/Recebido R\$\s?([\d\.,]+)/i);
     if (matchRecebido) return limparValor(matchRecebido[1]);
+
+    // 2. Renovação com Juros + Multa (Soma os dois para achar o Total)
+    if (texto.toUpperCase().includes('RENOVA')) {
+        const matchJuros = texto.match(/Juros R\$\s?([\d\.,]+)/i);
+        const matchMulta = texto.match(/Multa R\$\s?([\d\.,]+)/i);
+        let soma = 0;
+        if (matchJuros) soma += limparValor(matchJuros[1]);
+        if (matchMulta) soma += limparValor(matchMulta[1]);
+        if (soma > 0) return soma;
+    }
+
+    // 3. Combinação Parcela + Multa (formato específico)
     const matchCombinado = texto.match(/Parcela.*\(R\$\s?([\d\.,]+)\).*\+ Multa R\$\s?([\d\.,]+)/i);
     if (matchCombinado) return limparValor(matchCombinado[1]) + limparValor(matchCombinado[2]);
+    
+    // 4. Último caso: pega o primeiro valor monetário encontrado
     const match = texto.match(/R\$\s?([\d\.,]+)/i);
     return match ? limparValor(match[1]) : 0;
   };
@@ -153,11 +168,15 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     let tipo = 'Pagamento';
 
                     const buscaLucro = buscarValor(mov, 'Lucro');
+                    const buscaJuros = buscarValor(mov, 'Juros'); // <--- CORREÇÃO: Busca por Juros
                     const buscaMulta = buscarValor(mov, 'Multa');
                     const buscaCapital = buscarValor(mov, 'Capital');
 
-                    if (buscaLucro > 0 || buscaCapital > 0) {
-                        valLucro = buscaLucro;
+                    // CORREÇÃO: Se achou Juros, considera como Lucro
+                    const lucroReal = buscaLucro > 0 ? buscaLucro : buscaJuros;
+
+                    if (lucroReal > 0 || buscaCapital > 0) {
+                        valLucro = lucroReal;
                         valMulta = buscaMulta;
                         valCapital = buscaCapital;
                     } else {

@@ -266,7 +266,13 @@ export function useClientes() {
           };
       } else {
           const total = contrato.capital + vJuro + vMulta;
-          h.unshift(`${dataInformada}: QUITADO - Total R$ ${total.toFixed(2)}`);
+          
+          // --- CORREÇÃO: Gravar Multa explicitamente ao Quitar ---
+          let msgQuit = `${dataInformada}: QUITADO - Total R$ ${total.toFixed(2)}`;
+          if (vMulta > 0) msgQuit += ` (Multa R$ ${vMulta.toFixed(2)})`;
+          h.unshift(msgQuit);
+          // -------------------------------------------------------
+
           updates = {
              status: 'QUITADO',
              capital: 0,
@@ -303,7 +309,12 @@ export function useClientes() {
       if (novoSaldo < 0) novoSaldo = 0;
 
       let h = [...(contrato.movimentacoes || [])];
-      h.unshift(`${dataPagamento}: Recebido R$ ${((contrato.valorParcela||0)+vMulta).toFixed(2)}`);
+      
+      // --- CORREÇÃO: Gravar Multa explicitamente ao Pagar Parcela ---
+      let msgPag = `${dataPagamento}: Recebido R$ ${((contrato.valorParcela||0)+vMulta).toFixed(2)}`;
+      if (vMulta > 0) msgPag += ` (Multa R$ ${vMulta.toFixed(2)})`;
+      h.unshift(msgPag);
+      // --------------------------------------------------------------
 
       let updates: any = {
            multas_pagas: (contrato.multasPagas || 0) + vMulta,
