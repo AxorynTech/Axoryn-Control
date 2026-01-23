@@ -28,7 +28,6 @@
       }
     },
     "android": {
-      "launchMode": "singleTask",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#1a2a3a"
