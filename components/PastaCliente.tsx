@@ -139,7 +139,8 @@ export default function PastaCliente({
             <div class="box" style="background-color: #FFF; border: 2px solid #F0F2F5;">
                <div class="row-items">
                   <div class="item" style="font-size:14px"><span>Valor Principal:</span> <b style="color:#27AE60">R$ ${con.capital.toFixed(2)}</b></div>
-                  <div class="item" style="font-size:14px"><span>Lucro/Juros Recebidos:</span> <b style="color:#2980B9">R$ ${(con.lucroTotal || 0).toFixed(2)}</b></div>
+                  <div class="item" style="font-size:14px"><span>Juros Recebidos:</span> <b style="color:#2980B9">R$ ${(con.lucroTotal || 0).toFixed(2)}</b></div>
+                  <div class="item" style="font-size:14px"><span>Multas Recebidas:</span> <b style="color:#E67E22">R$ ${(con.multasPagas || 0).toFixed(2)}</b></div>
                </div>
                <hr style="border:0; border-top:1px solid #eee; margin: 10px 0;"/>
                <div class="row-items">
