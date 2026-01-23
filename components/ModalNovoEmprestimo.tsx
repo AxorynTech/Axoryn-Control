@@ -27,7 +27,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
   const [capital, setCapital] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [taxa, setTaxa] = useState('20');
-  const [frequencia, setFrequencia] = useState('MENSAL');
+  const [frequencia, setFrequencia] = useState('MENSAL'); // Compartilhado: MENSAL, SEMANAL, DIARIO, PARCELADO
   const [garantia, setGarantia] = useState('');
   const [multa, setMulta] = useState('');
   const [produtos, setProdutos] = useState('');
@@ -58,6 +58,13 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     }
   }, [visivel, clientePreSelecionado]);
 
+  // Ao trocar de aba, ajusta defaults sugeridos
+  const trocarAba = (novaAba: 'EMPRESTIMO' | 'VENDA') => {
+    setTipoOperacao(novaAba);
+    if (novaAba === 'VENDA') setFrequencia('PARCELADO');
+    else setFrequencia('MENSAL');
+  };
+
   const handleSalvar = () => {
     if (!clienteId) return Alert.alert("Erro", "Selecione um cliente.");
     if (!capital) return Alert.alert("Erro", "Digite o valor.");
@@ -71,8 +78,12 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       ? `PRODUTO: ${produtos}` 
       : garantia;
 
-    const frequenciaFinal = tipoOperacao === 'VENDA' ? 'PARCELADO' : frequencia;
-    const parcelasFinal = tipoOperacao === 'VENDA' ? qtdParcelasVenda : null;
+    // Se for venda, respeita a frequência escolhida (PARCELADO ou MENSAL)
+    // Se for empréstimo, usa a frequência escolhida (MENSAL, SEMANAL, DIARIO)
+    const frequenciaFinal = frequencia;
+    
+    // Parcelas só existem se for VENDA PARCELADA
+    const parcelasFinal = (tipoOperacao === 'VENDA' && frequencia === 'PARCELADO') ? qtdParcelasVenda : null;
 
     salvar(clienteId, {
       capital: valCapital,
@@ -100,13 +111,13 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
           <View style={styles.abas}>
              <TouchableOpacity 
                style={[styles.aba, tipoOperacao === 'EMPRESTIMO' && styles.abaAtiva]} 
-               onPress={() => setTipoOperacao('EMPRESTIMO')}
+               onPress={() => trocarAba('EMPRESTIMO')}
              >
                <Text style={[styles.txtAba, tipoOperacao === 'EMPRESTIMO' && styles.txtAbaAtiva]}>💰 EMPRÉSTIMO</Text>
              </TouchableOpacity>
              <TouchableOpacity 
                style={[styles.aba, tipoOperacao === 'VENDA' && styles.abaAtiva]} 
-               onPress={() => setTipoOperacao('VENDA')}
+               onPress={() => trocarAba('VENDA')}
              >
                <Text style={[styles.txtAba, tipoOperacao === 'VENDA' && styles.txtAbaAtiva]}>🛒 VENDA</Text>
              </TouchableOpacity>
@@ -149,13 +160,28 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                   placeholder="Ex: 1 Perfume, 1 Kit..." 
                 />
                 
+                {/* --- SELETOR DE MODALIDADE (VENDA) --- */}
+                <View style={{marginTop: 10}}>
+                     <Text style={styles.label}>Modalidade da Venda</Text>
+                     <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'PARCELADO' ? 'MENSAL' : 'PARCELADO')}>
+                        <Text style={{fontWeight:'bold', color:'#333'}}>
+                            {frequencia === 'PARCELADO' ? '📅 PARCELADO (Crediário)' : '🗓️ MENSAL (Juros Recorrente)'}
+                        </Text>
+                     </TouchableOpacity>
+                </View>
+
                 {/* LINHA UNIFICADA DE RECEBIMENTO: PARCELAS | JUROS | MULTA */}
                 <Text style={[styles.label, {marginTop: 15}]}>Condições de Recebimento</Text>
                 <View style={{flexDirection:'row', gap:10}}>
-                   <View style={{flex:1}}>
-                      <Text style={{fontSize:12, color:'#555', fontWeight:'bold', marginBottom:2}}>Parcelas</Text>
-                      <TextInput style={styles.input} value={qtdParcelasVenda} onChangeText={setQtdParcelasVenda} keyboardType="numeric" placeholder="Ex: 3" />
-                   </View>
+                   
+                   {/* Só mostra parcelas se for PARCELADO */}
+                   {frequencia === 'PARCELADO' && (
+                       <View style={{flex:1}}>
+                          <Text style={{fontSize:12, color:'#555', fontWeight:'bold', marginBottom:2}}>Parcelas</Text>
+                          <TextInput style={styles.input} value={qtdParcelasVenda} onChangeText={setQtdParcelasVenda} keyboardType="numeric" placeholder="Ex: 3" />
+                       </View>
+                   )}
+                   
                    <View style={{flex:1}}>
                       <Text style={{fontSize:12, color:'#555', fontWeight:'bold', marginBottom:2}}>Juros (%)</Text>
                       <TextInput style={styles.input} value={taxa} onChangeText={setTaxa} keyboardType="numeric" />
@@ -173,7 +199,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                 </View>
               </>
             ) : (
-              // LÓGICA DE EMPRÉSTIMO
+              // --- EMPRÉSTIMO ---
               <>
                 <Text style={styles.label}>Garantia (Opcional)</Text>
                 <TextInput style={styles.input} value={garantia} onChangeText={setGarantia} placeholder="Ex: Celular..." />
@@ -189,6 +215,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                   </View>
                 </View>
 
+                {/* --- SELETOR DE MODALIDADE (EMPRESTIMO) --- */}
                 <View style={{marginTop: 10}}>
                      <Text style={styles.label}>Modalidade</Text>
                      <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'MENSAL' ? 'SEMANAL' : frequencia === 'SEMANAL' ? 'DIARIO' : 'MENSAL')}>
