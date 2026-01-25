@@ -118,7 +118,7 @@ export default function Auth() {
             email, 
             password,
             options: {
-              emailRedirectTo: 'https://regal-capybara-c7ac2c.netlify.app/confirmar.html' 
+              emailRedirectTo: 'https://fantastic-clafoutis-45d812.netlify.app/confirmar.html' 
             }
           })
         );

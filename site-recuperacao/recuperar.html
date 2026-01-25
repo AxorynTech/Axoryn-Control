@@ -3,69 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recuperação - Debug</title>
+    <title>Recuperar Senha - Axoryn Control</title>
     <style>
-        body { font-family: monospace; background-color: #F4F6F7; color: #333; text-align: center; padding: 20px; }
-        .btn { display: inline-block; margin-top: 20px; padding: 15px 30px; background-color: #2980B9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
-        
-        /* CAIXA PRETA */
-        #console {
-            margin-top: 30px; background-color: #111; color: #0f0; 
-            padding: 15px; text-align: left; height: 300px; 
-            overflow-y: scroll; border: 2px solid #333; font-size: 12px;
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #F0F2F5; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
         }
+        .card { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            text-align: center; 
+            max-width: 400px; 
+            width: 90%; 
+        }
+        h2 { color: #2C3E50; margin-bottom: 10px; margin-top: 0; }
+        p { color: #7F8C8D; margin-bottom: 30px; line-height: 1.5; font-size: 16px; }
+        .btn { 
+            display: block; 
+            width: 100%; 
+            padding: 16px 0; 
+            background-color: #2980B9; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 12px; 
+            font-weight: 600; 
+            font-size: 16px; 
+            transition: background 0.2s; 
+            box-sizing: border-box;
+        }
+        .btn:active { transform: scale(0.98); }
+        .loader { margin-top: 25px; font-size: 13px; color: #999; }
     </style>
 </head>
 <body>
-    <h3>Recuperar Senha (Debug Mode)</h3>
-    <a id="btnLink" href="#" class="btn" onclick="log('Clique manual detectado!')">CRIAR NOVA SENHA</a>
-
-    <div id="console">Iniciando logs...<br></div>
+    <div class="card">
+        <h2>Recuperação de Senha</h2>
+        <p>Tudo pronto! Toque no botão abaixo para redefinir sua senha no aplicativo.</p>
+        <a id="btnLink" href="#" class="btn">DEFINIR NOVA SENHA</a>
+        <div class="loader">Redirecionando para o app...</div>
+    </div>
 
     <script>
-        function log(msg) {
-            const box = document.getElementById('console');
-            box.innerHTML += `> ${msg}<br>`;
-            console.log(msg);
-        }
-
         try {
-            log("Página carregada.");
             const hash = window.location.hash;
             const search = window.location.search;
             
-            log(`Hash: ${hash || 'Vazio'}`);
-            log(`Search: ${search || 'Vazio'}`);
-
             let deepLink = "axoryn://"; 
 
+            // Pega os parâmetros da URL (hash ou search)
             let params = hash;
             if (!params && search) params = "#" + search.substring(1);
 
             if (params) {
                 deepLink += params;
-                // Força type=recovery
+                // Garante que o app saiba que é recuperação
                 if (!deepLink.includes('type=')) {
                     deepLink += "&type=recovery";
-                    log("Adicionado &type=recovery manualmente.");
                 }
-            } else {
-                log("⚠️ ALERTA: Nenhum token encontrado na URL!");
             }
 
-            log(`Link Gerado: ${deepLink}`);
-
+            // Atualiza o botão e redireciona
             const btn = document.getElementById('btnLink');
             btn.href = deepLink;
-            log("Botão atualizado com o link.");
 
             setTimeout(() => {
-                log("Tentando redirecionamento automático...");
                 window.location.href = deepLink;
-            }, 1000);
+            }, 1000); // 1 segundo de espera suave
 
         } catch (err) {
-            log(`ERRO CRÍTICO: ${err.message}`);
+            console.error("Erro no redirecionamento:", err);
         }
     </script>
 </body>

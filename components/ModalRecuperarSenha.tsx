@@ -31,7 +31,7 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
       setLoading(true);
       
       // 👇 LINK CORRIGIDO AQUI
-      const siteDeRecuperacao = 'https://regal-capybara-c7ac2c.netlify.app/recuperar.html'; 
+      const siteDeRecuperacao = 'https://fantastic-clafoutis-45d812.netlify.app/recuperar.html'; 
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: siteDeRecuperacao,
