@@ -1,5 +1,6 @@
 import { FontAwesome } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import React from 'react';
 
 export default function TabLayout() {
   return (
@@ -32,10 +33,16 @@ export default function TabLayout() {
         }}
       />
 
-      {/* CORREÇÃO ABAIXO: 
-          Deixamos APENAS o href: null.
-          Removemos o tabBarButton para não dar conflito.
-      */}
+      {/* 3. TELA DE PERFIL (NOVA) */}
+      <Tabs.Screen
+        name="perfil"
+        options={{
+          title: 'Perfil',
+          tabBarIcon: ({ color }) => <FontAwesome name="user" size={24} color={color} />,
+        }}
+      />
+
+      {/* TELAS OCULTAS */}
       <Tabs.Screen 
         name="explore" 
         options={{ 
