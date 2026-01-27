@@ -52,7 +52,8 @@ export default function VertoApp() {
     clientes, totais, loading, fetchData, 
     adicionarCliente, editarCliente, excluirCliente, 
     adicionarContrato, editarContrato, excluirContrato, acaoRenovarQuitar, 
-    criarAcordo, pagarParcela 
+    criarAcordo, pagarParcela,
+    alternarBloqueio // <--- 1. ADICIONADO AQUI
   } = useClientes();
 
   const [aba, setAba] = useState('carteira');
@@ -290,6 +291,7 @@ export default function VertoApp() {
                   aoRenovarOuQuitar={(tipo, con) => setModalAcao({visivel:true, tipo, contrato:con, cliente:cli.nome})}
                   aoNegociar={(con) => setModalParcelamento({visivel:true, contrato:con, cliente:cli.nome})}
                   aoPagarParcela={(con) => setModalPagarParcela({visivel:true, contrato:con, clienteNome:cli.nome})}
+                  aoAlternarBloqueio={alternarBloqueio} // <--- 2. ADICIONADO AQUI
                 />
               ))}
             </>

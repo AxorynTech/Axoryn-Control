@@ -21,12 +21,13 @@ export interface Contrato {
 }
 
 export interface Cliente {
-  id?: string; // Mantive string pois no seu print parecia string (mas pode ser number se der erro)
+  id?: string; 
   nome: string;
   whatsapp: string;
   endereco: string;
   indicacao: string;
   reputacao: string;
-  segmento?: string; // <--- AQUI ESTÁ A CORREÇÃO
+  segmento?: string;
+  bloqueado?: boolean; // <--- ADICIONADO AQUI PARA O CADEADO
   contratos: Contrato[];
 }

@@ -22,6 +22,7 @@ export function useClientes() {
       const formatados: Cliente[] = (data || []).map((cli: any) => ({
         id: cli.id,
         nome: cli.nome,
+        bloqueado: cli.bloqueado, // <--- NOVO: Lendo o status do bloqueio
         whatsapp: cli.whatsapp,
         endereco: cli.endereco,
         indicacao: cli.indicacao,
@@ -155,6 +156,20 @@ export function useClientes() {
           if (!error) await fetchData();
         }}
     ]);
+  };
+
+  // --- NOVO: Função para Alternar o Bloqueio ---
+  const alternarBloqueio = async (cliente: Cliente) => {
+    try {
+        const novoStatus = !cliente.bloqueado;
+        const { error } = await supabase
+            .from('clientes')
+            .update({ bloqueado: novoStatus })
+            .eq('id', cliente.id);
+
+        if (error) throw error;
+        await fetchData(); // Recarrega a lista para atualizar o cadeado na tela
+    } catch (e) { Alert.alert("Erro", "Não foi possível alterar o bloqueio."); }
   };
 
   const adicionarContrato = async (nomeCliente: string, novoContrato: any) => {
@@ -381,6 +396,7 @@ export function useClientes() {
     clientes, loading, totais: calcularTotais(), fetchData,
     adicionarCliente, editarCliente, excluirCliente,
     adicionarContrato, editarContrato, excluirContrato,
-    acaoRenovarQuitar, pagarParcela, criarAcordo, importarDados
+    acaoRenovarQuitar, pagarParcela, criarAcordo, importarDados,
+    alternarBloqueio // <--- NOVO: Exportando a função
   };
 }

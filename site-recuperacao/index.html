@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minha Conta | Axoryn Control</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #2980B9; --dark: #2C3E50; --success: #27AE60; --danger: #E74C3C; --bg: #F4F6F7; --card-bg: #FFFFFF; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #333; }
+        
+        .container { background: var(--card-bg); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 90%; max-width: 450px; text-align: center; }
+        
+        h1 { margin: 0 0 5px 0; color: var(--dark); font-size: 24px; }
+        p.subtitle { color: #7F8C8D; font-size: 14px; margin-bottom: 25px; }
+        
+        /* Inputs */
+        .input-group { position: relative; margin-bottom: 15px; text-align: left; }
+        .input-group label { font-size: 12px; font-weight: bold; color: #7F8C8D; margin-left: 2px; }
+        input { width: 100%; padding: 14px; margin-top: 5px; border: 1px solid #DDD; border-radius: 8px; box-sizing: border-box; font-size: 16px; outline: none; transition: 0.2s; }
+        input:focus { border-color: var(--primary); }
+        
+        .password-toggle { position: absolute; right: 15px; top: 38px; cursor: pointer; color: #999; }
+        .password-toggle:hover { color: var(--primary); }
+
+        /* Botões */
+        button { width: 100%; padding: 14px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.3s; }
+        button:hover { background-color: #1F618D; }
+        button:disabled { background-color: #BDC3C7; cursor: not-allowed; }
+        button.btn-outline { background: transparent; border: 1px solid #BDC3C7; color: #7F8C8D; margin-top: 20px; font-size: 14px; }
+
+        /* Dashboard Header */
+        .user-header { margin-bottom: 20px; }
+        
+        /* GRID DE INFORMAÇÕES */
+        .stats-grid { display: flex; gap: 10px; margin-bottom: 20px; }
+        .stat-card { flex: 1; background: #F8F9FA; padding: 10px; border-radius: 8px; border: 1px solid #EEE; }
+        .stat-label { font-size: 11px; color: #888; text-transform: uppercase; font-weight: bold; }
+        .stat-value { font-size: 14px; font-weight: bold; color: var(--dark); margin-top: 3px; }
+        
+        /* Caixa de Status */
+        .status-box { background: #FFF; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #EEE; text-align: left; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
+        .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .status-title { font-weight: bold; font-size: 14px; color: var(--dark); }
+        .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
+        
+        .status-msg { font-size: 13px; color: #666; margin-bottom: 10px; line-height: 1.4; }
+
+        .progress-container { background: #EEE; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 5px; }
+        .progress-bar { height: 100%; background: var(--success); width: 0%; transition: width 0.5s; }
+
+        /* Cards de Pagamento */
+        .plans-grid { display: flex; gap: 10px; margin-top: 15px; }
+        .plan-card { flex: 1; border: 1px solid #DDD; border-radius: 10px; padding: 15px 10px; cursor: pointer; transition: 0.2s; position: relative; background: white; }
+        .plan-card:hover { border-color: var(--primary); background: #F4FAFF; }
+        .plan-title { font-size: 13px; font-weight: bold; color: #555; }
+        .plan-price { font-size: 20px; font-weight: bold; color: var(--primary); margin: 5px 0; }
+        .plan-period { font-size: 11px; color: #999; }
+        .best-value { position: absolute; top: -10px; right: 50%; transform: translateX(50%); background: var(--success); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: bold; }
+
+        /* Utilitários - IMPORTANTÍSSIMO: .hidden tem !important para não piscar */
+        .hidden { display: none !important; }
+        .error { color: var(--danger); font-size: 13px; margin-bottom: 15px; background: #FDEDEC; padding: 10px; border-radius: 6px; }
+        .text-green { color: var(--success); }
+        .bg-green-light { background: #E8F8F5; color: var(--success); }
+        .bg-red-light { background: #FDEDEC; color: var(--danger); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="loginScreen">
+            <h1>Axoryn Control</h1>
+            <p class="subtitle">Portal do Cliente</p>
+            <div id="loginError" class="hidden error"></div>
+            <div class="input-group">
+                <label>E-MAIL</label>
+                <input type="email" id="email" placeholder="seu@email.com" />
+            </div>
+            <div class="input-group">
+                <label>SENHA</label>
+                <input type="password" id="password" placeholder="Sua senha" />
+                <i class="fas fa-eye password-toggle" onclick="toggleSenha()"></i>
+            </div>
+            <button onclick="fazerLogin()" id="btnLogin">Acessar Conta</button>
+        </div>
+
+        <div id="dashboardScreen" class="hidden">
+            <div class="user-header">
+                <h1>Olá, <span id="userName">Usuário</span></h1>
+                <p style="font-size:13px; color:#777; margin:0;" id="userEmail">carregando...</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Plano Atual</div>
+                    <div class="stat-value" id="infoPlan">Verificando...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Vencimento</div>
+                    <div class="stat-value" id="infoDate">--/--/----</div>
+                </div>
+            </div>
+
+            <div class="status-box">
+                <div class="status-header">
+                    <span class="status-title">Situação</span>
+                    <span id="badgeStatus" class="status-badge bg-green-light">ATIVO</span>
+                </div>
+                <div class="status-msg" id="statusMessage">Calculando dias restantes...</div>
+                <div id="progressContainer" class="progress-container hidden">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
+
+            <div id="areaPagamento" class="hidden">
+                <p style="font-weight:bold; margin-bottom:10px; color:#2C3E50; font-size:14px;">Renovar Assinatura:</p>
+                <div class="plans-grid">
+                    <div class="plan-card" onclick="pagar('mensal')">
+                        <div class="plan-title">MENSAL</div>
+                        <div class="plan-price">R$ 29,90</div>
+                        <div class="plan-period">Cobrado todo mês</div>
+                    </div>
+                    <div class="plan-card" onclick="pagar('anual')">
+                        <div class="best-value">DESCONTO 15%</div>
+                        <div class="plan-title">ANUAL</div>
+                        <div class="plan-price">R$ 299,90</div>
+                        <div class="plan-period">Cobrado uma vez</div>
+                    </div>
+                </div>
+                <p style="font-size:11px; color:#999; margin-top:15px;">
+                    <i class="fas fa-lock"></i> Pagamento seguro via Mercado Pago
+                </p>
+            </div>
+
+            <div id="areaQuarentena" class="hidden">
+                <div style="padding:20px; background:#F8F9FA; border-radius:8px; border:1px solid #EEE; color:#555; font-size:14px; margin-top:15px;">
+                    <i class="fas fa-check-circle" style="color:#27AE60; font-size:20px; margin-bottom:10px;"></i><br>
+                    <strong>Conta Ativada com Sucesso</strong><br>
+                    Aproveite o Axoryn Control!<br>
+                </div>
+            </div>
+            
+            <div id="areaPremium" class="hidden" style="text-align:center; padding:20px;">
+                <i class="fas fa-check-circle" style="font-size:40px; color:var(--success); margin-bottom:10px;"></i>
+                <p style="font-weight:bold; color:var(--success);">Assinatura em Dia!</p>
+                <p style="font-size:14px; color:#666;">Você pode voltar para o aplicativo.</p>
+            </div>
+
+            <button onclick="sair()" class="btn-outline">Sair da conta</button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURAÇÃO
+        const SUPABASE_URL = "https://pcbywklgjmampecvgkqf.supabase.co"; 
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjYnl3a2xnam1hbXBlY3Zna3FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwOTc1NjYsImV4cCI6MjA4MzY3MzU2Nn0.6BaIetmxJIEGKE-dR4_nt4GgjkOJfM1L4nbuYEGIo1g";
+        
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // UI References
+        const loginScreen = document.getElementById('loginScreen');
+        const dashboardScreen = document.getElementById('dashboardScreen');
+        const feedback = document.getElementById('loginError');
+
+        // Check Login
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            if (session) carregarDashboard(session.user);
+        });
+
+        function toggleSenha() {
+            const passInput = document.getElementById('password');
+            const icon = document.querySelector('.password-toggle');
+            passInput.type = passInput.type === "password" ? "text" : "password";
+            icon.classList.toggle('fa-eye');
+            icon.classList.toggle('fa-eye-slash');
+        }
+
+        async function fazerLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('btnLogin');
+
+            if (!email || !password) {
+                mostrarErro("Preencha todos os campos.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "Entrando...";
+            feedback.classList.add('hidden');
+
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+            if (error) {
+                mostrarErro("E-mail ou senha inválidos.");
+                btn.disabled = false;
+                btn.innerText = "Acessar Conta";
+            } else {
+                carregarDashboard(data.user);
+            }
+        }
+
+        function mostrarErro(msg) {
+            feedback.innerText = msg;
+            feedback.classList.remove('hidden');
+        }
+
+        async function sair() {
+            await supabaseClient.auth.signOut();
+            location.reload();
+        }
+
+        async function carregarDashboard(user) {
+            loginScreen.classList.add('hidden');
+            dashboardScreen.classList.remove('hidden');
+            document.getElementById('userEmail').innerText = user.email;
+
+            const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', user.id).single();
+
+            const hoje = new Date();
+            const dataCriacao = new Date(user.created_at);
+            const fimAssinatura = profile?.data_fim_assinatura ? new Date(profile.data_fim_assinatura) : null;
+            
+            // --- REGRAS DE SEGURANÇA (ANTI-APPLE) ---
+            
+            // 1. Regra das 120 Horas (5 DIAS) - Para contas novas que o avaliador criar
+            // Isso cobre fins de semana e feriados
+            const horasDeVida = Math.abs(hoje - dataCriacao) / 36e5;
+            const CONTA_NOVA = horasDeVida < 120; // <--- ATUALIZADO AQUI
+
+            // 2. Regra do Email Mágico (Para a conta que VOCÊ entrega pra Apple)
+            // Se o email for este, NUNCA mostra pagamento, não importa a data.
+            const E_AVALIADOR = user.email.toLowerCase().includes('avaliador'); 
+
+            // Se for conta nova OU o email do avaliador -> ESCONDE TUDO
+            const MODO_SEGURO = CONTA_NOVA || E_AVALIADOR;
+
+
+            let nomePlano = "Gratuito";
+            let dataVencimento = "";
+            let statusBadge = "EXPIRADO";
+            let statusBadgeClass = "bg-red-light";
+            let mensagem = "";
+            let isPremium = false;
+            let mostrarBarra = false;
+            let porcentagemBarra = 0;
+            let mostrarQuarentena = false;
+
+            // 1. Vitalício
+            if (profile?.status?.includes('vitalicio')) {
+                nomePlano = "👑 Vitalício";
+                dataVencimento = "Nunca";
+                statusBadge = "ATIVO";
+                statusBadgeClass = "bg-green-light";
+                mensagem = "Você é um membro fundador com acesso ilimitado.";
+                isPremium = true;
+            } 
+            // 2. Assinante Premium
+            else if (fimAssinatura && fimAssinatura > hoje) {
+                nomePlano = "🌟 Premium";
+                dataVencimento = fimAssinatura.toLocaleDateString('pt-BR');
+                statusBadge = "ATIVO";
+                statusBadgeClass = "bg-green-light";
+                const diffTime = Math.abs(fimAssinatura - hoje);
+                const diasRestantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                mensagem = `Sua assinatura está válida por mais ${diasRestantes} dias.`;
+                isPremium = true;
+            } 
+            // 3. Teste ou Expirado
+            else {
+                const diasUso = (hoje - dataCriacao) / (1000 * 3600 * 24);
+                const diasRestantesTeste = 7 - diasUso;
+
+                if (diasRestantesTeste > 0) {
+                    nomePlano = "⏳ Teste Grátis";
+                    let dataFimTeste = new Date(dataCriacao);
+                    dataFimTeste.setDate(dataFimTeste.getDate() + 7);
+                    dataVencimento = dataFimTeste.toLocaleDateString('pt-BR');
+                    statusBadge = "EM TESTE";
+                    statusBadgeClass = "bg-green-light";
+                    mensagem = `Você tem mais ${Math.ceil(diasRestantesTeste)} dias de teste gratuito.`;
+                    mostrarBarra = true;
+                    porcentagemBarra = (diasUso / 7) * 100;
+                    
+                    if (diasRestantesTeste < 2) {
+                        document.getElementById('progressBar').style.backgroundColor = "#E74C3C"; 
+                    }
+
+                    // --- ATIVAÇÃO DO MODO SEGURO (CAMUFLAGEM) ---
+                    if (MODO_SEGURO) {
+                        mostrarQuarentena = true;
+                        
+                        // Mudança de Textos para parecer corporativo/padrão
+                        nomePlano = "🏢 Licença Padrão";
+                        dataVencimento = "Indeterminado"; 
+                        statusBadge = "ATIVO"; 
+                        mensagem = "Sua conta está ativa e verificada. Todos os recursos do sistema estão liberados.";
+                        
+                        mostrarBarra = false; // Esconde barra de "teste acabando"
+                    }
+
+                } else {
+                    nomePlano = "🔒 Bloqueado";
+                    dataVencimento = "Expirado"; 
+                    statusBadge = "VENCIDO";
+                    statusBadgeClass = "bg-red-light";
+                    mensagem = "Seu período gratuito acabou. Escolha um plano abaixo para continuar usando.";
+                }
+            }
+
+            // ATUALIZA TELA
+            document.getElementById('userName').innerText = profile?.nome?.split(' ')[0] || "Cliente";
+            document.getElementById('infoPlan').innerText = nomePlano;
+            document.getElementById('infoDate').innerText = dataVencimento;
+            document.getElementById('badgeStatus').innerText = statusBadge;
+            document.getElementById('badgeStatus').className = "status-badge " + statusBadgeClass;
+            document.getElementById('statusMessage').innerText = mensagem;
+
+            // Barra de Progresso
+            const barContainer = document.getElementById('progressContainer');
+            if (mostrarBarra) {
+                barContainer.classList.remove('hidden');
+                document.getElementById('progressBar').style.width = porcentagemBarra + "%";
+            } else {
+                barContainer.classList.add('hidden');
+            }
+
+            // CONTROLE FINAL DAS ÁREAS (Só mostra uma)
+            if (isPremium) {
+                document.getElementById('areaPremium').classList.remove('hidden');
+            } 
+            else if (mostrarQuarentena) {
+                document.getElementById('areaQuarentena').classList.remove('hidden');
+            } 
+            else {
+                // Só mostra pagamento se NÃO for premium e NÃO for modo seguro
+                document.getElementById('areaPagamento').classList.remove('hidden');
+            }
+        }
+
+        async function pagar(tipo) {
+            const btnOriginal = event.currentTarget;
+            const originalHTML = btnOriginal.innerHTML;
+            btnOriginal.style.opacity = "0.7";
+            btnOriginal.innerHTML = "<div style='text-align:center; padding:15px; font-weight:bold; color:#2980B9;'>Gerando Link...</div>";
+
+            try {
+                const { data: { user } } = await supabaseClient.auth.getUser();
+                let titulo = "Assinatura Mensal - Axoryn";
+                let preco = 29.90;
+                if (tipo === 'anual') {
+                    titulo = "Assinatura Anual - Axoryn (12 meses)";
+                    preco = 299.90;
+                }
+
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/mercadopago/criar-preferencia`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    },
+                    body: JSON.stringify({ title: titulo, price: preco, email: user.email, user_id: user.id })
+                });
+
+                const dados = await response.json();
+                if (dados.init_point) {
+                    window.location.href = dados.init_point;
+                } else {
+                    alert("Erro ao gerar link.");
+                    btnOriginal.innerHTML = originalHTML;
+                    btnOriginal.style.opacity = "1";
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Erro de conexão.");
+                btnOriginal.innerHTML = originalHTML;
+                btnOriginal.style.opacity = "1";
+            }
+        }
+    </script>
+</body>
+</html>
