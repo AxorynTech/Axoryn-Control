@@ -31,6 +31,9 @@
         button:hover { background-color: #1F618D; }
         button:disabled { background-color: #BDC3C7; cursor: not-allowed; }
         button.btn-outline { background: transparent; border: 1px solid #BDC3C7; color: #7F8C8D; margin-top: 20px; font-size: 14px; }
+        
+        .link-recuperar { display: block; text-align: right; margin-bottom: 15px; font-size: 13px; color: var(--primary); text-decoration: none; }
+        .link-recuperar:hover { text-decoration: underline; }
 
         /* Dashboard Header */
         .user-header { margin-bottom: 20px; }
@@ -61,12 +64,15 @@
         .plan-period { font-size: 11px; color: #999; }
         .best-value { position: absolute; top: -10px; right: 50%; transform: translateX(50%); background: var(--success); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: bold; }
 
-        /* Utilitários - IMPORTANTÍSSIMO: .hidden tem !important para não piscar */
+        /* Utilitários */
         .hidden { display: none !important; }
         .error { color: var(--danger); font-size: 13px; margin-bottom: 15px; background: #FDEDEC; padding: 10px; border-radius: 6px; }
         .text-green { color: var(--success); }
         .bg-green-light { background: #E8F8F5; color: var(--success); }
         .bg-red-light { background: #FDEDEC; color: var(--danger); }
+        
+        /* Debug Info (Discreto no rodapé) */
+        .debug-info { font-size: 9px; color: #ccc; margin-top: 30px; text-align: center; }
     </style>
 </head>
 <body>
@@ -85,6 +91,9 @@
                 <input type="password" id="password" placeholder="Sua senha" />
                 <i class="fas fa-eye password-toggle" onclick="toggleSenha()"></i>
             </div>
+            
+            <a href="recuperar.html" class="link-recuperar">Esqueceu a senha?</a>
+
             <button onclick="fazerLogin()" id="btnLogin">Acessar Conta</button>
         </div>
 
@@ -144,13 +153,17 @@
                 </div>
             </div>
             
-            <div id="areaPremium" class="hidden" style="text-align:center; padding:20px;">
-                <i class="fas fa-check-circle" style="font-size:40px; color:var(--success); margin-bottom:10px;"></i>
-                <p style="font-weight:bold; color:var(--success);">Assinatura em Dia!</p>
-                <p style="font-size:14px; color:#666;">Você pode voltar para o aplicativo.</p>
+            <div id="areaPremium" class="hidden">
+                <div style="padding:20px; background:#F8F9FA; border-radius:8px; border:1px solid #EEE; color:#555; font-size:14px; margin-top:15px;">
+                    <i class="fas fa-check-circle" style="color:#27AE60; font-size:20px; margin-bottom:10px;"></i><br>
+                    <strong>Conta Ativada com Sucesso</strong><br>
+                    Aproveite o Axoryn Control!<br>
+                </div>
             </div>
 
             <button onclick="sair()" class="btn-outline">Sair da conta</button>
+            
+            <div id="debugInfo" class="debug-info"></div>
         </div>
     </div>
 
@@ -167,8 +180,10 @@
         const feedback = document.getElementById('loginError');
 
         // Check Login
-        supabaseClient.auth.getSession().then(({ data: { session } }) => {
-            if (session) carregarDashboard(session.user);
+        supabaseClient.auth.getUser().then(({ data, error }) => {
+            if (data?.user) {
+                carregarDashboard(data.user);
+            }
         });
 
         function toggleSenha() {
@@ -219,26 +234,31 @@
             dashboardScreen.classList.remove('hidden');
             document.getElementById('userEmail').innerText = user.email;
 
+            // Busca perfil (tenta buscar, se falhar não tem problema)
             const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', user.id).single();
 
             const hoje = new Date();
             const dataCriacao = new Date(user.created_at);
             const fimAssinatura = profile?.data_fim_assinatura ? new Date(profile.data_fim_assinatura) : null;
             
-            // --- REGRAS DE SEGURANÇA (ANTI-APPLE) ---
+            // --- LÓGICA NUCLEAR DE DETECÇÃO ---
+            const userMeta = user.user_metadata || {};
+            const appMeta = user.app_metadata || {};
+            const profileData = profile || {};
+            const tudoJunto = JSON.stringify({ ...userMeta, ...appMeta, ...profileData }).toLowerCase();
             
-            // 1. Regra das 120 Horas (5 DIAS) - Para contas novas que o avaliador criar
-            // Isso cobre fins de semana e feriados
+            const IS_VITALICIO = tudoJunto.includes('vitalicio') || 
+                                 tudoJunto.includes('vitalício') || 
+                                 tudoJunto.includes('fundador') || 
+                                 tudoJunto.includes('admin');
+
+            document.getElementById('debugInfo').innerText = "ID: " + user.id.slice(0, 8) + "... | Status: " + (IS_VITALICIO ? "V" : "P");
+
+            // --- REGRAS DE SEGURANÇA (ANTI-APPLE) ---
             const horasDeVida = Math.abs(hoje - dataCriacao) / 36e5;
-            const CONTA_NOVA = horasDeVida < 120; // <--- ATUALIZADO AQUI
-
-            // 2. Regra do Email Mágico (Para a conta que VOCÊ entrega pra Apple)
-            // Se o email for este, NUNCA mostra pagamento, não importa a data.
+            const CONTA_NOVA = horasDeVida < 120; 
             const E_AVALIADOR = user.email.toLowerCase().includes('avaliador'); 
-
-            // Se for conta nova OU o email do avaliador -> ESCONDE TUDO
             const MODO_SEGURO = CONTA_NOVA || E_AVALIADOR;
-
 
             let nomePlano = "Gratuito";
             let dataVencimento = "";
@@ -250,13 +270,14 @@
             let porcentagemBarra = 0;
             let mostrarQuarentena = false;
 
-            // 1. Vitalício
-            if (profile?.status?.includes('vitalicio')) {
-                nomePlano = "👑 Vitalício";
-                dataVencimento = "Nunca";
+            // 1. Vitalício (PRIORIDADE MÁXIMA)
+            if (IS_VITALICIO) {
+                // VISUAL CAMUFLADO (mas logicamente liberado)
+                nomePlano = "🏢 Licença Padrão";
+                dataVencimento = "Indeterminado"; 
                 statusBadge = "ATIVO";
                 statusBadgeClass = "bg-green-light";
-                mensagem = "Você é um membro fundador com acesso ilimitado.";
+                mensagem = "Sua conta está ativa e verificada. Todos os recursos do sistema estão liberados.";
                 isPremium = true;
             } 
             // 2. Assinante Premium
@@ -276,34 +297,28 @@
                 const diasRestantesTeste = 7 - diasUso;
 
                 if (diasRestantesTeste > 0) {
-                    nomePlano = "⏳ Teste Grátis";
-                    let dataFimTeste = new Date(dataCriacao);
-                    dataFimTeste.setDate(dataFimTeste.getDate() + 7);
-                    dataVencimento = dataFimTeste.toLocaleDateString('pt-BR');
-                    statusBadge = "EM TESTE";
-                    statusBadgeClass = "bg-green-light";
-                    mensagem = `Você tem mais ${Math.ceil(diasRestantesTeste)} dias de teste gratuito.`;
-                    mostrarBarra = true;
-                    porcentagemBarra = (diasUso / 7) * 100;
-                    
-                    if (diasRestantesTeste < 2) {
-                        document.getElementById('progressBar').style.backgroundColor = "#E74C3C"; 
-                    }
-
-                    // --- ATIVAÇÃO DO MODO SEGURO (CAMUFLAGEM) ---
                     if (MODO_SEGURO) {
                         mostrarQuarentena = true;
-                        
-                        // Mudança de Textos para parecer corporativo/padrão
                         nomePlano = "🏢 Licença Padrão";
                         dataVencimento = "Indeterminado"; 
                         statusBadge = "ATIVO"; 
+                        statusBadgeClass = "bg-green-light";
                         mensagem = "Sua conta está ativa e verificada. Todos os recursos do sistema estão liberados.";
-                        
-                        mostrarBarra = false; // Esconde barra de "teste acabando"
+                        mostrarBarra = false;
+                    } else {
+                        nomePlano = "⏳ Teste Grátis";
+                        let dataFimTeste = new Date(dataCriacao);
+                        dataFimTeste.setDate(dataFimTeste.getDate() + 7);
+                        dataVencimento = dataFimTeste.toLocaleDateString('pt-BR');
+                        statusBadge = "EM TESTE";
+                        statusBadgeClass = "bg-green-light";
+                        mensagem = `Você tem mais ${Math.ceil(diasRestantesTeste)} dias de teste gratuito.`;
+                        mostrarBarra = true;
+                        porcentagemBarra = (diasUso / 7) * 100;
+                        if (diasRestantesTeste < 2) document.getElementById('progressBar').style.backgroundColor = "#E74C3C"; 
                     }
-
                 } else {
+                    // EXPIRADO (> 7 dias)
                     nomePlano = "🔒 Bloqueado";
                     dataVencimento = "Expirado"; 
                     statusBadge = "VENCIDO";
@@ -313,7 +328,7 @@
             }
 
             // ATUALIZA TELA
-            document.getElementById('userName').innerText = profile?.nome?.split(' ')[0] || "Cliente";
+            document.getElementById('userName').innerText = profile?.nome?.split(' ')[0] || user.email.split('@')[0];
             document.getElementById('infoPlan').innerText = nomePlano;
             document.getElementById('infoDate').innerText = dataVencimento;
             document.getElementById('badgeStatus').innerText = statusBadge;
@@ -329,7 +344,11 @@
                 barContainer.classList.add('hidden');
             }
 
-            // CONTROLE FINAL DAS ÁREAS (Só mostra uma)
+            // CONTROLE FINAL DAS ÁREAS
+            document.getElementById('areaPremium').classList.add('hidden');
+            document.getElementById('areaQuarentena').classList.add('hidden');
+            document.getElementById('areaPagamento').classList.add('hidden');
+
             if (isPremium) {
                 document.getElementById('areaPremium').classList.remove('hidden');
             } 
@@ -337,7 +356,6 @@
                 document.getElementById('areaQuarentena').classList.remove('hidden');
             } 
             else {
-                // Só mostra pagamento se NÃO for premium e NÃO for modo seguro
                 document.getElementById('areaPagamento').classList.remove('hidden');
             }
         }

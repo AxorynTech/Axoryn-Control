@@ -67,7 +67,7 @@ export default function PaywallScreen() {
 
       {/* BOTÃO PRINCIPAL: IR PARA O SITE */}
       <TouchableOpacity style={styles.button} onPress={abrirSite}>
-        <Text style={styles.buttonText}>Acessar Portal Web</Text>
+        <Text style={styles.buttonText}>Gerenciamento de Conta</Text>
         <Ionicons name="open-outline" size={20} color="#FFF" style={{ marginLeft: 10 }} />
       </TouchableOpacity>
 
