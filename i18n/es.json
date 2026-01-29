@@ -11,7 +11,32 @@
     "btnCadastrar": "REGISTRARSE",
     "aguarde": "ESPERE...",
     "jaTemConta": "¿Ya tienes cuenta? Ingresa aquí",
-    "naoTemConta": "¿No tienes cuenta? Regístrate"
+    "naoTemConta": "¿No tienes cuenta? Regístrate",
+    "cadastroConfirmado": "¡Registro confirmado! Disfruta de tus 7 días gratis.",
+    "comecarAgora": "EMPEZAR AHORA",
+    "aceiteTermos": "Acepte los Términos de Uso.",
+    "cadastroSucesso": "¡Registro exitoso! Verifique su correo."
+  },
+  "termos": {
+    "tituloPrincipal": "Términos de Servicio y Política Legal",
+    "item1Tit": "1. CONCESIÓN DE LICENCIA Y NATURALEZA DEL SERVICIO:",
+    "item1Txt": "AXORYN CONTROL otorga al USUARIO una licencia revocable, no exclusiva e intransferible para usar el software estrictamente como herramienta de gestión de datos. La aplicación actúa como un repositorio pasivo de información. AXORYN CONTROL NO es una institución financiera, no otorga préstamos, no procesa pagos bancarios y no ofrece asesoramiento legal o contable.",
+    "item2Tit": "2. RESPONSABILIDAD Y CUMPLIMIENTO LEGAL:",
+    "item2Txt": "El USUARIO reconoce ser el único responsable de la veracidad, legalidad y origen de los datos ingresados. El USUARIO se compromete a utilizar la plataforma en estricto cumplimiento de las leyes locales de su jurisdicción, incluidas las regulaciones sobre préstamos entre particulares (P2P), límites de tasas de interés (usura) y obligaciones fiscales.",
+    "item3Tit": "3. ACTIVIDADES PROHIBIDAS Y POLÍTICA DE USO:",
+    "item3Txt": "Está terminantemente prohibido usar esta plataforma para: a) Usura abusiva o extorsión; b) Lavado de dinero u ocultamiento de activos; c) Acoso o amenazas en el cobro de deudas. AXORYN CONTROL se reserva el derecho de suspender o bloquear permanentemente cualquier cuenta bajo sospecha de violación, sin previo aviso, y cooperará plenamente con las autoridades gubernamentales.",
+    "item4Tit": "4. LIMITACIÓN DE RESPONSABILIDAD (DISCLAIMER):",
+    "item4Txt": "El servicio se proporciona \"tal cual\" (\"as is\"). Los desarrolladores no garantizan que el servicio sea ininterrumpido o esté libre de errores. En ningún caso AXORYN CONTROL será responsable por pérdidas financieras, lucro cesante, incumplimiento de terceros o fallas de seguridad en el dispositivo del USUARIO.",
+    "item5Tit": "5. PRIVACIDAD Y PROTECCIÓN DE DATOS:",
+    "item5Txt": "Respetamos su privacidad. Sus datos se procesan para la funcionalidad de la aplicación y no se venden a terceros. El USUARIO acepta el procesamiento de datos conforme a las normas internacionales de protección de datos.",
+    "item6Tit": "6. PROPIEDAD INTELECTUAL:",
+    "item6Txt": "Todo el diseño, código fuente, logotipos y marcas comerciales asociados con AXORYN CONTROL son propiedad exclusiva de los desarrolladores. El uso de la aplicación no otorga al USUARIO ningún derecho de propiedad sobre la tecnología.",
+    "item7Tit": "7. INDEMNIZACIÓN:",
+    "item7Txt": "El USUARIO acepta indemnizar y eximir a AXORYN CONTROL y sus desarrolladores de cualquier reclamo, pérdida, responsabilidad o gasto (incluidos los honorarios legales) derivados del uso indebido de la plataforma o la violación de estos términos.",
+    "item8Tit": "8. MODIFICACIONES:",
+    "item8Txt": "Podemos actualizar estos términos en cualquier momento. El uso continuado de la aplicación después de los cambios constituye la aceptación de los nuevos términos.",
+    "conclusao": "Al hacer clic en \"LEÍ Y ACEPTO\", el USUARIO confirma tener capacidad legal para contratar y acepta plenamente estos términos.",
+    "btnAceitar": "LEÍ Y ACEPTO"
   },
   "index": {
     "verificando": "Verificando suscripción...",
@@ -29,6 +54,14 @@
   },
   "topo": {
     "sair": "SALIR"
+  },
+  "resumo": {
+    "titulo": "Resumen Financiero",
+    "hoje": "Hoy",
+    "semana": "Esta Semana",
+    "mes": "Este Mes",
+    "ultimasMovimentacoes": "Últimos Movimientos",
+    "vazio": "Ningún pago registrado en este período."
   },
   "cadastro": {
     "titulo": "Nuevo Cliente",

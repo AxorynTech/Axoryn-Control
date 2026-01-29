@@ -1,11 +1,13 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useClientes } from '@/hooks/useClientes';
-import { supabase } from '@/services/supabase'; // <--- IMPORTADO
+import { supabase } from '@/services/supabase';
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useEffect, useState } from 'react'; // <--- useEffect adicionado
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ResumoScreen() {
+  const { t } = useTranslation(); // <--- Hook de tradução
   // Agora desestruturamos o fetchData também
   const { clientes, fetchData } = useClientes(); 
   const [totais, setTotais] = useState({ dia: 0, semana: 0, mes: 0 });
@@ -138,16 +140,16 @@ export default function ResumoScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.header}>Resumo Financeiro</Text>
+      <Text style={styles.header}>{t('resumo.titulo')}</Text>
       
       <View style={styles.grid}>
-        <CardResumo titulo="Hoje" valor={totais.dia} cor="#27ae60" icone="calendar" />
-        <CardResumo titulo="Esta Semana" valor={totais.semana} cor="#2980b9" icone="calendar.badge.clock" />
-        <CardResumo titulo="Este Mês" valor={totais.mes} cor="#8e44ad" icone="calendar.circle.fill" />
+        <CardResumo titulo={t('resumo.hoje')} valor={totais.dia} cor="#27ae60" icone="calendar" />
+        <CardResumo titulo={t('resumo.semana')} valor={totais.semana} cor="#2980b9" icone="calendar.badge.clock" />
+        <CardResumo titulo={t('resumo.mes')} valor={totais.mes} cor="#8e44ad" icone="calendar.circle.fill" />
       </View>
 
       <View style={styles.secaoHistorico}>
-        <Text style={styles.subTitulo}>Últimas Movimentações</Text>
+        <Text style={styles.subTitulo}>{t('resumo.ultimasMovimentacoes')}</Text>
         {historicoRecente.map((item, index) => (
           <View key={index} style={styles.itemHistorico}>
             <View style={{flex: 1, paddingRight: 10}}>
@@ -162,7 +164,7 @@ export default function ResumoScreen() {
           </View>
         ))}
         {historicoRecente.length === 0 && (
-            <Text style={styles.avisoVazio}>Nenhum pagamento registrado neste período.</Text>
+            <Text style={styles.avisoVazio}>{t('resumo.vazio')}</Text>
         )}
       </View>
       <View style={{height: 40}} />

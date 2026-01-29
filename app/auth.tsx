@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react'; // <--- useRef IMPORTADO AQUI
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import {
   Alert,
   Image,
@@ -21,6 +22,7 @@ import ModalTermos from '../components/ModalTermos';
 import { supabase } from '../services/supabase';
 
 export default function Auth() {
+  const { t } = useTranslation(); // <--- Hook de tradução
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,8 +72,8 @@ export default function Auth() {
             if (type === 'signup') {
               const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
               if (!error) {
-                Alert.alert("🎉 Parabéns!", "Cadastro confirmado! Aproveite seus 7 dias gratuitos.", [
-                  { text: "COMEÇAR AGORA", onPress: () => router.replace('/(tabs)') }
+                Alert.alert("🎉 " + (t('common.sucesso') || "Parabéns!"), t('auth.cadastroConfirmado') || "Cadastro confirmado! Aproveite seus 7 dias gratuitos.", [
+                  { text: t('auth.comecarAgora') || "COMEÇAR AGORA", onPress: () => router.replace('/(tabs)') }
                 ]);
               }
             } 
@@ -106,8 +108,8 @@ export default function Auth() {
   };
 
   async function handleAuth() {
-    if (!email || !password) return Alert.alert("Erro", "Preencha e-mail e senha.");
-    if (isSignUp && !termosAceitos) return Alert.alert("Atenção", "Aceite os Termos de Uso.");
+    if (!email || !password) return Alert.alert(t('common.erro'), t('common.preenchaCampos') || "Preencha e-mail e senha.");
+    if (isSignUp && !termosAceitos) return Alert.alert(t('common.erro'), t('auth.aceiteTermos') || "Aceite os Termos de Uso.");
 
     setLoading(true);
     try {
@@ -123,7 +125,7 @@ export default function Auth() {
           })
         );
         if (error) throw error;
-        Alert.alert("Sucesso", "Cadastro realizado! Verifique seu e-mail.");
+        Alert.alert(t('common.sucesso'), t('auth.cadastroSucesso') || "Cadastro realizado! Verifique seu e-mail.");
       } else {
         // --- LOGIN ---
         const { error, data }: any = await loginComTimeout(
@@ -133,7 +135,7 @@ export default function Auth() {
         if (data.session) router.replace('/(tabs)'); 
       }
     } catch (error: any) {
-      Alert.alert("Erro", error.message);
+      Alert.alert(t('common.erro'), error.message);
     } finally {
       setLoading(false);
     }
@@ -145,14 +147,14 @@ export default function Auth() {
         <View style={styles.header}>
           <Image source={require('../assets/images/app-icon.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Axoryn Control</Text>
-          <Text style={styles.subtitle}>{isSignUp ? "Crie sua conta" : "Entre para continuar"}</Text>
+          <Text style={styles.subtitle}>{isSignUp ? t('auth.criarContaTitulo') : t('auth.entrarTitulo')}</Text>
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>E-mail</Text>
+          <Text style={styles.label}>{t('auth.email')}</Text>
           <TextInput style={styles.input} placeholder="seu@email.com" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
           
-          <Text style={styles.label}>Senha</Text>
+          <Text style={styles.label}>{t('auth.senha')}</Text>
           <View style={styles.passwordContainer}>
             <TextInput style={styles.inputPassword} placeholder="********" value={password} onChangeText={setPassword} secureTextEntry={!senhaVisivel} />
             <TouchableOpacity onPress={() => setSenhaVisivel(!senhaVisivel)} style={styles.eyeIcon}>
@@ -162,7 +164,7 @@ export default function Auth() {
 
           {!isSignUp && (
             <TouchableOpacity onPress={() => setModalRecuperar(true)} style={styles.btnEsqueci}>
-              <Text style={styles.txtEsqueci}>Esqueci minha senha</Text>
+              <Text style={styles.txtEsqueci}>{t('auth.esqueciSenha')}</Text>
             </TouchableOpacity>
           )}
 
@@ -172,17 +174,17 @@ export default function Auth() {
                 <Ionicons name={termosAceitos ? "checkbox" : "square-outline"} size={24} color={termosAceitos ? "#27AE60" : "#888"} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setModalTermosVisivel(true)}>
-                <Text style={styles.termosTexto}>Li e concordo com os <Text style={styles.linkTermos}>Termos de Uso</Text></Text>
+                <Text style={styles.termosTexto}>{t('auth.liConcordo')} <Text style={styles.linkTermos}>{t('auth.termos')}</Text></Text>
               </TouchableOpacity>
             </View>
           )}
 
           <TouchableOpacity style={[styles.btnPrimary, loading && styles.btnDisabled]} onPress={handleAuth} disabled={loading}>
-            <Text style={styles.txtPrimary}>{loading ? "AGUARDE..." : (isSignUp ? "CADASTRAR" : "ENTRAR")}</Text>
+            <Text style={styles.txtPrimary}>{loading ? t('auth.aguarde') : (isSignUp ? t('auth.btnCadastrar') : t('auth.btnEntrar'))}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setIsSignUp(!isSignUp)}>
-            <Text style={styles.txtSecondary}>{isSignUp ? "Já tem uma conta? Entre aqui" : "Não tem conta? Cadastre-se"}</Text>
+            <Text style={styles.txtSecondary}>{isSignUp ? t('auth.jaTemConta') : t('auth.naoTemConta')}</Text>
           </TouchableOpacity>
         </View>
 

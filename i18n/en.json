@@ -11,7 +11,32 @@
     "btnCadastrar": "SIGN UP",
     "aguarde": "WAIT...",
     "jaTemConta": "Already have an account? Sign in",
-    "naoTemConta": "Don't have an account? Sign up"
+    "naoTemConta": "Don't have an account? Sign up",
+    "cadastroConfirmado": "Registration confirmed! Enjoy your 7-day free trial.",
+    "comecarAgora": "START NOW",
+    "aceiteTermos": "Please accept the Terms of Use.",
+    "cadastroSucesso": "Registration successful! Check your email."
+  },
+  "termos": {
+    "tituloPrincipal": "Terms of Service & Legal Policy",
+    "item1Tit": "1. LICENSE GRANT AND NATURE OF SERVICE:",
+    "item1Txt": "AXORYN CONTROL grants the USER a revocable, non-exclusive, non-transferable license to use the software strictly as a data management tool. The app acts as a passive information repository. AXORYN CONTROL is NOT a financial institution, does not issue loans, does not process banking payments, and does not provide legal or accounting advice.",
+    "item2Tit": "2. USER RESPONSIBILITY AND COMPLIANCE:",
+    "item2Txt": "The USER acknowledges being solely responsible for the accuracy, legality, and origin of entered data. The USER agrees to use the platform in strict compliance with the local laws of their jurisdiction, including regulations on Peer-to-Peer (P2P) lending, interest rate caps (usury laws), and tax obligations.",
+    "item3Tit": "3. PROHIBITED ACTIVITIES AND USAGE POLICY:",
+    "item3Txt": "It is strictly prohibited to use this platform for: a) Predatory lending or extortion; b) Money laundering or asset concealment; c) Harassment or threats in debt collection. AXORYN CONTROL reserves the right to suspend or permanently ban any account under suspicion of violation without prior notice and will fully cooperate with government authorities.",
+    "item4Tit": "4. LIMITATION OF LIABILITY (DISCLAIMER):",
+    "item4Txt": "The service is provided on an \"as is\" and \"as available\" basis. The developers do not guarantee that the service will be uninterrupted or error-free. In no event shall AXORYN CONTROL be liable for financial losses, lost profits, third-party default, or security failures of the USER's device.",
+    "item5Tit": "5. PRIVACY AND DATA PROTECTION:",
+    "item5Txt": "We respect your privacy. Your data is processed for app functionality and is not sold to third parties. The USER agrees to data processing in accordance with international data protection standards.",
+    "item6Tit": "6. INTELLECTUAL PROPERTY:",
+    "item6Txt": "All design, source code, logos, and trademarks associated with AXORYN CONTROL are the exclusive property of the developers. Use of the app does not grant the USER any ownership rights over the technology.",
+    "item7Tit": "7. INDEMNIFICATION:",
+    "item7Txt": "The USER agrees to indemnify and hold harmless AXORYN CONTROL and its developers from any claims, losses, liabilities, or expenses (including legal fees) arising from the misuse of the platform or violation of these terms.",
+    "item8Tit": "8. AMENDMENTS:",
+    "item8Txt": "We may update these terms at any time. Continued use of the application after changes constitutes acceptance of the new terms.",
+    "conclusao": "By clicking \"I AGREE\", the USER confirms legal capacity to contract and fully agrees to these terms.",
+    "btnAceitar": "I AGREE"
   },
   "index": {
     "verificando": "Checking subscription...",
@@ -29,6 +54,14 @@
   },
   "topo": {
     "sair": "SIGN OUT"
+  },
+  "resumo": {
+    "titulo": "Financial Summary",
+    "hoje": "Today",
+    "semana": "This Week",
+    "mes": "This Month",
+    "ultimasMovimentacoes": "Recent Transactions",
+    "vazio": "No payments recorded in this period."
   },
   "cadastro": {
     "titulo": "New Client",

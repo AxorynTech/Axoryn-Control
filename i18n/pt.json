@@ -11,7 +11,32 @@
     "btnCadastrar": "CADASTRAR",
     "aguarde": "AGUARDE...",
     "jaTemConta": "Já tem uma conta? Entre aqui",
-    "naoTemConta": "Não tem conta? Cadastre-se"
+    "naoTemConta": "Não tem conta? Cadastre-se",
+    "cadastroConfirmado": "Cadastro confirmado! Aproveite seus 7 dias gratuitos.",
+    "comecarAgora": "COMEÇAR AGORA",
+    "aceiteTermos": "Aceite os Termos de Uso.",
+    "cadastroSucesso": "Cadastro realizado! Verifique seu e-mail."
+  },
+  "termos": {
+    "tituloPrincipal": "Termos de Uso e Política Legal",
+    "item1Tit": "1. CONCESSÃO DE LICENÇA E NATUREZA DO SERVIÇO:",
+    "item1Txt": "O AXORYN CONTROL concede ao USUÁRIO uma licença revogável, não exclusiva e intransferível para uso do software estritamente como ferramenta de gestão de dados. O aplicativo atua como um repositório passivo de informações. O AXORYN CONTROL NÃO é uma instituição financeira, não realiza empréstimos, não processa pagamentos bancários e não fornece aconselhamento jurídico ou contábil.",
+    "item2Tit": "2. RESPONSABILIDADE E CONFORMIDADE LEGAL:",
+    "item2Txt": "O USUÁRIO reconhece ser o único responsável pela veracidade, legalidade e origem dos dados inseridos. O USUÁRIO compromete-se a utilizar a plataforma em estrita conformidade com as leis locais de sua jurisdição, incluindo regulamentações sobre empréstimos entre particulares (P2P Lending), limites de taxas de juros (usura) e obrigações tributárias.",
+    "item3Tit": "3. ATIVIDADES PROIBIDAS E POLÍTICA DE USO:",
+    "item3Txt": "É terminantemente proibido utilizar esta plataforma para: a) Práticas de agiotagem abusiva ou extorsão; b) Lavagem de dinheiro ou ocultação de bens; c) Assédio ou ameaças na cobrança de dívidas. O AXORYN CONTROL reserva-se o direito de suspender ou banir permanentemente qualquer conta sob suspeita de violação, sem aviso prévio, e cooperará integralmente com autoridades governamentais.",
+    "item4Tit": "4. LIMITAÇÃO DE RESPONSABILIDADE (DISCLAIMER):",
+    "item4Txt": "O serviço é fornecido \"no estado em que se encontra\" (\"as is\"). Os desenvolvedores não garantem que o serviço será ininterrupto ou livre de erros. Em nenhuma circunstância o AXORYN CONTROL será responsável por perdas financeiras, lucros cessantes, inadimplência de terceiros ou falhas na segurança do dispositivo do USUÁRIO.",
+    "item5Tit": "5. PRIVACIDADE E PROTEÇÃO DE DADOS:",
+    "item5Txt": "Respeitamos sua privacidade. Seus dados são processados para a funcionalidade do app e não são vendidos a terceiros. O USUÁRIO concorda com o processamento de dados conforme as normas internacionais de proteção de dados.",
+    "item6Tit": "6. PROPRIEDADE INTELECTUAL:",
+    "item6Txt": "Todo o design, código-fonte, logotipos e marcas comerciais associados ao AXORYN CONTROL são propriedade exclusiva dos desenvolvedores. O uso do app não confere ao USUÁRIO qualquer direito de propriedade sobre a tecnologia.",
+    "item7Tit": "7. INDENIZAÇÃO:",
+    "item7Txt": "O USUÁRIO concorda em indenizar e isentar o AXORYN CONTROL e seus desenvolvedores de quaisquer reclamações, perdas, responsabilidades ou despesas (incluindo honorários advocatícios) decorrentes do uso indevido da plataforma ou da violação destes termos.",
+    "item8Tit": "8. ALTERAÇÕES NOS TERMOS:",
+    "item8Txt": "Podemos atualizar estes termos a qualquer momento. O uso contínuo do aplicativo após as alterações constitui aceitação dos novos termos.",
+    "conclusao": "Ao clicar em \"LI E ACEITO\", o USUÁRIO confirma ter capacidade legal para contratar e concorda integralmente com estes termos.",
+    "btnAceitar": "LI E ACEITO"
   },
   "index": {
     "verificando": "Verificando sua assinatura...",
@@ -29,6 +54,14 @@
   },
   "topo": {
     "sair": "SAIR"
+  },
+  "resumo": {
+    "titulo": "Resumo Financeiro",
+    "hoje": "Hoje",
+    "semana": "Esta Semana",
+    "mes": "Este Mês",
+    "ultimasMovimentacoes": "Últimas Movimentações",
+    "vazio": "Nenhum pagamento registrado neste período."
   },
   "cadastro": {
     "titulo": "Novo Cliente",
@@ -128,7 +161,7 @@
     "contratoN": "CONTRATO Nº",
     "cliente": "CLIENTE",
     "endereco": "Endereço",
-    "resumoFinanceiro": "RESUMEN FINANCEIRO",
+    "resumoFinanceiro": "RESUMO FINANCEIRO",
     "frequencia": "Frequência",
     "inicio": "Início",
     "vencimento": "Vencimento",
