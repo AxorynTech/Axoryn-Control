@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next'; // <--- Importa√ß√£o da tradu√ß√£o
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type Props = {
   abaAtual: string;
@@ -7,32 +8,34 @@ type Props = {
 };
 
 export default function MenuAbas({ abaAtual, setAba }: Props) {
+  const { t } = useTranslation(); // <--- Hook de tradu√ß√£o
+
   return (
     <View style={styles.tabBar}>
       
-      {/* Bot„o + CLIENTE */}
+      {/* Bot√£o + CLIENTE */}
       <TouchableOpacity 
         onPress={() => setAba('cadastro')} 
         style={[styles.tab, abaAtual === 'cadastro' && styles.tabA]}
       >
-        <Text style={styles.tabT}>+ CLIENTE</Text>
+        <Text style={styles.tabT}>{t('menuAbas.novoCliente')}</Text>
       </TouchableOpacity>
 
-      {/* Bot„o CARTEIRA */}
+      {/* Bot√£o CARTEIRA */}
       <TouchableOpacity 
         onPress={() => setAba('carteira')} 
         style={[styles.tab, abaAtual === 'carteira' && styles.tabA]}
       >
-        <Text style={styles.tabT}>CARTEIRA</Text>
+        <Text style={styles.tabT}>{t('menuAbas.carteira')}</Text>
       </TouchableOpacity>
 
-      {/* Bot„o COBRAN«A (Com cÛdigo universal do «) */}
+      {/* Bot√£o COBRAN√áA */}
       <TouchableOpacity 
         onPress={() => setAba('cobranca')} 
         style={[styles.tab, abaAtual === 'cobranca' && styles.tabA]}
       >
         <Text style={[styles.tabT, { color: '#E74C3C' }]}>
-          COBRAN{'\u00C7'}A
+          {t('menuAbas.cobranca')}
         </Text>
       </TouchableOpacity>
 

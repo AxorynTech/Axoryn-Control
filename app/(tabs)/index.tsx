@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da Tradução
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -43,6 +44,7 @@ import { useClientes } from '@/hooks/useClientes';
 
 export default function VertoApp() {
   const router = useRouter();
+  const { t } = useTranslation(); // <--- Hook de tradução
 
   // --- ESTADOS DE CONTROLE DE ACESSO ---
   const [checando, setChecando] = useState(true);
@@ -238,7 +240,7 @@ export default function VertoApp() {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F2F5' }}>
         <ActivityIndicator size="large" color="#2C3E50" />
         <Text style={{ marginTop: 20, color: '#666', fontWeight: '500' }}>
-          Verificando sua assinatura...
+          {t('index.verificando') || "Verificando sua assinatura..."}
         </Text>
       </View>
     );
@@ -272,7 +274,7 @@ export default function VertoApp() {
               
               <TouchableOpacity style={styles.btnRelatorio} onPress={() => setModalRelatorio(true)}>
                 <Ionicons name="stats-chart" size={20} color="#2C3E50" style={{ marginRight: 8 }} />
-                <Text style={{ fontWeight: 'bold', color: '#2C3E50' }}>Gerar Relatório Financeiro</Text>
+                <Text style={{ fontWeight: 'bold', color: '#2C3E50' }}>{t('index.gerarRelatorio') || "Gerar Relatório Financeiro"}</Text>
               </TouchableOpacity>
 
               <BarraPesquisa texto={textoBusca} aoDigitar={setTextoBusca} />

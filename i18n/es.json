@@ -13,6 +13,23 @@
     "jaTemConta": "¿Ya tienes cuenta? Ingresa aquí",
     "naoTemConta": "¿No tienes cuenta? Regístrate"
   },
+  "index": {
+    "verificando": "Verificando suscripción...",
+    "gerarRelatorio": "Generar Informe Financiero"
+  },
+  "tabs": {
+    "carteira": "Cartera",
+    "resumo": "Resumen",
+    "perfil": "Perfil"
+  },
+  "menuAbas": {
+    "novoCliente": "+ CLIENTE",
+    "carteira": "CARTERA",
+    "cobranca": "COBRO"
+  },
+  "topo": {
+    "sair": "SALIR"
+  },
   "cadastro": {
     "titulo": "Nuevo Cliente",
     "nome": "Nombre Completo *",
@@ -124,9 +141,71 @@
     "rodape2": "Este extracto es para simple conferencia.",
     "erroGerar": "Fallo al generar PDF."
   },
+  "relatorio": {
+    "tituloModal": "Generar Informe Maestro",
+    "dataInicial": "Fecha Inicial",
+    "dataFinal": "Fecha Final",
+    "btnGerar": "GENERAR INFORME COMPLETO",
+    "erroDatas": "Fechas inválidas.",
+    "tipoVenda": "Venta",
+    "tipoGarantia": "Garantía",
+    "pagamento": "Pago",
+    "quitacao": "Liquidación",
+    "renovacao": "Renovación",
+    "parcela": "Cuota",
+    "tituloPDF": "Informe Analítico",
+    "periodo": "PERÍODO",
+    "ate": "hasta",
+    "emissao": "EMISIÓN",
+    "performance": "Rendimiento Financiero",
+    "lucroMultas": "Lucro Neto + Multas",
+    "faturamento": "Ingresos Brutos",
+    "investido": "Total Invertido",
+    "margem": "Margen",
+    "ticket": "Ticket Medio",
+    "detalhamento": "Detalle de Entradas (Flujo de Caja)",
+    "colData": "Fecha",
+    "colCliente": "Cliente",
+    "colMod": "Mod.",
+    "colTipo": "Tipo",
+    "colTotal": "Total",
+    "colPrinc": "Princ.",
+    "colLucro": "Lucro",
+    "colMulta": "Multa",
+    "totais": "TOTALES",
+    "nenhumaEntrada": "Ninguna entrada registrada.",
+    "saidas": "Salidas (Inversiones)",
+    "colValor": "Valor Liberado",
+    "nenhumContrato": "Ningún contrato nuevo.",
+    "inventario": "Inventario de Activos (Posición Actual)",
+    "capitalRua": "CAPITAL ACTIVO",
+    "contratosAtivos": "CONTRATOS ACTIVOS",
+    "colItem": "Ítem / Garantía",
+    "colValorCont": "Valor Contrato",
+    "colVenc": "Vencimiento",
+    "nenhumaGarantia": "Ninguna garantía activa.",
+    "rodape": "Axoryn Control © 2026 - Tecnología Financiera Inteligente.",
+    "erroPDF": "Fallo al generar PDF"
+  },
+  "listaCobranca": {
+    "semNumero": "Cliente sin número.",
+    "msgAtraso": "Hola {nome}, su pago de R$ {valor} venció el {data}. ¿Podemos regularizar hoy?",
+    "msgHoje": "Hola {nome}, recordatorio de vencimiento hoy ({data}). Valor: R$ {valor}. ¡Espero confirmación!",
+    "cobrar": "COBRAR",
+    "vencimento": "Vencimiento",
+    "parcela": "CUOTA",
+    "quitacaoTotal": "LIQUIDACIÓN TOTAL",
+    "totalAtrasado": "TOTAL ATRASADO",
+    "venceHoje": "VENCE HOY",
+    "vencidos": "VENCIDOS",
+    "diasAtraso": "días de retraso",
+    "venceHojeStatus": "¡Vence Hoy!",
+    "tudoEmDia": "¡Todo al día por aquí!"
+  },
   "common": {
     "erro": "Error",
     "sucesso": "Éxito",
-    "preenchaCampos": "Rellene todos los campos."
+    "preenchaCampos": "Rellene todos los campos.",
+    "cancelar": "Cancelar"
   }
 }

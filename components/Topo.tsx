@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import {
   Platform,
   StatusBar,
@@ -14,7 +15,8 @@ import { supabase } from '../services/supabase';
 const STATUSBAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight : 48;
 
 export default function Topo({ dados }: any) {
-  
+  const { t } = useTranslation(); // <--- Hook de tradução
+
   const handleSignOut = async () => {
     try {
       // 1. Tenta avisar o Supabase que saiu
@@ -30,6 +32,7 @@ export default function Topo({ dados }: any) {
 
   return (
     <View style={styles.container}>
+      {/* Nome do App geralmente não se traduz, mas se quiser pode usar t('appName') */}
       <Text style={styles.logo}>AXORYN CONTROL</Text>
       
       <TouchableOpacity 
@@ -37,7 +40,7 @@ export default function Topo({ dados }: any) {
         onPress={handleSignOut}
         activeOpacity={0.7}
       >
-        <Text style={styles.txtSair}>SAIR</Text>
+        <Text style={styles.txtSair}>{t('topo.sair')}</Text> 
         <Ionicons name="log-out-outline" size={16} color="#FFF" />
       </TouchableOpacity>
     </View>

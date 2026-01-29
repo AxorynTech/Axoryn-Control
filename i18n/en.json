@@ -13,6 +13,23 @@
     "jaTemConta": "Already have an account? Sign in",
     "naoTemConta": "Don't have an account? Sign up"
   },
+  "index": {
+    "verificando": "Checking subscription...",
+    "gerarRelatorio": "Generate Financial Report"
+  },
+  "tabs": {
+    "carteira": "Wallet",
+    "resumo": "Summary",
+    "perfil": "Profile"
+  },
+  "menuAbas": {
+    "novoCliente": "+ CLIENT",
+    "carteira": "WALLET",
+    "cobranca": "CHARGES"
+  },
+  "topo": {
+    "sair": "SIGN OUT"
+  },
   "cadastro": {
     "titulo": "New Client",
     "nome": "Full Name *",
@@ -124,9 +141,71 @@
     "rodape2": "This statement is for simple conference.",
     "erroGerar": "Failed to generate PDF."
   },
+  "relatorio": {
+    "tituloModal": "Generate Master Report",
+    "dataInicial": "Start Date",
+    "dataFinal": "End Date",
+    "btnGerar": "GENERATE FULL REPORT",
+    "erroDatas": "Invalid dates.",
+    "tipoVenda": "Sale",
+    "tipoGarantia": "Collateral",
+    "pagamento": "Payment",
+    "quitacao": "Settlement",
+    "renovacao": "Renewal",
+    "parcela": "Installment",
+    "tituloPDF": "Analytical Report",
+    "periodo": "PERIOD",
+    "ate": "to",
+    "emissao": "ISSUE",
+    "performance": "Financial Performance",
+    "lucroMultas": "Net Profit + Fines",
+    "faturamento": "Gross Revenue",
+    "investido": "Total Invested",
+    "margem": "Margin",
+    "ticket": "Avg Ticket",
+    "detalhamento": "Income Details (Cash Flow)",
+    "colData": "Date",
+    "colCliente": "Client",
+    "colMod": "Mod.",
+    "colTipo": "Type",
+    "colTotal": "Total",
+    "colPrinc": "Princ.",
+    "colLucro": "Profit",
+    "colMulta": "Fine",
+    "totais": "TOTALS",
+    "nenhumaEntrada": "No entries recorded.",
+    "saidas": "Outflows (Investments)",
+    "colValor": "Value Released",
+    "nenhumContrato": "No new contracts.",
+    "inventario": "Asset Inventory (Current Position)",
+    "capitalRua": "ACTIVE CAPITAL",
+    "contratosAtivos": "ACTIVE CONTRACTS",
+    "colItem": "Item / Collateral",
+    "colValorCont": "Contract Value",
+    "colVenc": "Due Date",
+    "nenhumaGarantia": "No active collateral.",
+    "rodape": "Axoryn Control © 2026 - Intelligent Financial Technology.",
+    "erroPDF": "Failed to generate PDF"
+  },
+  "listaCobranca": {
+    "semNumero": "Client has no number.",
+    "msgAtraso": "Hello {nome}, your payment of R$ {valor} was due on {data}. Can we settle this today?",
+    "msgHoje": "Hello {nome}, reminder that your payment is due today ({data}). Amount: R$ {valor}. Waiting for confirmation!",
+    "cobrar": "CHARGE",
+    "vencimento": "Due Date",
+    "parcela": "INSTALLMENT",
+    "quitacaoTotal": "FULL SETTLEMENT",
+    "totalAtrasado": "TOTAL OVERDUE",
+    "venceHoje": "DUE TODAY",
+    "vencidos": "OVERDUE",
+    "diasAtraso": "days overdue",
+    "venceHojeStatus": "Due Today!",
+    "tudoEmDia": "Everything is up to date!"
+  },
   "common": {
     "erro": "Error",
     "sucesso": "Success",
-    "preenchaCampos": "Please fill in all fields."
+    "preenchaCampos": "Please fill in all fields.",
+    "cancelar": "Cancel"
   }
 }

@@ -1,5 +1,6 @@
 ﻿import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Cliente } from '../types';
 
@@ -8,6 +9,7 @@ type Props = {
 };
 
 export default function ListaCobranca({ clientes }: Props) {
+  const { t } = useTranslation(); // <--- Hook de tradução
   
   // Função que converte qualquer data (do Banco ou do App) para data real
   const converterData = (dataStr: string) => {
@@ -25,14 +27,24 @@ export default function ListaCobranca({ clientes }: Props) {
   };
 
   const cobrarNoZap = (nome: string, zap: string, valor: string, data: string, atrasado: boolean) => {
-    if (!zap) return Alert.alert("Erro", "Cliente sem número.");
+    if (!zap) return Alert.alert(t('common.erro'), t('listaCobranca.semNumero') || "Cliente sem número.");
     const numero = zap.replace(/\D/g, '');
     
     let msg = '';
     if (atrasado) {
-        msg = `Olá ${nome}, constou aqui que seu pagamento de R$ ${valor} venceu dia ${data}. Podemos regularizar hoje?`;
+        // Mensagem de Atraso
+        const template = t('listaCobranca.msgAtraso') || "Olá {nome}, constou aqui que seu pagamento de R$ {valor} venceu dia {data}. Podemos regularizar hoje?";
+        msg = template
+            .replace('{nome}', nome)
+            .replace('{valor}', valor)
+            .replace('{data}', data);
     } else {
-        msg = `Olá ${nome}, lembrete do vencimento hoje (${data}). Valor: R$ ${valor}. Aguardo confirmação!`;
+        // Mensagem de Hoje
+        const template = t('listaCobranca.msgHoje') || "Olá {nome}, lembrete do vencimento hoje ({data}). Valor: R$ {valor}. Aguardo confirmação!";
+        msg = template
+            .replace('{nome}', nome)
+            .replace('{valor}', valor)
+            .replace('{data}', data);
     }
     
     Linking.openURL(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`);
@@ -104,21 +116,21 @@ export default function ListaCobranca({ clientes }: Props) {
             onPress={() => cobrarNoZap(item.cliente, item.whatsapp, item.valorCobrar.toFixed(2), item.contrato.proximoVencimento, item.diasAtraso > 0)}
         >
             <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
-            <Text style={styles.txtZap}> COBRAR</Text>
+            <Text style={styles.txtZap}> {t('listaCobranca.cobrar')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.detalhes}>
-        <Text style={styles.data}>📅 Vencimento: {item.contrato.proximoVencimento}</Text>
+        <Text style={styles.data}>📅 {t('listaCobranca.vencimento')}: {item.contrato.proximoVencimento}</Text>
         
         {item.contrato.status === 'PARCELADO' ? (
             <View style={styles.rowInfo}>
-                <Text style={styles.tipo}>PARCELA {item.parcelaAtual}/{item.contrato.totalParcelas}</Text>
+                <Text style={styles.tipo}>{t('listaCobranca.parcela')} {item.parcelaAtual}/{item.contrato.totalParcelas}</Text>
                 <Text style={styles.valor}>R$ {item.valorCobrar.toFixed(2)}</Text>
             </View>
         ) : (
             <View style={styles.rowInfo}>
-                <Text style={styles.tipo}>QUITAÇÃO TOTAL</Text>
+                <Text style={styles.tipo}>{t('listaCobranca.quitacaoTotal')}</Text>
                 <Text style={styles.valor}>R$ {item.valorCobrar.toFixed(2)}</Text>
             </View>
         )}
@@ -132,12 +144,12 @@ export default function ListaCobranca({ clientes }: Props) {
       {/* PAINEL DE TOTAIS */}
       <View style={styles.painelResumo}>
         <View style={styles.boxTotal}>
-           <Text style={styles.lblTotal}>TOTAL ATRASADO</Text>
+           <Text style={styles.lblTotal}>{t('listaCobranca.totalAtrasado')}</Text>
            <Text style={[styles.vlrTotal, {color:'#E74C3C'}]}>R$ {totalAtrasado.toFixed(2)}</Text>
         </View>
         <View style={styles.divisor} />
         <View style={styles.boxTotal}>
-           <Text style={styles.lblTotal}>VENCE HOJE</Text>
+           <Text style={styles.lblTotal}>{t('listaCobranca.venceHoje')}</Text>
            <Text style={[styles.vlrTotal, {color:'#F1C40F'}]}>R$ {totalHoje.toFixed(2)}</Text>
         </View>
       </View>
@@ -145,23 +157,23 @@ export default function ListaCobranca({ clientes }: Props) {
       {/* SEÇÃO VENCIDOS */}
       {listaVencidos.length > 0 && (
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>🚨 VENCIDOS ({listaVencidos.length})</Text>
-          {listaVencidos.map((item) => renderCard(item, '#E74C3C', `${item.diasAtraso} dias de atraso`))}
+          <Text style={styles.tituloSecao}>🚨 {t('listaCobranca.vencidos')} ({listaVencidos.length})</Text>
+          {listaVencidos.map((item) => renderCard(item, '#E74C3C', `${item.diasAtraso} ${t('listaCobranca.diasAtraso')}`))}
         </View>
       )}
 
       {/* SEÇÃO HOJE */}
       {listaHoje.length > 0 && (
         <View style={styles.secao}>
-          <Text style={styles.tituloSecao}>⚠️ VENCE HOJE ({listaHoje.length})</Text>
-          {listaHoje.map((item) => renderCard(item, '#F1C40F', 'Vence Hoje!'))}
+          <Text style={styles.tituloSecao}>⚠️ {t('listaCobranca.venceHoje')} ({listaHoje.length})</Text>
+          {listaHoje.map((item) => renderCard(item, '#F1C40F', t('listaCobranca.venceHojeStatus') || 'Vence Hoje!'))}
         </View>
       )}
 
       {listaVencidos.length === 0 && listaHoje.length === 0 && (
         <View style={{alignItems:'center', marginTop: 50}}>
             <Ionicons name="checkmark-circle-outline" size={60} color="#27AE60" />
-            <Text style={{color:'#7F8C8D', marginTop:10, fontSize: 16}}>Tudo em dia por aqui!</Text>
+            <Text style={{color:'#7F8C8D', marginTop:10, fontSize: 16}}>{t('listaCobranca.tudoEmDia')}</Text>
         </View>
       )}
 

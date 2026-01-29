@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da Tradução
 import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Cliente, Contrato } from '../types';
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
+  const { t } = useTranslation(); // <--- Hook de tradução
   const hoje = new Date();
   const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
@@ -45,11 +47,9 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
   };
 
   const extrairTotal = (texto: string) => {
-    // 1. Recebimento padrão (Parcela)
     const matchRecebido = texto.match(/Recebido R\$\s?([\d\.,]+)/i);
     if (matchRecebido) return limparValor(matchRecebido[1]);
 
-    // 2. Renovação com Juros + Multa (Soma os dois para achar o Total)
     if (texto.toUpperCase().includes('RENOVA')) {
         const matchJuros = texto.match(/Juros R\$\s?([\d\.,]+)/i);
         const matchMulta = texto.match(/Multa R\$\s?([\d\.,]+)/i);
@@ -59,16 +59,12 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
         if (soma > 0) return soma;
     }
 
-    // 3. Combinação Parcela + Multa (formato específico)
     const matchCombinado = texto.match(/Parcela.*\(R\$\s?([\d\.,]+)\).*\+ Multa R\$\s?([\d\.,]+)/i);
     if (matchCombinado) return limparValor(matchCombinado[1]) + limparValor(matchCombinado[2]);
     
-    // 4. Último caso: pega o primeiro valor monetário encontrado
     const match = texto.match(/R\$\s?([\d\.,]+)/i);
     return match ? limparValor(match[1]) : 0;
   };
-
-  // --- LÓGICA DE NEGÓCIO ---
 
   const obterCapitalOriginal = (con: Contrato) => {
     const movs = con.movimentacoes || [];
@@ -93,20 +89,18 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
       const dtFim = parseData(dataFim);
       
       if (isNaN(dtInicio.getTime()) || isNaN(dtFim.getTime())) {
-        Alert.alert("Erro", "Datas inválidas.");
+        Alert.alert(t('common.erro'), t('relatorio.erroDatas') || "Datas inválidas.");
         setLoading(false);
         return;
       }
       dtFim.setHours(23, 59, 59);
 
-      // --- ESTATÍSTICAS ---
       let stats = {
         investido: 0, recebidoBruto: 0, capitalRecuperado: 0,
         lucroLiquido: 0, multas: 0, qtdNovosContratos: 0,
         qtdQuitados: 0, qtdPagamentos: 0
       };
 
-      // --- INVENTÁRIO ---
       let inventarioGarantias: any[] = [];
       let totalEmRua = 0;
       let totalContratosAtivos = 0;
@@ -118,7 +112,6 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
         (cli.contratos || []).forEach(con => {
             const movs = con.movimentacoes || [];
 
-            // 1. INVENTÁRIO (Status Atual)
             if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
                 totalEmRua += (con.capital || 0);
                 totalContratosAtivos++;
@@ -129,16 +122,13 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                         cliente: cli.nome,
                         item: con.garantia.replace('PRODUTO:', '').trim(),
                         valor: con.capital,
-                        tipo: isProd ? 'Venda' : 'Garantia',
+                        tipo: isProd ? (t('relatorio.tipoVenda') || 'Venda') : (t('relatorio.tipoGarantia') || 'Garantia'),
                         vencimento: con.proximoVencimento,
                         contratoId: con.id
                     });
                 }
             }
 
-            // 2. MOVIMENTAÇÕES (Período)
-            
-            // A) Investimentos
             let dataInicioCon = parseData(con.dataInicio || '');
             if (isNaN(dataInicioCon.getTime()) && movs.length > 0) {
                  dataInicioCon = parseData(movs[movs.length - 1]);
@@ -154,7 +144,6 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                 }
             }
 
-            // B) Recebimentos
             movs.forEach(mov => {
                 const dataMov = parseData(mov);
                 if (!isNaN(dataMov.getTime()) && dataMov >= dtInicio && dataMov <= dtFim) {
@@ -165,14 +154,13 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     let valLucro = 0;
                     let valMulta = 0;
                     let valCapital = 0;
-                    let tipo = 'Pagamento';
+                    let tipo = t('relatorio.pagamento') || 'Pagamento';
 
                     const buscaLucro = buscarValor(mov, 'Lucro');
-                    const buscaJuros = buscarValor(mov, 'Juros'); // <--- CORREÇÃO: Busca por Juros
+                    const buscaJuros = buscarValor(mov, 'Juros'); 
                     const buscaMulta = buscarValor(mov, 'Multa');
                     const buscaCapital = buscarValor(mov, 'Capital');
 
-                    // CORREÇÃO: Se achou Juros, considera como Lucro
                     const lucroReal = buscaLucro > 0 ? buscaLucro : buscaJuros;
 
                     if (lucroReal > 0 || buscaCapital > 0) {
@@ -182,7 +170,7 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     } else {
                         valMulta = buscaMulta;
                         if (desc.includes('quitado')) {
-                            tipo = 'Quitação';
+                            tipo = t('relatorio.quitacao') || 'Quitação';
                             stats.qtdQuitados++;
                             const capRef = obterCapitalOriginal(con);
                             if (valMulta === 0 && con.taxa > 0) {
@@ -194,8 +182,8 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                                 valLucro = valTotal - valCapital - valMulta;
                             }
                         } else {
-                            tipo = desc.includes('renova') ? 'Renovação' : 'Parcela';
-                            if (tipo === 'Renovação') {
+                            tipo = desc.includes('renova') ? (t('relatorio.renovacao') || 'Renovação') : (t('relatorio.parcela') || 'Parcela');
+                            if (tipo === (t('relatorio.renovacao') || 'Renovação')) {
                                 valLucro = valTotal - valMulta;
                                 valCapital = 0;
                             } else {
@@ -217,17 +205,15 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     const corLucro = valLucro > 0 ? '#27AE60' : '#BDC3C7';
                     const corMulta = valMulta > 0 ? '#E67E22' : '#BDC3C7';
 
-                    // --- NOVA LÓGICA DE MODALIDADE ---
                     let modLabel = con.frequencia || 'OUTROS';
                     if (con.garantia && con.garantia.includes('PRODUTO:')) modLabel = 'VENDA';
                     else if (modLabel === 'PARCELADO') modLabel = 'VENDA';
                     
-                    // Formatação Visual da Modalidade
                     let modStyle = "background:#EEE; color:#555;";
-                    if (modLabel === 'VENDA') modStyle = "background:#D5F5E3; color:#186A3B;"; // Verde claro
-                    if (modLabel === 'MENSAL') modStyle = "background:#D6EAF8; color:#21618C;"; // Azul claro
-                    if (modLabel === 'SEMANAL') modStyle = "background:#FCF3CF; color:#9A7D0A;"; // Amarelo
-                    if (modLabel === 'DIARIO') modStyle = "background:#FADBD8; color:#943126;"; // Vermelho
+                    if (modLabel === 'VENDA') modStyle = "background:#D5F5E3; color:#186A3B;"; 
+                    if (modLabel === 'MENSAL') modStyle = "background:#D6EAF8; color:#21618C;"; 
+                    if (modLabel === 'SEMANAL') modStyle = "background:#FCF3CF; color:#9A7D0A;"; 
+                    if (modLabel === 'DIARIO') modStyle = "background:#FADBD8; color:#943126;"; 
 
                     htmlEntradas += `
                         <tr>
@@ -260,15 +246,12 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
               .header { text-align: center; margin-bottom: 30px; border-bottom: 4px solid #2C3E50; padding-bottom: 15px; }
               h1 { margin: 0; color: #2C3E50; font-size: 26px; text-transform: uppercase; letter-spacing: 1px; }
               .sub-header { color: #7F8C8D; font-size: 12px; margin-top: 5px; }
-              
-              /* KPI Cards */
               .kpi-container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; }
               .kpi-box { flex: 1; min-width: 30%; background: #F4F6F7; padding: 15px; border-radius: 8px; border-left: 5px solid #BDC3C7; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
               .kpi-label { font-size: 10px; text-transform: uppercase; color: #7F8C8D; font-weight: bold; margin-bottom: 5px; }
               .kpi-value { font-size: 18px; font-weight: bold; color: #2C3E50; }
               .border-blue { border-left-color: #2980B9; } .border-green { border-left-color: #27AE60; }
               .border-red { border-left-color: #C0392B; } .border-orange { border-left-color: #E67E22; }
-
               h3 { font-size: 14px; color: #2C3E50; border-bottom: 2px solid #ECF0F1; padding-bottom: 5px; margin-top: 30px; margin-bottom: 10px; text-transform: uppercase; }
               table { width: 100%; border-collapse: collapse; font-size: 9px; }
               th { background: #2C3E50; color: #FFF; padding: 6px; text-align: left; font-weight: 600; }
@@ -280,53 +263,53 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
           </head>
           <body>
             <div class="header">
-              <h1>Relatório Analítico</h1>
-              <div class="sub-header">PERÍODO: ${dataIni} até ${dataFim}</div>
-              <div class="sub-header">EMISSÃO: ${new Date().toLocaleString('pt-BR')}</div>
+              <h1>${t('relatorio.tituloPDF') || 'Relatório Analítico'}</h1>
+              <div class="sub-header">${t('relatorio.periodo') || 'PERÍODO'}: ${dataIni} ${t('relatorio.ate') || 'até'} ${dataFim}</div>
+              <div class="sub-header">${t('relatorio.emissao') || 'EMISSÃO'}: ${new Date().toLocaleString('pt-BR')}</div>
             </div>
 
-            <h3>📊 Performance Financeira</h3>
+            <h3>📊 ${t('relatorio.performance') || 'Performance Financeira'}</h3>
             <div class="kpi-container">
               <div class="kpi-box border-green">
-                <div class="kpi-label">Lucro Líquido + Multas</div>
+                <div class="kpi-label">${t('relatorio.lucroMultas') || 'Lucro Líquido + Multas'}</div>
                 <div class="kpi-value" style="color:#27AE60">R$ ${(stats.lucroLiquido + stats.multas).toFixed(2)}</div>
               </div>
               <div class="kpi-box border-blue">
-                <div class="kpi-label">Faturamento Bruto</div>
+                <div class="kpi-label">${t('relatorio.faturamento') || 'Faturamento Bruto'}</div>
                 <div class="kpi-value">R$ ${stats.recebidoBruto.toFixed(2)}</div>
               </div>
               <div class="kpi-box border-red">
-                <div class="kpi-label">Total Investido</div>
+                <div class="kpi-label">${t('relatorio.investido') || 'Total Investido'}</div>
                 <div class="kpi-value">R$ ${stats.investido.toFixed(2)}</div>
               </div>
             </div>
 
             <div class="kpi-container">
                <div class="kpi-box border-orange"><div class="kpi-label">ROI</div><div class="kpi-value">${roi.toFixed(1)}%</div></div>
-               <div class="kpi-box"><div class="kpi-label">Margem</div><div class="kpi-value">${margemLucro.toFixed(1)}%</div></div>
-               <div class="kpi-box"><div class="kpi-label">Ticket Médio</div><div class="kpi-value">R$ ${ticketMedio.toFixed(2)}</div></div>
+               <div class="kpi-box"><div class="kpi-label">${t('relatorio.margem') || 'Margem'}</div><div class="kpi-value">${margemLucro.toFixed(1)}%</div></div>
+               <div class="kpi-box"><div class="kpi-label">${t('relatorio.ticket') || 'Ticket Médio'}</div><div class="kpi-value">R$ ${ticketMedio.toFixed(2)}</div></div>
             </div>
 
-            <h3>💰 Detalhamento de Entradas (Fluxo de Caixa)</h3>
+            <h3>💰 ${t('relatorio.detalhamento') || 'Detalhamento de Entradas'}</h3>
             ${htmlEntradas ? `
               <table>
                 <thead>
                   <tr>
-                    <th width="12%">Data</th>
-                    <th width="18%">Cliente</th>
-                    <th width="8%">Cont.</th>
-                    <th width="10%">Mod.</th>
-                    <th width="10%">Tipo</th>
-                    <th width="12%">Total</th>
-                    <th width="10%">Princ.</th>
-                    <th width="10%">Lucro</th>
-                    <th width="10%">Multa</th>
+                    <th width="12%">${t('relatorio.colData') || 'Data'}</th>
+                    <th width="18%">${t('relatorio.colCliente') || 'Cliente'}</th>
+                    <th width="8%">ID</th>
+                    <th width="10%">${t('relatorio.colMod') || 'Mod.'}</th>
+                    <th width="10%">${t('relatorio.colTipo') || 'Tipo'}</th>
+                    <th width="12%">${t('relatorio.colTotal') || 'Total'}</th>
+                    <th width="10%">${t('relatorio.colPrinc') || 'Princ.'}</th>
+                    <th width="10%">${t('relatorio.colLucro') || 'Lucro'}</th>
+                    <th width="10%">${t('relatorio.colMulta') || 'Multa'}</th>
                   </tr>
                 </thead>
                 <tbody>${htmlEntradas}</tbody>
                 <tfoot>
                   <tr style="background:#ECF0F1; font-weight:bold;">
-                    <td colspan="5" style="text-align:right">TOTAIS:</td>
+                    <td colspan="5" style="text-align:right">${t('relatorio.totais') || 'TOTAIS'}:</td>
                     <td>R$ ${stats.recebidoBruto.toFixed(2)}</td>
                     <td>R$ ${stats.capitalRecuperado.toFixed(2)}</td>
                     <td style="color:#27AE60">R$ ${stats.lucroLiquido.toFixed(2)}</td>
@@ -334,31 +317,31 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                   </tr>
                 </tfoot>
               </table>
-            ` : '<p style="font-size:10px; color:#999; text-align:center;">Nenhuma entrada registrada.</p>'}
+            ` : '<p style="font-size:10px; color:#999; text-align:center;">' + (t('relatorio.nenhumaEntrada') || 'Nenhuma entrada registrada.') + '</p>'}
 
-            <h3>📉 Saídas (Investimentos)</h3>
+            <h3>📉 ${t('relatorio.saidas') || 'Saídas (Investimentos)'}</h3>
             ${htmlInvestimentos ? `
               <table>
-                <thead><tr><th>Data</th><th>Cliente</th><th>Valor Liberado</th></tr></thead>
+                <thead><tr><th>${t('relatorio.colData') || 'Data'}</th><th>${t('relatorio.colCliente') || 'Cliente'}</th><th>${t('relatorio.colValor') || 'Valor Liberado'}</th></tr></thead>
                 <tbody>${htmlInvestimentos}</tbody>
               </table>
-            ` : '<p style="font-size:10px; color:#999; text-align:center;">Nenhum novo contrato.</p>'}
+            ` : '<p style="font-size:10px; color:#999; text-align:center;">' + (t('relatorio.nenhumContrato') || 'Nenhum novo contrato.') + '</p>'}
 
             <div style="page-break-before: always;"></div>
-            <h3>🔐 Inventário de Ativos (Posição Atual)</h3>
+            <h3>🔐 ${t('relatorio.inventario') || 'Inventário de Ativos'}</h3>
             <div style="background:#F8F9FA; padding:10px; border:1px solid #EEE; margin-bottom:15px; border-radius:5px;">
-                <span style="font-size:11px; font-weight:bold; margin-right:20px;">CAPITAL NA RUA: R$ ${totalEmRua.toFixed(2)}</span>
-                <span style="font-size:11px; font-weight:bold;">CONTRATOS ATIVOS: ${totalContratosAtivos}</span>
+                <span style="font-size:11px; font-weight:bold; margin-right:20px;">${t('relatorio.capitalRua') || 'CAPITAL NA RUA'}: R$ ${totalEmRua.toFixed(2)}</span>
+                <span style="font-size:11px; font-weight:bold;">${t('relatorio.contratosAtivos') || 'CONTRATOS ATIVOS'}: ${totalContratosAtivos}</span>
             </div>
 
             ${inventarioGarantias.length > 0 ? `
               <table>
                 <thead>
                   <tr>
-                    <th width="25%">Cliente</th>
-                    <th width="40%">Item / Garantia</th>
-                    <th width="20%">Valor Contrato</th>
-                    <th width="15%">Vencimento</th>
+                    <th width="25%">${t('relatorio.colCliente') || 'Cliente'}</th>
+                    <th width="40%">${t('relatorio.colItem') || 'Item / Garantia'}</th>
+                    <th width="20%">${t('relatorio.colValorCont') || 'Valor Contrato'}</th>
+                    <th width="15%">${t('relatorio.colVenc') || 'Vencimento'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -372,9 +355,9 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                   `).join('')}
                 </tbody>
               </table>
-            ` : '<p style="font-size:10px; color:#999; text-align:center;">Nenhuma garantia ativa.</p>'}
+            ` : '<p style="font-size:10px; color:#999; text-align:center;">' + (t('relatorio.nenhumaGarantia') || 'Nenhuma garantia ativa.') + '</p>'}
 
-            <div class="footer">Axoryn Control © 2026 - Tecnologia Financeira Inteligente.</div>
+            <div class="footer">${t('relatorio.rodape') || 'Axoryn Control © 2026 - Tecnologia Financeira Inteligente.'}</div>
           </body>
         </html>
       `;
@@ -383,27 +366,27 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
       setLoading(false);
       fechar();
-    } catch (error) { Alert.alert('Erro', 'Falha ao gerar PDF'); setLoading(false); }
+    } catch (error) { Alert.alert(t('common.erro'), t('relatorio.erroPDF') || 'Falha ao gerar PDF'); setLoading(false); }
   };
 
   return (
     <Modal visible={visivel} animationType="slide" transparent>
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Text style={styles.titulo}>Gerar Relatório Master</Text>
+          <Text style={styles.titulo}>{t('relatorio.tituloModal')}</Text>
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Data Inicial</Text>
+            <Text style={styles.label}>{t('relatorio.dataInicial')}</Text>
             <TextInput style={styles.input} value={dataIni} onChangeText={setDataIni} keyboardType="numbers-and-punctuation" placeholder="DD/MM/AAAA" />
           </View>
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Data Final</Text>
+            <Text style={styles.label}>{t('relatorio.dataFinal')}</Text>
             <TextInput style={styles.input} value={dataFim} onChangeText={setDataFim} keyboardType="numbers-and-punctuation" placeholder="DD/MM/AAAA" />
           </View>
           
           {loading ? <ActivityIndicator size="large" color="#2C3E50" style={{marginTop:20}}/> : 
             <View style={styles.botoes}>
-              <TouchableOpacity style={[styles.btn, styles.btnCancelar]} onPress={fechar}><Text style={styles.txtBtnCanc}>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnGerar]} onPress={gerarRelatorio}><Text style={styles.txtBtnGerar}>GERAR RELATÓRIO COMPLETO</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnCancelar]} onPress={fechar}><Text style={styles.txtBtnCanc}>{t('common.cancelar') || 'Cancelar'}</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnGerar]} onPress={gerarRelatorio}><Text style={styles.txtBtnGerar}>{t('relatorio.btnGerar')}</Text></TouchableOpacity>
             </View>
           }
         </View>

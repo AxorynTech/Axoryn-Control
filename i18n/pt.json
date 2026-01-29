@@ -13,6 +13,23 @@
     "jaTemConta": "Já tem uma conta? Entre aqui",
     "naoTemConta": "Não tem conta? Cadastre-se"
   },
+  "index": {
+    "verificando": "Verificando sua assinatura...",
+    "gerarRelatorio": "Gerar Relatório Financeiro"
+  },
+  "tabs": {
+    "carteira": "Carteira",
+    "resumo": "Resumo",
+    "perfil": "Perfil"
+  },
+  "menuAbas": {
+    "novoCliente": "+ CLIENTE",
+    "carteira": "CARTEIRA",
+    "cobranca": "COBRANÇA"
+  },
+  "topo": {
+    "sair": "SAIR"
+  },
   "cadastro": {
     "titulo": "Novo Cliente",
     "nome": "Nome Completo *",
@@ -111,7 +128,7 @@
     "contratoN": "CONTRATO Nº",
     "cliente": "CLIENTE",
     "endereco": "Endereço",
-    "resumoFinanceiro": "RESUMO FINANCEIRO",
+    "resumoFinanceiro": "RESUMEN FINANCEIRO",
     "frequencia": "Frequência",
     "inicio": "Início",
     "vencimento": "Vencimento",
@@ -124,9 +141,71 @@
     "rodape2": "Este extrato serve para simples conferência.",
     "erroGerar": "Falha ao gerar PDF."
   },
+  "relatorio": {
+    "tituloModal": "Gerar Relatório Master",
+    "dataInicial": "Data Inicial",
+    "dataFinal": "Data Final",
+    "btnGerar": "GERAR RELATÓRIO COMPLETO",
+    "erroDatas": "Datas inválidas.",
+    "tipoVenda": "Venda",
+    "tipoGarantia": "Garantia",
+    "pagamento": "Pagamento",
+    "quitacao": "Quitação",
+    "renovacao": "Renovação",
+    "parcela": "Parcela",
+    "tituloPDF": "Relatório Analítico",
+    "periodo": "PERÍODO",
+    "ate": "até",
+    "emissao": "EMISSÃO",
+    "performance": "Performance Financeira",
+    "lucroMultas": "Lucro Líquido + Multas",
+    "faturamento": "Faturamento Bruto",
+    "investido": "Total Investido",
+    "margem": "Margem",
+    "ticket": "Ticket Médio",
+    "detalhamento": "Detalhamento de Entradas (Fluxo de Caixa)",
+    "colData": "Data",
+    "colCliente": "Cliente",
+    "colMod": "Mod.",
+    "colTipo": "Tipo",
+    "colTotal": "Total",
+    "colPrinc": "Princ.",
+    "colLucro": "Lucro",
+    "colMulta": "Multa",
+    "totais": "TOTAIS",
+    "nenhumaEntrada": "Nenhuma entrada registrada.",
+    "saidas": "Saídas (Investimentos)",
+    "colValor": "Valor Liberado",
+    "nenhumContrato": "Nenhum novo contrato.",
+    "inventario": "Inventário de Ativos (Posição Atual)",
+    "capitalRua": "CAPITAL NA RUA",
+    "contratosAtivos": "CONTRATOS ATIVOS",
+    "colItem": "Item / Garantia",
+    "colValorCont": "Valor Contrato",
+    "colVenc": "Vencimento",
+    "nenhumaGarantia": "Nenhuma garantia ativa.",
+    "rodape": "Axoryn Control © 2026 - Tecnologia Financeira Inteligente.",
+    "erroPDF": "Falha ao gerar PDF"
+  },
+  "listaCobranca": {
+    "semNumero": "Cliente sem número.",
+    "msgAtraso": "Olá {nome}, constou aqui que seu pagamento de R$ {valor} venceu dia {data}. Podemos regularizar hoje?",
+    "msgHoje": "Olá {nome}, lembrete do vencimento hoje ({data}). Valor: R$ {valor}. Aguardo confirmação!",
+    "cobrar": "COBRAR",
+    "vencimento": "Vencimento",
+    "parcela": "PARCELA",
+    "quitacaoTotal": "QUITAÇÃO TOTAL",
+    "totalAtrasado": "TOTAL ATRASADO",
+    "venceHoje": "VENCE HOJE",
+    "vencidos": "VENCIDOS",
+    "diasAtraso": "dias de atraso",
+    "venceHojeStatus": "Vence Hoje!",
+    "tudoEmDia": "Tudo em dia por aqui!"
+  },
   "common": {
     "erro": "Erro",
     "sucesso": "Sucesso",
-    "preenchaCampos": "Preencha todos os campos."
+    "preenchaCampos": "Preencha todos os campos.",
+    "cancelar": "Cancelar"
   }
 }
