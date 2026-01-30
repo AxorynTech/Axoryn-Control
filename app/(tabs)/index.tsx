@@ -30,6 +30,8 @@ import MenuAbas from '@/components/MenuAbas';
 import PastaCliente from '@/components/PastaCliente';
 import TelaCadastro from '@/components/TelaCadastro';
 import Topo from '@/components/Topo';
+// ✅ IMPORT DA NOVA TELA DE FLUXO PESSOAL
+import TelaFluxoPessoal from '@/components/TelaFluxoPessoal';
 
 // Modais
 import ModalAcao from '@/components/ModalAcao';
@@ -298,6 +300,9 @@ export default function VertoApp() {
               ))}
             </>
           )}
+
+          {/* --- NOVA ABA DE FLUXO PESSOAL --- */}
+          {aba === 'pessoal' && <TelaFluxoPessoal />}
 
           {aba === 'cadastro' && <TelaCadastro aoSalvar={salvarNovoCliente} />}
           {aba === 'cobranca' && <ListaCobranca clientes={clientes} />}

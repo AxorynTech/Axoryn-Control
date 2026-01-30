@@ -22,7 +22,7 @@ export function useClientes() {
       const formatados: Cliente[] = (data || []).map((cli: any) => ({
         id: cli.id,
         nome: cli.nome,
-        bloqueado: cli.bloqueado, // <--- NOVO: Lendo o status do bloqueio
+        bloqueado: cli.bloqueado, 
         whatsapp: cli.whatsapp,
         endereco: cli.endereco,
         indicacao: cli.indicacao,
@@ -82,32 +82,34 @@ export function useClientes() {
      } catch (e) { return new Date().toISOString().split('T')[0]; }
   };
 
-  // --- LÓGICA ATUALIZADA AQUI ---
+  // --- AUTOMÁTICO: Carteira ---
+  const garantirCarteira = async () => {
+    try {
+        const { data } = await supabase.from('contas_pessoais').select('id').eq('nome', 'Carteira').maybeSingle();
+        if (data?.id) return data.id;
+
+        const { data: nova } = await supabase.from('contas_pessoais').insert([{ nome: 'Carteira', instituicao: 'Automático' }]).select('id').single();
+        if (nova?.id) return nova.id;
+    } catch (e) { console.log("Erro carteira:", e); }
+    return null;
+  };
+
   const calcularTotais = () => {
     let capitalTotal = 0, lucro = 0, multas = 0, vendas = 0;
 
     clientes.forEach(cli => {
       (cli.contratos || []).forEach(con => {
-        // Soma capital se estiver ativo/parcelado
         if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
           capitalTotal += (con.capital || 0);
         }
-
-        // SEPARAÇÃO: Venda vs Empréstimo
+        
+        // Regra visual dos totais
         if (con.frequencia === 'PARCELADO') {
-            // É VENDA: Soma Parcelas Recebidas + Multas desta venda
             const recebidoParcelas = (con.parcelasPagas || 0) * (con.valorParcela || 0);
             const multasVenda = (con.multasPagas || 0);
-            
-            // Agora a multa da venda entra aqui também
             vendas += (recebidoParcelas + multasVenda);
-            
         } else {
-            // É EMPRÉSTIMO (Mensal, Semanal, Diário): 
-            // Lucro vai para "Juros Empréstimos"
             lucro += (con.lucroTotal || 0);
-            
-            // Multa vai para "Multas Recebidas" (somente de empréstimos)
             multas += (con.multasPagas || 0);
         }
       });
@@ -158,7 +160,6 @@ export function useClientes() {
     ]);
   };
 
-  // --- NOVO: Função para Alternar o Bloqueio ---
   const alternarBloqueio = async (cliente: Cliente) => {
     try {
         const novoStatus = !cliente.bloqueado;
@@ -168,19 +169,34 @@ export function useClientes() {
             .eq('id', cliente.id);
 
         if (error) throw error;
-        await fetchData(); // Recarrega a lista para atualizar o cadeado na tela
+        await fetchData(); 
     } catch (e) { Alert.alert("Erro", "Não foi possível alterar o bloqueio."); }
   };
 
+  // ✅ ATUALIZADO: Identificação Robusta de Venda vs Empréstimo
   const adicionarContrato = async (nomeCliente: string, novoContrato: any) => {
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return Alert.alert("Erro", "Cliente não encontrado");
 
     try {
         const dataBaseStr = novoContrato.dataInicio || new Date().toLocaleDateString('pt-BR');
-        
         const addDias = (d: Date, dias: number) => { d.setDate(d.getDate() + dias); return d.toISOString().split('T')[0]; };
         const addMes = (d: Date, meses: number) => { d.setMonth(d.getMonth() + meses); return d.toISOString().split('T')[0]; };
+
+        // --- LÓGICA DE IDENTIFICAÇÃO DO TIPO ---
+        // 1. Tenta pegar direto do contrato (se o Modal enviar)
+        let tipoReal = novoContrato.tipo;
+        
+        // 2. Se não vier, verifica se a garantia começa com "PRODUTO:" (padrão do Modal de Venda)
+        if (!tipoReal && novoContrato.garantia && novoContrato.garantia.startsWith('PRODUTO:')) {
+            tipoReal = 'VENDA';
+        }
+        
+        // 3. Último caso: assume Parcelado = Venda, resto = Empréstimo
+        if (!tipoReal) {
+            tipoReal = (novoContrato.frequencia === 'PARCELADO') ? 'VENDA' : 'EMPRESTIMO';
+        }
+        // ----------------------------------------
 
         let contratoDB: any = {
             cliente_id: cliente.id,
@@ -194,10 +210,10 @@ export function useClientes() {
             lucro_total: 0, multas_pagas: 0, movimentacoes: []
         };
 
-        // --- LÓGICA DE FREQUÊNCIAS ---
+        const freq = novoContrato.frequencia;
+        const descHist = tipoReal === 'VENDA' ? 'Venda' : 'Empréstimo';
 
-        if (novoContrato.frequencia === 'PARCELADO') {
-            // LÓGICA NOVA PARA VENDA PARCELADA (MENSAL)
+        if (freq === 'PARCELADO') {
             const parc = parseInt(novoContrato.totalParcelas || '1');
             const juros = novoContrato.capital * (novoContrato.taxa / 100);
             const total = novoContrato.capital + juros;
@@ -208,9 +224,9 @@ export function useClientes() {
             contratoDB.valor_parcela = valorParc;
             contratoDB.lucro_juros_por_parcela = juros / parc;
             contratoDB.proximo_vencimento = addMes(lerDataBR(dataBaseStr), 1);
-            contratoDB.movimentacoes = [`${dataBaseStr}: Venda Parcelada Iniciada (${parc}x R$ ${valorParc.toFixed(2)})`];
+            contratoDB.movimentacoes = [`${dataBaseStr}: ${descHist} Parcelado (${parc}x R$ ${valorParc.toFixed(2)})`];
 
-        } else if (novoContrato.frequencia === 'SEMANAL') {
+        } else if (freq === 'SEMANAL') {
             const juros = novoContrato.capital * (novoContrato.taxa / 100);
             const total = novoContrato.capital + juros;
             const parc = total / 4;
@@ -219,9 +235,9 @@ export function useClientes() {
             contratoDB.valor_parcela = parc;
             contratoDB.lucro_juros_por_parcela = juros / 4;
             contratoDB.proximo_vencimento = addDias(lerDataBR(dataBaseStr), 7);
-            contratoDB.movimentacoes = [`${dataBaseStr}: Semanal Iniciado (4x R$ ${parc.toFixed(2)})`];
+            contratoDB.movimentacoes = [`${dataBaseStr}: ${descHist} Semanal (4x R$ ${parc.toFixed(2)})`];
 
-        } else if (novoContrato.frequencia === 'DIARIO' && novoContrato.diasDiario) {
+        } else if (freq === 'DIARIO' && novoContrato.diasDiario) {
             const dias = parseInt(novoContrato.diasDiario);
             const juros = novoContrato.capital * (novoContrato.taxa / 100);
             const total = novoContrato.capital + juros;
@@ -232,16 +248,39 @@ export function useClientes() {
             contratoDB.valor_parcela = parc;
             contratoDB.lucro_juros_por_parcela = juros / dias;
             contratoDB.proximo_vencimento = addDias(lerDataBR(dataBaseStr), 1);
-            contratoDB.movimentacoes = [`${dataBaseStr}: Diário Iniciado (${dias}x R$ ${parc.toFixed(2)})`];
+            contratoDB.movimentacoes = [`${dataBaseStr}: ${descHist} Diário (${dias}x R$ ${parc.toFixed(2)})`];
 
         } else {
-            // MENSAL PADRÃO (EMPRÉSTIMO A JUROS RECORRENTES)
+            // MENSAL
             contratoDB.proximo_vencimento = addMes(lerDataBR(dataBaseStr), 1);
-            contratoDB.movimentacoes = [`${dataBaseStr}: Mensal Iniciado (R$ ${novoContrato.capital.toFixed(2)})`];
+            contratoDB.movimentacoes = [`${dataBaseStr}: ${descHist} Mensal (R$ ${novoContrato.capital.toFixed(2)})`];
         }
 
         const { error } = await supabase.from('contratos').insert([contratoDB]);
         if (error) throw error;
+
+        // --- AUTOMÁTICO: LANÇAR SAÍDA NA CARTEIRA ---
+        // Se for VENDA, NÃO TIRA DINHEIRO DA CARTEIRA
+        if (tipoReal === 'EMPRESTIMO') {
+            const idCarteira = await garantirCarteira();
+            if (idCarteira) {
+                 let descTipo = 'Empréstimo';
+                 if (freq === 'SEMANAL') descTipo = 'Empréstimo Semanal';
+                 else if (freq === 'DIARIO') descTipo = 'Empréstimo Diário';
+                 else if (freq === 'MENSAL') descTipo = 'Empréstimo Mensal';
+                 else if (freq === 'PARCELADO') descTipo = 'Empréstimo Parcelado';
+
+                 await supabase.from('fluxo_pessoal').insert([{
+                    tipo: 'SAIDA',
+                    valor: Number(novoContrato.capital),
+                    descricao: `${descTipo} p/ ${nomeCliente}`,
+                    data_movimento: paraBancoISO(dataBaseStr),
+                    conta_id: idCarteira
+                }]);
+            }
+        }
+        // ----------------------------------------------
+
         await fetchData();
     } catch (e: any) { Alert.alert("Erro", e.message); }
   };
@@ -263,7 +302,6 @@ export function useClientes() {
 
       if (tipo === 'RENOVAR') {
           const d = lerDataBR(contrato.proximoVencimento || dataInformada);
-
           if (contrato.frequencia === 'MENSAL' || contrato.frequencia === 'PARCELADO') d.setMonth(d.getMonth() + 1);
           else if (contrato.frequencia === 'SEMANAL') d.setDate(d.getDate() + 7);
           else if (contrato.frequencia === 'DIARIO') d.setDate(d.getDate() + 1);
@@ -281,12 +319,9 @@ export function useClientes() {
           };
       } else {
           const total = contrato.capital + vJuro + vMulta;
-          
-          // --- CORREÇÃO: Gravar Multa explicitamente ao Quitar ---
           let msgQuit = `${dataInformada}: QUITADO - Total R$ ${total.toFixed(2)}`;
           if (vMulta > 0) msgQuit += ` (Multa R$ ${vMulta.toFixed(2)})`;
           h.unshift(msgQuit);
-          // -------------------------------------------------------
 
           updates = {
              status: 'QUITADO',
@@ -295,6 +330,24 @@ export function useClientes() {
              multas_pagas: (contrato.multasPagas||0) + vMulta,
              movimentacoes: h
           };
+          
+          // --- AUTOMÁTICO: QUITAÇÃO É ENTRADA ---
+          const idCarteira = await garantirCarteira();
+          if (idCarteira) {
+               // Verifica se é venda pelo histórico ou frequencia (fallback)
+               let descTipo = 'Empréstimo';
+               // A identificação aqui pode ser melhorada se salvarmos o tipo no banco, 
+               // mas por enquanto inferimos PARCELADO como Venda para descrição
+               if (contrato.frequencia === 'PARCELADO') descTipo = 'Venda'; 
+
+               await supabase.from('fluxo_pessoal').insert([{
+                  tipo: 'ENTRADA',
+                  valor: total,
+                  descricao: `Quitação ${descTipo} - ${nomeCliente}`,
+                  data_movimento: paraBancoISO(dataInformada),
+                  conta_id: idCarteira
+              }]);
+          }
       }
 
       const { error } = await supabase.from('contratos').update(updates).eq('id', contrato.id);
@@ -324,12 +377,9 @@ export function useClientes() {
       if (novoSaldo < 0) novoSaldo = 0;
 
       let h = [...(contrato.movimentacoes || [])];
-      
-      // --- CORREÇÃO: Gravar Multa explicitamente ao Pagar Parcela ---
       let msgPag = `${dataPagamento}: Recebido R$ ${((contrato.valorParcela||0)+vMulta).toFixed(2)}`;
       if (vMulta > 0) msgPag += ` (Multa R$ ${vMulta.toFixed(2)})`;
       h.unshift(msgPag);
-      // --------------------------------------------------------------
 
       let updates: any = {
            multas_pagas: (contrato.multasPagas || 0) + vMulta,
@@ -344,7 +394,6 @@ export function useClientes() {
          updates.capital = 0;
       } else {
          updates.capital = novoSaldo;
-         
          const d = lerDataBR(contrato.proximoVencimento || dataPagamento); 
          if (contrato.frequencia === 'SEMANAL') d.setDate(d.getDate() + 7);
          else if (contrato.frequencia === 'DIARIO') d.setDate(d.getDate() + 1);
@@ -354,6 +403,25 @@ export function useClientes() {
 
       const { error } = await supabase.from('contratos').update(updates).eq('id', contrato.id);
       if(error) throw error;
+
+      // --- AUTOMÁTICO: ENTRADA NA CARTEIRA ---
+      const idCarteira = await garantirCarteira();
+      if (idCarteira) {
+          const valorRecebido = (contrato.valorParcela || 0) + vMulta;
+          
+          let descTipo = 'Empréstimo';
+          if (contrato.frequencia === 'PARCELADO') descTipo = 'Venda';
+
+          await supabase.from('fluxo_pessoal').insert([{
+              tipo: 'ENTRADA',
+              valor: valorRecebido,
+              descricao: `Receb. ${descTipo} ${qtdPagas}/${contrato.totalParcelas || '?'} - ${nomeCliente}`,
+              data_movimento: paraBancoISO(dataPagamento),
+              conta_id: idCarteira
+          }]);
+      }
+      // ------------------------------------------------
+
       await fetchData();
       Alert.alert("Sucesso", `Parcela paga!\n💰 Receber: R$ ${((contrato.valorParcela||0)+vMulta).toFixed(2)}`);
 
@@ -397,6 +465,6 @@ export function useClientes() {
     adicionarCliente, editarCliente, excluirCliente,
     adicionarContrato, editarContrato, excluirContrato,
     acaoRenovarQuitar, pagarParcela, criarAcordo, importarDados,
-    alternarBloqueio // <--- NOVO: Exportando a função
+    alternarBloqueio 
   };
 }

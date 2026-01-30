@@ -13,7 +13,7 @@ export default function MenuAbas({ abaAtual, setAba }: Props) {
   return (
     <View style={styles.tabBar}>
       
-      {/* Botão + CLIENTE */}
+      {/* 1. Botão + CLIENTE */}
       <TouchableOpacity 
         onPress={() => setAba('cadastro')} 
         style={[styles.tab, abaAtual === 'cadastro' && styles.tabA]}
@@ -21,7 +21,7 @@ export default function MenuAbas({ abaAtual, setAba }: Props) {
         <Text style={styles.tabT}>{t('menuAbas.novoCliente')}</Text>
       </TouchableOpacity>
 
-      {/* Botão CARTEIRA */}
+      {/* 2. Botão CARTEIRA */}
       <TouchableOpacity 
         onPress={() => setAba('carteira')} 
         style={[styles.tab, abaAtual === 'carteira' && styles.tabA]}
@@ -29,13 +29,23 @@ export default function MenuAbas({ abaAtual, setAba }: Props) {
         <Text style={styles.tabT}>{t('menuAbas.carteira')}</Text>
       </TouchableOpacity>
 
-      {/* Botão COBRANÇA */}
+      {/* 3. Botão COBRANÇA (Agora vem antes do Caixa) */}
       <TouchableOpacity 
         onPress={() => setAba('cobranca')} 
         style={[styles.tab, abaAtual === 'cobranca' && styles.tabA]}
       >
         <Text style={[styles.tabT, { color: '#E74C3C' }]}>
           {t('menuAbas.cobranca')}
+        </Text>
+      </TouchableOpacity>
+
+      {/* 4. Botão CAIXA PESSOAL (Agora por último) */}
+      <TouchableOpacity 
+        onPress={() => setAba('pessoal')} 
+        style={[styles.tab, abaAtual === 'pessoal' && styles.tabA]}
+      >
+        <Text style={[styles.tabT, { color: '#2980B9' }]}>
+          {t('menuAbas.caixa') || "Caixa Pessoal"}
         </Text>
       </TouchableOpacity>
 

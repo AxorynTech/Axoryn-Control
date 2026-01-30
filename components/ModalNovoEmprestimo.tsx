@@ -88,6 +88,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     const parcelasFinal = (tipoOperacao === 'VENDA' && frequencia === 'PARCELADO') ? qtdParcelasVenda : null;
 
     salvar(clienteId, {
+      tipo: tipoOperacao, // <--- ADICIONADO: Envia o tipo para o Hook saber se debita do caixa
       capital: valCapital,
       taxa: valTaxa,
       frequencia: frequenciaFinal,
