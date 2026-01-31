@@ -18,7 +18,7 @@ export default function TelaFluxoPessoal() {
     contas, movimentos, saldoGeral, loading, 
     adicionarConta, excluirConta, 
     adicionarMovimento, editarMovimento, excluirMovimento,
-    transferir 
+    transferir, gerarRelatorioPDF // <--- Importando
   } = useFluxoPessoal();
   
   const [contaSelecionada, setContaSelecionada] = useState<number | null>(null);
@@ -28,6 +28,7 @@ export default function TelaFluxoPessoal() {
   const [modalMovimento, setModalMovimento] = useState(false);
   const [modalNovaConta, setModalNovaConta] = useState(false);
   const [modalTransferencia, setModalTransferencia] = useState(false);
+  const [modalRelatorio, setModalRelatorio] = useState(false); // <--- NOVO MODAL
 
   // Form Movimento
   const [idEdicao, setIdEdicao] = useState<number | null>(null);
@@ -46,6 +47,10 @@ export default function TelaFluxoPessoal() {
   const [transfDestino, setTransfDestino] = useState<number | null>(null);
   const [transfValor, setTransfValor] = useState('');
   const [transfDesc, setTransfDesc] = useState('');
+
+  // Form Relatório
+  const [dataInicioRel, setDataInicioRel] = useState('');
+  const [dataFimRel, setDataFimRel] = useState('');
 
   // --- SEPARAÇÃO E CÁLCULOS ---
   const contaCarteira = contas.find(c => c.nome === 'Carteira');
@@ -84,13 +89,37 @@ export default function TelaFluxoPessoal() {
       setModalTransferencia(true);
   };
 
+  // --- LÓGICA DO RELATÓRIO ---
+  const abrirModalRelatorio = () => {
+      if (!contaSelecionada) return Alert.alert("Aviso", "Selecione uma conta primeiro.");
+      
+      // Define datas padrão (Mês atual)
+      const hoje = new Date();
+      const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      
+      const format = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      
+      setDataInicioRel(format(primeiroDia));
+      setDataFimRel(format(hoje));
+      setModalRelatorio(true);
+  };
+
+  const handleGerarPDF = async () => {
+      if (!contaSelecionada) return;
+      const conta = contas.find(c => c.id === contaSelecionada);
+      if (!conta) return;
+
+      await gerarRelatorioPDF(conta.id, conta.nome, dataInicioRel, dataFimRel);
+      setModalRelatorio(false);
+  };
+  // ---------------------------
+
   const abrirEdicao = (item: any) => {
     setIdEdicao(item.id);
     setTipo(item.tipo);
     setValor(item.valor.toString().replace('.', ','));
     setDescricao(item.descricao);
     
-    // --- CORREÇÃO AQUI: Usando data_movimento ---
     const dataBanco = item.data_movimento || ''; 
     if (dataBanco.includes('-')) {
         const [ano, mes, dia] = dataBanco.split('-');
@@ -111,7 +140,6 @@ export default function TelaFluxoPessoal() {
 
     let sucesso = false;
     if (idEdicao) {
-        // Atenção: O hook espera 'data' como parâmetro para salvar no banco
         sucesso = await editarMovimento(idEdicao, { tipo, valor: valorFloat, descricao, data: dataISO, conta_id: contaIdForm });
     } else {
         sucesso = await adicionarMovimento({ tipo, valor: valorFloat, descricao, data: dataISO, conta_id: contaIdForm });
@@ -219,6 +247,15 @@ export default function TelaFluxoPessoal() {
         <Text style={[styles.valorSaldo, { color: saldoExibido >= 0 ? '#27AE60' : '#E74C3C' }]}>
           {formatarMoeda(saldoExibido)}
         </Text>
+        
+        {/* BOTÃO RELATÓRIO (SÓ APARECE SE TIVER CONTA SELECIONADA) */}
+        {contaSelecionada && (
+            <TouchableOpacity onPress={abrirModalRelatorio} style={{position: 'absolute', right: 20, bottom: 20}}>
+                <View style={{backgroundColor:'#ECF0F1', padding:8, borderRadius:20}}>
+                    <Ionicons name="print-outline" size={20} color="#2C3E50" />
+                </View>
+            </TouchableOpacity>
+        )}
       </View>
 
       {/* 3. BOTÕES DE AÇÃO */}
@@ -261,7 +298,6 @@ export default function TelaFluxoPessoal() {
                         {item.tipo === 'ENTRADA' ? '+' : '-'} {visivel ? formatarMoeda(item.valor).replace('R$ ', '') : '••••'}
                     </Text>
                     
-                    {/* --- CORREÇÃO AQUI TAMBÉM: item.data_movimento --- */}
                     <Text style={styles.data}>
                         {(item.data_movimento || '').split('-').reverse().join('/')}
                     </Text>
@@ -371,6 +407,31 @@ export default function TelaFluxoPessoal() {
             <View style={styles.rowBtns}>
               <TouchableOpacity onPress={() => setModalTransferencia(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity onPress={handleRealizarTransferencia} style={[styles.btnSave, {backgroundColor:'#2980B9'}]}><Text style={{color:'#FFF'}}>Transferir</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* --- NOVO MODAL DE RELATÓRIO PDF --- */}
+      <Modal visible={modalRelatorio} transparent animationType="slide">
+        <View style={styles.overlay}>
+          <View style={styles.modalPequeno}>
+            <Text style={styles.modalTitle}>Gerar Extrato em PDF</Text>
+            <Text style={{textAlign:'center', color:'#7F8C8D', marginBottom:15}}>
+                Conta: <Text style={{fontWeight:'bold', color:'#2C3E50'}}>{contas.find(c=>c.id===contaSelecionada)?.nome}</Text>
+            </Text>
+
+            <Text style={styles.labelInput}>Data Início (DD/MM/AAAA)</Text>
+            <TextInput style={styles.input} value={dataInicioRel} onChangeText={setDataInicioRel} placeholder="01/01/2024" keyboardType="numeric"/>
+
+            <Text style={styles.labelInput}>Data Fim (DD/MM/AAAA)</Text>
+            <TextInput style={styles.input} value={dataFimRel} onChangeText={setDataFimRel} placeholder="31/01/2024" keyboardType="numeric"/>
+
+            <View style={styles.rowBtns}>
+              <TouchableOpacity onPress={() => setModalRelatorio(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleGerarPDF} style={[styles.btnSave, {backgroundColor:'#E74C3C'}]}>
+                  <Text style={{color:'#FFF'}}>Gerar PDF</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
