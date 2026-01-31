@@ -29,7 +29,7 @@ export default function MenuAbas({ abaAtual, setAba }: Props) {
         <Text style={styles.tabT}>{t('menuAbas.carteira')}</Text>
       </TouchableOpacity>
 
-      {/* 3. Botão COBRANÇA (Agora vem antes do Caixa) */}
+      {/* 3. Botão COBRANÇA */}
       <TouchableOpacity 
         onPress={() => setAba('cobranca')} 
         style={[styles.tab, abaAtual === 'cobranca' && styles.tabA]}
@@ -39,13 +39,13 @@ export default function MenuAbas({ abaAtual, setAba }: Props) {
         </Text>
       </TouchableOpacity>
 
-      {/* 4. Botão CAIXA PESSOAL (Agora por último) */}
+      {/* 4. Botão CAIXA PESSOAL (Novo) */}
       <TouchableOpacity 
         onPress={() => setAba('pessoal')} 
         style={[styles.tab, abaAtual === 'pessoal' && styles.tabA]}
       >
         <Text style={[styles.tabT, { color: '#2980B9' }]}>
-          {t('menuAbas.caixa') || "Caixa Pessoal"}
+          {t('menuAbas.caixa')}
         </Text>
       </TouchableOpacity>
 
@@ -54,8 +54,11 @@ export default function MenuAbas({ abaAtual, setAba }: Props) {
 }
 
 const styles = StyleSheet.create({
-  tabBar: { flexDirection: 'row', justifyContent: 'center', marginVertical: 10 },
-  tab: { padding: 12, paddingHorizontal: 15 },
+  // flexWrap: 'wrap' ajuda a não quebrar se a tela for muito pequena
+  tabBar: { flexDirection: 'row', justifyContent: 'center', marginVertical: 10, flexWrap: 'nowrap' },
+  // Reduzi um pouco o padding lateral para caber os 4 botões
+  tab: { paddingVertical: 12, paddingHorizontal: 8 }, 
   tabA: { borderBottomWidth: 3, borderBottomColor: '#27AE60' },
-  tabT: { fontWeight: 'bold', color: '#7F8C8D', fontSize: 12 },
+  // Reduzi levemente a fonte para garantir leitura em uma linha
+  tabT: { fontWeight: 'bold', color: '#7F8C8D', fontSize: 11 },
 });

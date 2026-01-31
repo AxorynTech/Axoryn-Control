@@ -50,10 +50,38 @@
   "menuAbas": {
     "novoCliente": "+ CLIENTE",
     "carteira": "CARTEIRA",
-    "cobranca": "COBRANÇA"
+    "cobranca": "COBRANÇA",
+    "caixa": "CAIXA PESSOAL"
   },
   "topo": {
     "sair": "SAIR"
+  },
+  "fluxo": {
+    "giroNegocio": "Giro do Negócio",
+    "visaoGeral": "Visão Geral",
+    "excetoCarteira": "Exceto Carteira",
+    "novaConta": "Nova Conta",
+    "saldo": "Saldo",
+    "totalPessoal": "Total Pessoal (S/ Carteira)",
+    "novoLancamento": "Novo Lançamento",
+    "selecioneConta": "Selecione uma conta específica para ver o extrato.",
+    "nenhumLancamento": "Nenhum lançamento nesta conta.",
+    "criarConta": "Criar Nova Conta",
+    "placeholderNome": "Nome (Ex: Investimentos)",
+    "placeholderInst": "Instituição (Ex: Banco Inter)",
+    "btnCriar": "Criar",
+    "editarLancamento": "Editar Lançamento",
+    "contaMov": "Conta de Movimentação:",
+    "entrada": "Entrada",
+    "saida": "Saída",
+    "valor": "Valor",
+    "descricao": "Descrição",
+    "data": "Data",
+    "excluirTitulo": "Excluir",
+    "excluirMsg": "Apagar este lançamento?",
+    "btnApagar": "Apagar",
+    "erroPreencha": "Preencha tudo!",
+    "erroPreenchaConta": "Preencha nome e instituição!"
   },
   "resumo": {
     "titulo": "Resumo Financeiro",
@@ -239,6 +267,7 @@
     "erro": "Erro",
     "sucesso": "Sucesso",
     "preenchaCampos": "Preencha todos os campos.",
-    "cancelar": "Cancelar"
+    "cancelar": "Cancelar",
+    "salvar": "Salvar"
   }
 }

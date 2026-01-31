@@ -50,10 +50,38 @@
   "menuAbas": {
     "novoCliente": "+ CLIENT",
     "carteira": "WALLET",
-    "cobranca": "CHARGES"
+    "cobranca": "CHARGES",
+    "caixa": "PERSONAL CASH"
   },
   "topo": {
     "sair": "SIGN OUT"
+  },
+  "fluxo": {
+    "giroNegocio": "Business Flow",
+    "visaoGeral": "Overview",
+    "excetoCarteira": "Excl. Wallet",
+    "novaConta": "New Account",
+    "saldo": "Balance",
+    "totalPessoal": "Personal Total (Excl. Wallet)",
+    "novoLancamento": "New Entry",
+    "selecioneConta": "Select a specific account to view the statement.",
+    "nenhumLancamento": "No entries in this account.",
+    "criarConta": "Create New Account",
+    "placeholderNome": "Name (Ex: Savings)",
+    "placeholderInst": "Institution (Ex: Bank of America)",
+    "btnCriar": "Create",
+    "editarLancamento": "Edit Entry",
+    "contaMov": "Account:",
+    "entrada": "Income",
+    "saida": "Expense",
+    "valor": "Value",
+    "descricao": "Description",
+    "data": "Date",
+    "excluirTitulo": "Delete",
+    "excluirMsg": "Delete this entry?",
+    "btnApagar": "Delete",
+    "erroPreencha": "Fill in all fields!",
+    "erroPreenchaConta": "Fill in name and institution!"
   },
   "resumo": {
     "titulo": "Financial Summary",
@@ -239,6 +267,7 @@
     "erro": "Error",
     "sucesso": "Success",
     "preenchaCampos": "Please fill in all fields.",
-    "cancelar": "Cancel"
+    "cancelar": "Cancel",
+    "salvar": "Save"
   }
 }

@@ -50,10 +50,38 @@
   "menuAbas": {
     "novoCliente": "+ CLIENTE",
     "carteira": "CARTERA",
-    "cobranca": "COBRO"
+    "cobranca": "COBRO",
+    "caixa": "CAJA PERSONAL"
   },
   "topo": {
     "sair": "SALIR"
+  },
+  "fluxo": {
+    "giroNegocio": "Giro del Negocio",
+    "visaoGeral": "Visión General",
+    "excetoCarteira": "Excl. Cartera",
+    "novaConta": "Nueva Cuenta",
+    "saldo": "Saldo",
+    "totalPessoal": "Total Personal (S/ Cartera)",
+    "novoLancamento": "Nuevo Registro",
+    "selecioneConta": "Seleccione una cuenta para ver el extracto.",
+    "nenhumLancamento": "Ningún registro en esta cuenta.",
+    "criarConta": "Crear Nueva Cuenta",
+    "placeholderNome": "Nombre (Ej: Ahorros)",
+    "placeholderInst": "Institución (Ej: Santander)",
+    "btnCriar": "Crear",
+    "editarLancamento": "Editar Registro",
+    "contaMov": "Cuenta:",
+    "entrada": "Entrada",
+    "saida": "Salida",
+    "valor": "Valor",
+    "descricao": "Descripción",
+    "data": "Fecha",
+    "excluirTitulo": "Eliminar",
+    "excluirMsg": "¿Borrar este registro?",
+    "btnApagar": "Borrar",
+    "erroPreencha": "¡Rellene todo!",
+    "erroPreenchaConta": "¡Rellene nombre e institución!"
   },
   "resumo": {
     "titulo": "Resumen Financiero",
@@ -239,6 +267,7 @@
     "erro": "Error",
     "sucesso": "Éxito",
     "preenchaCampos": "Rellene todos los campos.",
-    "cancelar": "Cancelar"
+    "cancelar": "Cancelar",
+    "salvar": "Guardar"
   }
 }

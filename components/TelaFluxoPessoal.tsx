@@ -1,19 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useFluxoPessoal } from '../hooks/useFluxoPessoal';
 
 export default function TelaFluxoPessoal() {
+  const { t } = useTranslation(); // <--- Hook de tradução
   const { 
     contas, movimentos, saldoGeral, loading, 
     adicionarConta, excluirConta, 
@@ -59,7 +61,7 @@ export default function TelaFluxoPessoal() {
 
   const nomeExibido = contaSelecionada
     ? contas.find(c => c.id === contaSelecionada)?.nome
-    : "Total Pessoal (S/ Carteira)";
+    : (t('fluxo.totalPessoal') || "Total Pessoal (S/ Carteira)");
 
   const formatarMoeda = (val: number) => {
     if (!visivel) return '••••'; 
@@ -85,7 +87,7 @@ export default function TelaFluxoPessoal() {
   };
 
   const handleSalvarMovimento = async () => {
-    if (!valor || !descricao || !contaIdForm) return alert("Preencha tudo!");
+    if (!valor || !descricao || !contaIdForm) return Alert.alert(t('common.erro'), t('fluxo.erroPreencha') || "Preencha tudo!");
     const [d, m, a] = data.split('/');
     const dataISO = `${a}-${m}-${d}`;
     const valorFloat = parseFloat(valor.replace(',', '.'));
@@ -104,7 +106,7 @@ export default function TelaFluxoPessoal() {
   };
 
   const handleSalvarConta = async () => {
-    if(!nomeNovaConta || !instituicaoConta) return alert("Preencha nome e instituição!");
+    if(!nomeNovaConta || !instituicaoConta) return Alert.alert(t('common.erro'), t('fluxo.erroPreenchaConta') || "Preencha nome e instituição!");
     await adicionarConta(nomeNovaConta, instituicaoConta);
     setModalNovaConta(false);
     setNomeNovaConta('');
@@ -113,9 +115,9 @@ export default function TelaFluxoPessoal() {
 
   const handleExcluirNoModal = () => {
     if (!idEdicao) return;
-    Alert.alert("Excluir", "Apagar este lançamento?", [
-        { text: "Cancelar" },
-        { text: "Apagar", style: 'destructive', onPress: async () => {
+    Alert.alert(t('fluxo.excluirTitulo'), t('fluxo.excluirMsg'), [
+        { text: t('common.cancelar') },
+        { text: t('fluxo.btnApagar'), style: 'destructive', onPress: async () => {
             await excluirMovimento(idEdicao);
             setModalMovimento(false);
             limparForm();
@@ -147,17 +149,17 @@ export default function TelaFluxoPessoal() {
             >
               <View style={{flexDirection:'row', alignItems:'center', marginBottom:2}}>
                  <Ionicons name="briefcase" size={14} color={contaSelecionada === contaCarteira.id ? '#FFF' : '#27AE60'} style={{marginRight:4}} />
-                 <Text style={[styles.txtContaNome, contaSelecionada === contaCarteira.id && {color:'#FFF'}]}>Carteira</Text>
+                 <Text style={[styles.txtContaNome, contaSelecionada === contaCarteira.id && {color:'#FFF'}]}>{t('tabs.carteira')}</Text>
               </View>
-              <Text style={[styles.txtContaInst, contaSelecionada === contaCarteira.id && {color:'#DDD'}]}>Giro do Negócio</Text>
+              <Text style={[styles.txtContaInst, contaSelecionada === contaCarteira.id && {color:'#DDD'}]}>{t('fluxo.giroNegocio')}</Text>
               <Text style={[styles.txtContaSaldo, contaSelecionada === contaCarteira.id && {color:'#FFF'}]}>{formatarMoeda(contaCarteira.saldo)}</Text>
             </TouchableOpacity>
           )}
 
           {/* 2º - VISÃO GERAL (SÓ PESSOAL) */}
           <TouchableOpacity onPress={() => setContaSelecionada(null)} style={[styles.cardConta, !contaSelecionada && styles.cardContaAtivo]}>
-            <Text style={[styles.txtContaNome, !contaSelecionada && {color:'#FFF'}]}>Visão Geral</Text>
-            <Text style={[styles.txtContaInst, !contaSelecionada && {color:'#DDD'}]}>Exceto Carteira</Text>
+            <Text style={[styles.txtContaNome, !contaSelecionada && {color:'#FFF'}]}>{t('fluxo.visaoGeral')}</Text>
+            <Text style={[styles.txtContaInst, !contaSelecionada && {color:'#DDD'}]}>{t('fluxo.excetoCarteira')}</Text>
             <Text style={[styles.txtContaSaldo, !contaSelecionada && {color:'#FFF'}]}>{formatarMoeda(saldoPessoalTotal)}</Text>
           </TouchableOpacity>
 
@@ -173,7 +175,7 @@ export default function TelaFluxoPessoal() {
           {/* BOTÃO NOVA CONTA */}
           <TouchableOpacity onPress={() => setModalNovaConta(true)} style={[styles.cardConta, { borderStyle:'dashed', borderWidth:1, borderColor:'#999', backgroundColor:'transparent' }]}>
             <Ionicons name="add" size={24} color="#666" />
-            <Text style={{ fontSize: 10, color: '#666', fontWeight:'bold' }}>Nova Conta</Text>
+            <Text style={{ fontSize: 10, color: '#666', fontWeight:'bold' }}>{t('fluxo.novaConta')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -182,7 +184,7 @@ export default function TelaFluxoPessoal() {
       <View style={styles.cardSaldo}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
             <Text style={styles.tituloSaldo}>
-              {contaSelecionada ? `Saldo: ${nomeExibido}` : "Total Pessoal (S/ Carteira)"}
+              {contaSelecionada ? `${t('fluxo.saldo')}: ${nomeExibido}` : (t('fluxo.totalPessoal') || "Total Pessoal (S/ Carteira)")}
             </Text>
             <TouchableOpacity onPress={() => setVisivel(!visivel)} style={{ padding: 5 }}>
                 <Ionicons name={visivel ? "eye" : "eye-off"} size={22} color="#95A5A6" />
@@ -197,7 +199,7 @@ export default function TelaFluxoPessoal() {
       {/* 3. BOTÃO NOVO LANÇAMENTO */}
       <TouchableOpacity style={styles.btnNovo} onPress={abrirNovo}>
         <Ionicons name="add-circle" size={24} color="#FFF" />
-        <Text style={styles.txtBtnNovo}>Novo Lançamento</Text>
+        <Text style={styles.txtBtnNovo}>{t('fluxo.novoLancamento')}</Text>
       </TouchableOpacity>
 
       {/* 4. LISTA DE MOVIMENTAÇÕES */}
@@ -207,7 +209,7 @@ export default function TelaFluxoPessoal() {
             <View style={{ alignItems: 'center', marginTop: 40, opacity: 0.5 }}>
                 <Ionicons name="pie-chart-outline" size={50} color="#95A5A6" />
                 <Text style={{ color: '#7F8C8D', marginTop: 10, textAlign:'center', fontSize: 14 }}>
-                    Selecione uma conta específica{'\n'}para ver o extrato.
+                    {t('fluxo.selecioneConta')}
                 </Text>
             </View>
         ) : (
@@ -233,7 +235,7 @@ export default function TelaFluxoPessoal() {
                 ))}
                 
                 {listaExibida.length === 0 && (
-                    <Text style={{ textAlign: 'center', marginTop: 20, color: '#999' }}>Nenhum lançamento nesta conta.</Text>
+                    <Text style={{ textAlign: 'center', marginTop: 20, color: '#999' }}>{t('fluxo.nenhumLancamento')}</Text>
                 )}
             </>
         )}
@@ -243,14 +245,14 @@ export default function TelaFluxoPessoal() {
       <Modal visible={modalNovaConta} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.modalPequeno}>
-            <Text style={styles.modalTitle}>Criar Nova Conta</Text>
-            <Text style={styles.labelInput}>Nome (Ex: Investimentos)</Text>
+            <Text style={styles.modalTitle}>{t('fluxo.criarConta')}</Text>
+            <Text style={styles.labelInput}>{t('fluxo.placeholderNome')}</Text>
             <TextInput placeholder="Nome" style={styles.input} value={nomeNovaConta} onChangeText={setNomeNovaConta} autoFocus />
-            <Text style={styles.labelInput}>Instituição (Ex: Banco Inter)</Text>
+            <Text style={styles.labelInput}>{t('fluxo.placeholderInst')}</Text>
             <TextInput placeholder="Instituição" style={styles.input} value={instituicaoConta} onChangeText={setInstituicaoConta} />
             <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalNovaConta(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleSalvarConta} style={styles.btnSave}><Text style={{color:'#FFF'}}>Criar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalNovaConta(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleSalvarConta} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('fluxo.btnCriar')}</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -261,7 +263,7 @@ export default function TelaFluxoPessoal() {
         <View style={styles.overlay}>
           <View style={styles.modal}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                <Text style={styles.modalTitle}>{idEdicao ? "Editar Lançamento" : "Novo Lançamento"}</Text>
+                <Text style={styles.modalTitle}>{idEdicao ? t('fluxo.editarLancamento') : t('fluxo.novoLancamento')}</Text>
                 {idEdicao && (
                     <TouchableOpacity onPress={handleExcluirNoModal} style={{ padding: 5 }}>
                         <Ionicons name="trash-outline" size={24} color="#E74C3C" />
@@ -269,32 +271,32 @@ export default function TelaFluxoPessoal() {
                 )}
             </View>
 
-            <Text style={styles.labelInput}>Conta de Movimentação:</Text>
+            <Text style={styles.labelInput}>{t('fluxo.contaMov')}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
               {/* Opções de Conta no Modal */}
               {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
                 <TouchableOpacity key={c.id} onPress={() => setContaIdForm(c.id)} style={[styles.badgeConta, contaIdForm === c.id && styles.badgeContaAtivo]}>
-                  <Text style={{ color: contaIdForm === c.id ? '#FFF' : '#333' }}>{c.nome}</Text>
+                  <Text style={{ color: contaIdForm === c.id ? '#FFF' : '#333' }}>{c.nome === 'Carteira' ? t('tabs.carteira') : c.nome}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <View style={styles.rowTipo}>
               <TouchableOpacity onPress={() => setTipo('ENTRADA')} style={[styles.btnTipo, tipo === 'ENTRADA' && {backgroundColor:'#27AE60', borderColor:'transparent'}]}>
-                <Text style={{color: tipo==='ENTRADA'?'#FFF':'#27AE60'}}>Entrada</Text>
+                <Text style={{color: tipo==='ENTRADA'?'#FFF':'#27AE60'}}>{t('fluxo.entrada')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setTipo('SAIDA')} style={[styles.btnTipo, tipo === 'SAIDA' && {backgroundColor:'#E74C3C', borderColor:'transparent'}]}>
-                <Text style={{color: tipo==='SAIDA'?'#FFF':'#E74C3C'}}>Saída</Text>
+                <Text style={{color: tipo==='SAIDA'?'#FFF':'#E74C3C'}}>{t('fluxo.saida')}</Text>
               </TouchableOpacity>
             </View>
 
-            <TextInput placeholder="Valor (R$)" keyboardType="numeric" style={styles.input} value={valor} onChangeText={setValor} />
-            <TextInput placeholder="Descrição" style={styles.input} value={descricao} onChangeText={setDescricao} />
-            <TextInput placeholder="Data (DD/MM/AAAA)" keyboardType="numeric" style={styles.input} value={data} onChangeText={setData} />
+            <TextInput placeholder={t('fluxo.valor') + " (R$)"} keyboardType="numeric" style={styles.input} value={valor} onChangeText={setValor} />
+            <TextInput placeholder={t('fluxo.descricao')} style={styles.input} value={descricao} onChangeText={setDescricao} />
+            <TextInput placeholder={t('fluxo.data') + " (DD/MM/AAAA)"} keyboardType="numeric" style={styles.input} value={data} onChangeText={setData} />
 
             <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalMovimento(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleSalvarMovimento} style={styles.btnSave}><Text style={{color:'#FFF'}}>Salvar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalMovimento(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleSalvarMovimento} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('common.salvar')}</Text></TouchableOpacity>
             </View>
           </View>
         </View>
