@@ -173,30 +173,62 @@ export function useClientes() {
     } catch (e) { Alert.alert("Erro", "Não foi possível alterar o bloqueio."); }
   };
 
-  // ✅ ATUALIZADO: Identificação Robusta de Venda vs Empréstimo
+  // ✅ ATUALIZADO: Verificação de Saldo REAL (Calculado) na Carteira
   const adicionarContrato = async (nomeCliente: string, novoContrato: any) => {
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return Alert.alert("Erro", "Cliente não encontrado");
 
     try {
-        const dataBaseStr = novoContrato.dataInicio || new Date().toLocaleDateString('pt-BR');
-        const addDias = (d: Date, dias: number) => { d.setDate(d.getDate() + dias); return d.toISOString().split('T')[0]; };
-        const addMes = (d: Date, meses: number) => { d.setMonth(d.getMonth() + meses); return d.toISOString().split('T')[0]; };
-
-        // --- LÓGICA DE IDENTIFICAÇÃO DO TIPO ---
-        // 1. Tenta pegar direto do contrato (se o Modal enviar)
+        // --- 1. LÓGICA DE IDENTIFICAÇÃO DO TIPO ---
+        // Tenta pegar do contrato, senão infere pela garantia, senão infere pela frequência
         let tipoReal = novoContrato.tipo;
-        
-        // 2. Se não vier, verifica se a garantia começa com "PRODUTO:" (padrão do Modal de Venda)
         if (!tipoReal && novoContrato.garantia && novoContrato.garantia.startsWith('PRODUTO:')) {
             tipoReal = 'VENDA';
         }
-        
-        // 3. Último caso: assume Parcelado = Venda, resto = Empréstimo
         if (!tipoReal) {
             tipoReal = (novoContrato.frequencia === 'PARCELADO') ? 'VENDA' : 'EMPRESTIMO';
         }
-        // ----------------------------------------
+
+        // --- 2. VERIFICAÇÃO DE SALDO ROBUSTA (CALCULA NA HORA) ---
+        if (tipoReal === 'EMPRESTIMO') {
+            const idCarteira = await garantirCarteira();
+            if (idCarteira) {
+                // Busca TODAS as movimentações dessa conta para calcular o saldo real agora
+                const { data: movimentos } = await supabase
+                   .from('fluxo_pessoal')
+                   .select('tipo, valor')
+                   .eq('conta_id', idCarteira);
+                
+                // Calcula: Soma Entradas - Soma Saídas
+                const saldoAtual = (movimentos || []).reduce((acc: number, mov: any) => {
+                    return mov.tipo === 'ENTRADA' ? acc + mov.valor : acc - mov.valor;
+                }, 0);
+
+                const valorEmprestimo = Number(novoContrato.capital);
+
+                // Se o saldo for insuficiente, pede confirmação
+                if (saldoAtual < valorEmprestimo) {
+                     const confirmacao = await new Promise<boolean>((resolve) => {
+                        Alert.alert(
+                            "Saldo Insuficiente na Carteira",
+                            `Seu saldo real é R$ ${saldoAtual.toFixed(2)}, mas o empréstimo é de R$ ${valorEmprestimo.toFixed(2)}.\n\nSeu caixa ficará negativo.\n\nO que deseja fazer?`,
+                            [
+                                { text: "Cancelar (Para adicionar saldo)", onPress: () => resolve(false), style: 'cancel' },
+                                { text: "Continuar (Ficar Negativo)", onPress: () => resolve(true), style: 'destructive' }
+                            ]
+                        );
+                     });
+
+                     // Se o usuário clicou em cancelar, interrompe a função aqui
+                     if (!confirmacao) return; 
+                }
+            }
+        }
+        // --------------------------------------------------------
+
+        const dataBaseStr = novoContrato.dataInicio || new Date().toLocaleDateString('pt-BR');
+        const addDias = (d: Date, dias: number) => { d.setDate(d.getDate() + dias); return d.toISOString().split('T')[0]; };
+        const addMes = (d: Date, meses: number) => { d.setMonth(d.getMonth() + meses); return d.toISOString().split('T')[0]; };
 
         let contratoDB: any = {
             cliente_id: cliente.id,
@@ -260,7 +292,6 @@ export function useClientes() {
         if (error) throw error;
 
         // --- AUTOMÁTICO: LANÇAR SAÍDA NA CARTEIRA ---
-        // Se for VENDA, NÃO TIRA DINHEIRO DA CARTEIRA
         if (tipoReal === 'EMPRESTIMO') {
             const idCarteira = await garantirCarteira();
             if (idCarteira) {
@@ -279,7 +310,6 @@ export function useClientes() {
                 }]);
             }
         }
-        // ----------------------------------------------
 
         await fetchData();
     } catch (e: any) { Alert.alert("Erro", e.message); }
@@ -334,10 +364,7 @@ export function useClientes() {
           // --- AUTOMÁTICO: QUITAÇÃO É ENTRADA ---
           const idCarteira = await garantirCarteira();
           if (idCarteira) {
-               // Verifica se é venda pelo histórico ou frequencia (fallback)
                let descTipo = 'Empréstimo';
-               // A identificação aqui pode ser melhorada se salvarmos o tipo no banco, 
-               // mas por enquanto inferimos PARCELADO como Venda para descrição
                if (contrato.frequencia === 'PARCELADO') descTipo = 'Venda'; 
 
                await supabase.from('fluxo_pessoal').insert([{

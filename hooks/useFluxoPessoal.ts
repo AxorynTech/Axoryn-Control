@@ -2,129 +2,147 @@ import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '../services/supabase';
 
-export interface ContaPessoal {
-  id: number;
-  nome: string;
-  instituicao?: string; // <--- Novo Campo
-  saldo: number;
-}
-
-export interface MovimentoPessoal {
-  id: number;
-  tipo: 'ENTRADA' | 'SAIDA';
-  valor: number;
-  descricao: string;
-  data: string;
-  conta_id: number;
-}
-
 export function useFluxoPessoal() {
-  const [contas, setContas] = useState<ContaPessoal[]>([]);
-  const [movimentos, setMovimentos] = useState<MovimentoPessoal[]>([]);
+  const [contas, setContas] = useState<any[]>([]);
+  const [movimentos, setMovimentos] = useState<any[]>([]);
   const [saldoGeral, setSaldoGeral] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchDados(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const fetchDados = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       
-      const { data: dataContas, error: erroContas } = await supabase.from('contas_pessoais').select('*').order('id');
-      if (erroContas) throw erroContas;
+      // 1. Busca Contas
+      const { data: dataContas, error: errContas } = await supabase
+        .from('contas_pessoais')
+        .select('*')
+        .order('id');
+      if (errContas) throw errContas;
 
-      const { data: dataMov, error: erroMov } = await supabase
+      // 2. Busca Movimentos (últimos 100)
+      const { data: dataMov, error: errMov } = await supabase
         .from('fluxo_pessoal')
         .select('*')
         .order('data_movimento', { ascending: false })
-        .order('created_at', { ascending: false });
-      if (erroMov) throw erroMov;
+        .limit(100);
+      if (errMov) throw errMov;
 
-      const movFormatados: MovimentoPessoal[] = dataMov.map((m: any) => ({
-        id: m.id,
-        tipo: m.tipo,
-        valor: Number(m.valor),
-        descricao: m.descricao,
-        data: m.data_movimento,
-        conta_id: m.conta_id
-      }));
-
-      let totalGeral = 0;
-      const contasComSaldo = dataContas.map((c: any) => {
-        const movsDaConta = movFormatados.filter(m => m.conta_id === c.id);
-        const saldoDaConta = movsDaConta.reduce((acc, m) => 
-          m.tipo === 'ENTRADA' ? acc + m.valor : acc - m.valor, 0
-        );
-        totalGeral += saldoDaConta;
-        return { ...c, saldo: saldoDaConta, instituicao: c.instituicao };
+      // 3. Calcula Saldos em Tempo Real
+      const contasCalculadas = dataContas.map((c: any) => {
+         // Filtra movimentos desta conta (buscando todos para saldo exato seria ideal, 
+         // mas aqui assumimos que o backend ou uma view faria isso. 
+         // Para simplificar no front, vamos somar o que temos ou confiar num saldo base se existir)
+         // *Nota: Para precisão total, o ideal é somar TODOS os movimentos do banco, não só os 100 carregados.*
+         // Vamos ajustar para calcular baseado no histórico carregado + saldo inicial se tivesse.
+         // Mas como estamos sem saldo inicial, vamos calcular baseado no histórico total (numa query real seria sum(valor))
+         return { ...c, saldo: 0 }; 
       });
 
-      setContas(contasComSaldo);
-      setMovimentos(movFormatados);
+      // Recalcular saldos corretamente buscando SUM do banco
+      for (let c of contasCalculadas) {
+          const { data: inputs } = await supabase.from('fluxo_pessoal').select('valor').eq('conta_id', c.id).eq('tipo', 'ENTRADA');
+          const { data: outputs } = await supabase.from('fluxo_pessoal').select('valor').eq('conta_id', c.id).eq('tipo', 'SAIDA');
+          
+          const totalEntrada = inputs?.reduce((acc, i) => acc + i.valor, 0) || 0;
+          const totalSaida = outputs?.reduce((acc, i) => acc + i.valor, 0) || 0;
+          c.saldo = totalEntrada - totalSaida;
+      }
+
+      const totalGeral = contasCalculadas.reduce((acc: number, c: any) => acc + c.saldo, 0);
+
+      setContas(contasCalculadas);
+      setMovimentos(dataMov || []);
       setSaldoGeral(totalGeral);
 
     } catch (error) {
-      console.log("Erro ao buscar dados:", error);
+      console.log(error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- ATUALIZADO: Recebe Instituição ---
   const adicionarConta = async (nome: string, instituicao: string) => {
-    try {
-      const { error } = await supabase.from('contas_pessoais').insert([{ 
-        nome, 
-        instituicao 
-      }]);
-      if (error) throw error;
-      await fetchDados();
-    } catch (e) { Alert.alert("Erro", "Falha ao criar conta."); }
+    const { error } = await supabase.from('contas_pessoais').insert([{ nome, instituicao }]);
+    if (!error) await fetchData();
   };
 
   const excluirConta = async (id: number) => {
-    Alert.alert("Excluir Conta", "Isso apagará todas as movimentações dela.", [
-      { text: "Cancelar" },
-      { text: "Apagar", style: 'destructive', onPress: async () => {
-          const { error } = await supabase.from('contas_pessoais').delete().eq('id', id);
-          if (!error) await fetchDados();
-      }}
-    ]);
+    // Primeiro apaga movimentos para não dar erro de FK (ou configure cascade no banco)
+    await supabase.from('fluxo_pessoal').delete().eq('conta_id', id);
+    const { error } = await supabase.from('contas_pessoais').delete().eq('id', id);
+    if (!error) await fetchData();
   };
 
-  const adicionarMovimento = async (novo: Omit<MovimentoPessoal, 'id'>) => {
-    try {
-      const { error } = await supabase.from('fluxo_pessoal').insert([{
-        tipo: novo.tipo, valor: novo.valor, descricao: novo.descricao,
-        data_movimento: novo.data, conta_id: novo.conta_id
-      }]);
-      if (error) throw error;
-      await fetchDados();
-      return true;
-    } catch (error) { return false; }
+  const adicionarMovimento = async (dados: any) => {
+    const { error } = await supabase.from('fluxo_pessoal').insert([{
+        conta_id: dados.conta_id,
+        tipo: dados.tipo,
+        valor: dados.valor,
+        descricao: dados.descricao,
+        data_movimento: dados.data
+    }]);
+    if (!error) { await fetchData(); return true; }
+    return false;
   };
 
-  const editarMovimento = async (id: number, dados: Partial<MovimentoPessoal>) => {
-    try {
-        const { error } = await supabase.from('fluxo_pessoal').update({
-            tipo: dados.tipo, valor: dados.valor, descricao: dados.descricao,
-            data_movimento: dados.data, conta_id: dados.conta_id
-        }).eq('id', id);
-        if (error) throw error;
-        await fetchDados();
-        return true;
-    } catch (error) { return false; }
+  const editarMovimento = async (id: number, dados: any) => {
+    const { error } = await supabase.from('fluxo_pessoal').update({
+        conta_id: dados.conta_id,
+        tipo: dados.tipo,
+        valor: dados.valor,
+        descricao: dados.descricao,
+        data_movimento: dados.data
+    }).eq('id', id);
+    if (!error) { await fetchData(); return true; }
+    return false;
   };
 
   const excluirMovimento = async (id: number) => {
-      const { error } = await supabase.from('fluxo_pessoal').delete().eq('id', id);
-      if (!error) await fetchDados();
+    const { error } = await supabase.from('fluxo_pessoal').delete().eq('id', id);
+    if (!error) await fetchData();
   };
 
-  return { 
-    contas, movimentos, saldoGeral, loading, 
-    adicionarConta, excluirConta, 
-    adicionarMovimento, editarMovimento, excluirMovimento, 
-    fetchDados 
+  // --- NOVA FUNÇÃO DE TRANSFERÊNCIA ---
+  const transferir = async (origemId: number, destinoId: number, valor: number, data: string, descricao: string) => {
+    try {
+        if (origemId === destinoId) { Alert.alert("Erro", "Origem e destino iguais."); return false; }
+
+        // 1. Saída na Origem
+        const { error: err1 } = await supabase.from('fluxo_pessoal').insert([{
+            conta_id: origemId,
+            tipo: 'SAIDA',
+            valor: valor,
+            data_movimento: data,
+            descricao: `Transf. Enviada: ${descricao}`
+        }]);
+        if(err1) throw err1;
+
+        // 2. Entrada no Destino
+        const { error: err2 } = await supabase.from('fluxo_pessoal').insert([{
+            conta_id: destinoId,
+            tipo: 'ENTRADA',
+            valor: valor,
+            data_movimento: data,
+            descricao: `Transf. Recebida: ${descricao}`
+        }]);
+        if(err2) throw err2;
+
+        await fetchData();
+        Alert.alert("Sucesso", "Transferência realizada!");
+        return true;
+
+    } catch (e) {
+        Alert.alert("Erro", "Falha na transferência.");
+        return false;
+    }
+  };
+
+  return {
+    contas, movimentos, saldoGeral, loading,
+    adicionarConta, excluirConta,
+    adicionarMovimento, editarMovimento, excluirMovimento,
+    transferir // <--- Exportando a nova função
   };
 }
