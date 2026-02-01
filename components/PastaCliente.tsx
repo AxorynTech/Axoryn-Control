@@ -2,9 +2,10 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
+import { useTranslation } from 'react-i18next';
 import { Alert, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Cliente, Contrato } from '../types';
+import RiskRadarCSI from './RiskRadarCSI'; // O seu Radar importado aqui
 
 type Props = {
   cliente: Cliente;
@@ -28,7 +29,7 @@ export default function PastaCliente({
   aoAlternarBloqueio 
 }: Props) {
 
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation();
   const [historicoVisivel, setHistoricoVisivel] = useState(false);
   const [historicoConteudo, setHistoricoConteudo] = useState<string[]>([]);
 
@@ -53,11 +54,10 @@ export default function PastaCliente({
     aoNovoEmprestimo();
   };
 
-  // --- FUNÇÃO DE PDF PROFISSIONAL ---
+  // --- LÓGICA DO PDF (MANTIDA INTACTA) ---
   const gerarPDF = async (con: Contrato) => {
     try {
       const dataEmissao = new Date().toLocaleDateString('pt-BR');
-      
       const isVenda = con.frequencia === 'PARCELADO' || (con.garantia && con.garantia.startsWith('PRODUTO:'));
       const labelGarantia = isVenda ? (t('pdf.produtoServico') || '📦 Produto/Serviço') : (t('pdf.garantia') || '🔐 Garantia');
       const textoGarantia = con.garantia ? con.garantia.replace('PRODUTO:', '').trim() : (t('pdf.naoInformada') || 'Não informada');
@@ -199,6 +199,7 @@ export default function PastaCliente({
         </View>
       </Modal>
 
+      {/* HEADER DA PASTA (CLICÁVEL PARA ABRIR) */}
       <TouchableOpacity onPress={aoExpandir} style={styles.header}>
         <View style={styles.linhaTitulo}>
             <View style={{flexDirection:'row', alignItems:'center'}}>
@@ -209,8 +210,10 @@ export default function PastaCliente({
         </View>
       </TouchableOpacity>
 
+      {/* CONTEÚDO EXPANDIDO */}
       {expandido && (
         <View style={styles.corpo}>
+          
           <View style={styles.fichaCadastral}>
             <TouchableOpacity onPress={() => abrirWhatsapp(cliente.whatsapp)} style={styles.btnZap}>
               <Text style={styles.txtZap}>{t('pastaCliente.btnZap')}</Text>
@@ -228,8 +231,21 @@ export default function PastaCliente({
             <Text style={styles.linhaFicha}>⭐ {t('pastaCliente.reputacao')}: {cliente.reputacao || 'Neutro'}</Text>
           </View>
 
+          {/* ================================================= */}
+          {/* =========== RADAR DE RISCO AUTOMÁTICO =========== */}
+          {/* ================================================= */}
+          <View style={styles.radarContainer}>
+             <Text style={styles.radarLabel}>🛡️ ANÁLISE DE RISCO (AXORYN SHIELD)</Text>
+             <RiskRadarCSI 
+                compacto={true}
+                initialNome={cliente.nome}
+                initialTelefone={cliente.whatsapp}
+                initialCpf={cliente.cpf} // <--- AQUI O CPF ENTRA AUTOMÁTICO
+             />
+          </View>
+          {/* ================================================= */}
+
           <View style={styles.acoesCliente}>
-            
             <TouchableOpacity 
                 onPress={() => aoAlternarBloqueio(cliente)} 
                 style={[styles.btnAcaoCli, {backgroundColor: cliente.bloqueado ? '#27AE60' : '#FFC300'}]}
@@ -335,6 +351,11 @@ const styles = StyleSheet.create({
   seta: { fontSize: 18, color: '#BDC3C7' },
   corpo: { padding: 15, borderTopWidth: 1, borderTopColor: '#F0F2F5' },
   fichaCadastral: { backgroundColor: '#F8F9FA', padding: 10, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: '#EEE' },
+  
+  // ESTILOS DO RADAR
+  radarContainer: { marginBottom: 20, backgroundColor: '#EBF5FB', padding: 5, borderRadius: 8, borderWidth: 1, borderColor: '#AED6F1' },
+  radarLabel: { fontSize: 10, color: '#2980B9', fontWeight: 'bold', marginBottom: 5, textAlign: 'center' },
+
   btnZap: { backgroundColor: '#25D366', paddingVertical: 8, borderRadius: 20, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center' },
   txtZap: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
   linhaFicha: { fontSize: 13, color: '#444', marginBottom: 3 },

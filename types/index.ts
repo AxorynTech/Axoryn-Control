@@ -24,6 +24,7 @@ export interface Cliente {
   id?: string; 
   nome: string;
   whatsapp: string;
+  cpf?: string;
   endereco: string;
   indicacao: string;
   reputacao: string;

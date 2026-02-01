@@ -12,6 +12,7 @@ export function useClientes() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      // --- 1. MUDANÇA AQUI: Buscando o CPF do banco ---
       const { data, error } = await supabase
         .from('clientes')
         .select('*, contratos(*)')
@@ -24,6 +25,7 @@ export function useClientes() {
         nome: cli.nome,
         bloqueado: cli.bloqueado, 
         whatsapp: cli.whatsapp,
+        cpf: cli.cpf, // <--- 2. MUDANÇA AQUI: Lendo o CPF
         endereco: cli.endereco,
         indicacao: cli.indicacao,
         reputacao: cli.reputacao,
@@ -121,9 +123,11 @@ export function useClientes() {
   // --- AÇÕES ---
   const adicionarCliente = async (dados: Partial<Cliente>) => {
     try {
+      // --- 3. MUDANÇA AQUI: Salvando o CPF no banco ---
       const { error } = await supabase.from('clientes').insert([{
         nome: dados.nome,
         whatsapp: dados.whatsapp,
+        cpf: dados.cpf, // <--- ESSENCIAL!
         endereco: dados.endereco,
         indicacao: dados.indicacao,
         reputacao: dados.reputacao || 'NEUTRA',
@@ -139,8 +143,12 @@ export function useClientes() {
     if (!cliente?.id) return;
     try {
         const { error } = await supabase.from('clientes').update({
-            nome: dados.nome, whatsapp: dados.whatsapp, endereco: dados.endereco,
-            indicacao: dados.indicacao, reputacao: dados.reputacao,
+            nome: dados.nome, 
+            whatsapp: dados.whatsapp, 
+            cpf: dados.cpf, // <--- SALVA O CPF NA EDIÇÃO TAMBÉM
+            endereco: dados.endereco,
+            indicacao: dados.indicacao, 
+            reputacao: dados.reputacao,
             segmento: dados.segmento
         }).eq('id', cliente.id);
         if (error) throw error;
@@ -173,14 +181,13 @@ export function useClientes() {
     } catch (e) { Alert.alert("Erro", "Não foi possível alterar o bloqueio."); }
   };
 
-  // ✅ ATUALIZADO: Verificação de Saldo REAL (Calculado) na Carteira
+  // ✅ Verificação de Saldo REAL (Calculado) na Carteira
   const adicionarContrato = async (nomeCliente: string, novoContrato: any) => {
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return Alert.alert("Erro", "Cliente não encontrado");
 
     try {
         // --- 1. LÓGICA DE IDENTIFICAÇÃO DO TIPO ---
-        // Tenta pegar do contrato, senão infere pela garantia, senão infere pela frequência
         let tipoReal = novoContrato.tipo;
         if (!tipoReal && novoContrato.garantia && novoContrato.garantia.startsWith('PRODUTO:')) {
             tipoReal = 'VENDA';
@@ -189,27 +196,24 @@ export function useClientes() {
             tipoReal = (novoContrato.frequencia === 'PARCELADO') ? 'VENDA' : 'EMPRESTIMO';
         }
 
-        // --- 2. VERIFICAÇÃO DE SALDO ROBUSTA (CALCULA NA HORA) ---
+        // --- 2. VERIFICAÇÃO DE SALDO ROBUSTA ---
         if (tipoReal === 'EMPRESTIMO') {
             const idCarteira = await garantirCarteira();
             if (idCarteira) {
-                // Busca TODAS as movimentações dessa conta para calcular o saldo real agora
                 const { data: movimentos } = await supabase
                    .from('fluxo_pessoal')
                    .select('tipo, valor')
                    .eq('conta_id', idCarteira);
                 
-                // Calcula: Soma Entradas - Soma Saídas
                 const saldoAtual = (movimentos || []).reduce((acc: number, mov: any) => {
                     return mov.tipo === 'ENTRADA' ? acc + mov.valor : acc - mov.valor;
                 }, 0);
 
                 const valorEmprestimo = Number(novoContrato.capital);
 
-                // Se o saldo for insuficiente, pede confirmação
                 if (saldoAtual < valorEmprestimo) {
-                     const confirmacao = await new Promise<boolean>((resolve) => {
-                        Alert.alert(
+                      const confirmacao = await new Promise<boolean>((resolve) => {
+                         Alert.alert(
                             "Saldo Insuficiente na Carteira",
                             `Seu saldo real é R$ ${saldoAtual.toFixed(2)}, mas o empréstimo é de R$ ${valorEmprestimo.toFixed(2)}.\n\nSeu caixa ficará negativo.\n\nO que deseja fazer?`,
                             [
@@ -217,10 +221,9 @@ export function useClientes() {
                                 { text: "Continuar (Ficar Negativo)", onPress: () => resolve(true), style: 'destructive' }
                             ]
                         );
-                     });
+                      });
 
-                     // Se o usuário clicou em cancelar, interrompe a função aqui
-                     if (!confirmacao) return; 
+                      if (!confirmacao) return; 
                 }
             }
         }
