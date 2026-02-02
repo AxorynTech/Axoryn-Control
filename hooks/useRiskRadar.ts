@@ -5,7 +5,7 @@ import { supabase } from '../services/supabase';
 export function useRiskRadar() {
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
-  const [consultasRestantes, setConsultasRestantes] = useState(0); // Começa zerado até carregar
+  const [consultasRestantes, setConsultasRestantes] = useState(0); 
 
   useEffect(() => {
     carregarUsuarioECreditos();
@@ -13,15 +13,10 @@ export function useRiskRadar() {
 
   const carregarUsuarioECreditos = async () => {
     try {
-      // 1. Descobre QUEM está usando o App agora
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-         // Se não tiver ninguém logado, não faz nada (ou manda pro login)
-         return; 
-      }
+      if (!user) return; 
 
-      // 2. Busca os créditos DESSE usuário específico
+      // Busca os créditos
       const { data, error } = await supabase
         .from('user_credits')
         .select('*')
@@ -29,10 +24,8 @@ export function useRiskRadar() {
         .maybeSingle();
 
       if (data) {
-        // Se já existe, verifica a renovação mensal
         verificarRenovacao(data, user.id);
       } else {
-        // 3. Se é um usuário NOVO (não tem linha na tabela), cria agora com 10 créditos
         await criarContaDeCreditos(user.id);
       }
     } catch (error) {
@@ -53,7 +46,6 @@ export function useRiskRadar() {
       const diferencaDias = (hoje.getTime() - ultimaData.getTime()) / (1000 * 3600 * 24);
 
       if (diferencaDias >= 30) {
-          // Virou o mês! Renova para 10
           console.log("Renovação Mensal Pessoal!");
           const novoSaldo = 10;
           await supabase.from('user_credits').update({ 
@@ -64,7 +56,6 @@ export function useRiskRadar() {
           setConsultasRestantes(novoSaldo);
           Alert.alert("Renovação", "Seus créditos mensais foram renovados! +10 consultas.");
       } else {
-          // Mantém o saldo atual
           setConsultasRestantes(dadosBanco.consultas_restantes);
       }
   };
@@ -106,7 +97,7 @@ export function useRiskRadar() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não logado");
 
-      // Chama a inteligência
+      // 1. Chama a inteligência (RPC)
       const { data, error } = await supabase
         .rpc('consultar_risco_triangulado', {
           cpf_input: cpf || '',
@@ -117,7 +108,16 @@ export function useRiskRadar() {
       if (error) throw error;
       setResultado(data);
 
-      // Desconta 1 crédito DO USUÁRIO LOGADO
+      // --- CORREÇÃO AQUI: REGISTRAR O LOG PARA O RANKING ---
+      // Isso cria o registro que a tela de Perfil conta
+      await supabase.from('risk_logs').insert([{
+          user_id: user.id,
+          data_consulta: new Date().toISOString(),
+          termo_pesquisado: nome || cpf || telefone || 'Consulta Rápida'
+      }]);
+      // -----------------------------------------------------
+
+      // 2. Desconta 1 crédito
       const novoSaldo = consultasRestantes - 1;
       setConsultasRestantes(novoSaldo);
       
@@ -127,7 +127,7 @@ export function useRiskRadar() {
         .eq('user_id', user.id);
 
     } catch (error: any) {
-      Alert.alert('Erro', 'Falha na conexão.');
+      Alert.alert('Erro', 'Falha na conexão ou consulta.');
       console.error(error);
     } finally {
       setLoading(false);

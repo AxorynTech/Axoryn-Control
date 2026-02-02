@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker'; // <--- IMPORT NOVO
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform, // <--- IMPORT NOVO
   ScrollView,
   StyleSheet,
   Text,
@@ -18,7 +20,7 @@ export default function TelaFluxoPessoal() {
     contas, movimentos, saldoGeral, loading, 
     adicionarConta, excluirConta, 
     adicionarMovimento, editarMovimento, excluirMovimento,
-    transferir, gerarRelatorioPDF // <--- Importando
+    transferir, gerarRelatorioPDF 
   } = useFluxoPessoal();
   
   const [contaSelecionada, setContaSelecionada] = useState<number | null>(null);
@@ -28,7 +30,7 @@ export default function TelaFluxoPessoal() {
   const [modalMovimento, setModalMovimento] = useState(false);
   const [modalNovaConta, setModalNovaConta] = useState(false);
   const [modalTransferencia, setModalTransferencia] = useState(false);
-  const [modalRelatorio, setModalRelatorio] = useState(false); // <--- NOVO MODAL
+  const [modalRelatorio, setModalRelatorio] = useState(false); 
 
   // Form Movimento
   const [idEdicao, setIdEdicao] = useState<number | null>(null);
@@ -37,6 +39,10 @@ export default function TelaFluxoPessoal() {
   const [descricao, setDescricao] = useState('');
   const [data, setData] = useState(new Date().toLocaleDateString('pt-BR'));
   const [contaIdForm, setContaIdForm] = useState<number | null>(null);
+
+  // --- NOVO: ESTADOS PARA O CALENDÁRIO ---
+  const [dataObjeto, setDataObjeto] = useState(new Date());
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
 
   // Form Conta
   const [nomeNovaConta, setNomeNovaConta] = useState('');
@@ -75,6 +81,21 @@ export default function TelaFluxoPessoal() {
     return `R$ ${val.toFixed(2).replace('.', ',')}`;
   };
 
+  // --- LÓGICA DO CALENDÁRIO ---
+  const aoMudarData = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+        setMostrarCalendario(false);
+    }
+
+    if (selectedDate) {
+        setDataObjeto(selectedDate);
+        const dia = String(selectedDate.getDate()).padStart(2, '0');
+        const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const ano = selectedDate.getFullYear();
+        setData(`${dia}/${mes}/${ano}`);
+    }
+  };
+
   const abrirNovo = () => {
     limparForm();
     setContaIdForm(contaSelecionada || (contaCarteira?.id || outrasContas[0]?.id || null));
@@ -93,10 +114,8 @@ export default function TelaFluxoPessoal() {
   const abrirModalRelatorio = () => {
       if (!contaSelecionada) return Alert.alert("Aviso", "Selecione uma conta primeiro.");
       
-      // Define datas padrão (Mês atual)
       const hoje = new Date();
       const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      
       const format = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
       
       setDataInicioRel(format(primeiroDia));
@@ -108,11 +127,9 @@ export default function TelaFluxoPessoal() {
       if (!contaSelecionada) return;
       const conta = contas.find(c => c.id === contaSelecionada);
       if (!conta) return;
-
       await gerarRelatorioPDF(conta.id, conta.nome, dataInicioRel, dataFimRel);
       setModalRelatorio(false);
   };
-  // ---------------------------
 
   const abrirEdicao = (item: any) => {
     setIdEdicao(item.id);
@@ -124,8 +141,12 @@ export default function TelaFluxoPessoal() {
     if (dataBanco.includes('-')) {
         const [ano, mes, dia] = dataBanco.split('-');
         setData(`${dia}/${mes}/${ano}`);
+        // Atualiza o objeto Date para o calendário abrir na data certa
+        setDataObjeto(new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia)));
     } else {
-        setData(new Date().toLocaleDateString('pt-BR'));
+        const hoje = new Date();
+        setData(hoje.toLocaleDateString('pt-BR'));
+        setDataObjeto(hoje);
     }
     
     setContaIdForm(item.conta_id);
@@ -185,7 +206,12 @@ export default function TelaFluxoPessoal() {
   const limparForm = () => {
     setIdEdicao(null); setValor(''); setDescricao(''); 
     setContaIdForm(contaSelecionada || null);
-    setTipo('ENTRADA'); setData(new Date().toLocaleDateString('pt-BR'));
+    setTipo('ENTRADA'); 
+    
+    // Reseta data para hoje
+    const hoje = new Date();
+    setData(hoje.toLocaleDateString('pt-BR'));
+    setDataObjeto(hoje);
   };
 
   if (loading) return <ActivityIndicator style={{marginTop: 50}} size="large" color="#2C3E50" />;
@@ -248,7 +274,6 @@ export default function TelaFluxoPessoal() {
           {formatarMoeda(saldoExibido)}
         </Text>
         
-        {/* BOTÃO RELATÓRIO (SÓ APARECE SE TIVER CONTA SELECIONADA) */}
         {contaSelecionada && (
             <TouchableOpacity onPress={abrirModalRelatorio} style={{position: 'absolute', right: 20, bottom: 20}}>
                 <View style={{backgroundColor:'#ECF0F1', padding:8, borderRadius:20}}>
@@ -361,9 +386,30 @@ export default function TelaFluxoPessoal() {
               </TouchableOpacity>
             </View>
 
-            <TextInput placeholder="Valor (R$)" keyboardType="numeric" style={styles.input} value={valor} onChangeText={setValor} />
-            <TextInput placeholder="Descrição" style={styles.input} value={descricao} onChangeText={setDescricao} />
-            <TextInput placeholder="Data (DD/MM/AAAA)" keyboardType="numeric" style={styles.input} value={data} onChangeText={setData} />
+            <Text style={styles.labelInput}>Valor (R$)</Text>
+            <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={valor} onChangeText={setValor} />
+            
+            <Text style={styles.labelInput}>Descrição</Text>
+            <TextInput placeholder="Ex: Salário" style={styles.input} value={descricao} onChangeText={setDescricao} />
+            
+            {/* --- SUBSTITUIÇÃO DO INPUT DE TEXTO PELO CALENDÁRIO --- */}
+            <Text style={styles.labelInput}>Data</Text>
+            <TouchableOpacity onPress={() => setMostrarCalendario(true)} style={[styles.input, {justifyContent:'center'}]}>
+                 <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between'}}>
+                     <Text style={{fontSize:16, color:'#333'}}>{data}</Text>
+                     <Ionicons name="calendar-outline" size={20} color="#2C3E50" />
+                 </View>
+            </TouchableOpacity>
+
+            {mostrarCalendario && (
+                <DateTimePicker
+                    value={dataObjeto}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={aoMudarData}
+                />
+            )}
+            {/* -------------------------------------------------------- */}
 
             <View style={styles.rowBtns}>
               <TouchableOpacity onPress={() => setModalMovimento(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
@@ -412,7 +458,7 @@ export default function TelaFluxoPessoal() {
         </View>
       </Modal>
 
-      {/* --- NOVO MODAL DE RELATÓRIO PDF --- */}
+      {/* --- MODAL DE RELATÓRIO PDF --- */}
       <Modal visible={modalRelatorio} transparent animationType="slide">
         <View style={styles.overlay}>
           <View style={styles.modalPequeno}>
