@@ -7,28 +7,38 @@ type Props = {
 };
 
 export default function TelaCadastro({ aoSalvar }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation(); // Adicionamos i18n para verificar o idioma
   
   // Estados do Formulário
   const [nome, setNome] = useState('');
-  const [cpf, setCpf] = useState(''); // <--- NOVO ESTADO CPF
+  const [cpf, setCpf] = useState(''); 
   const [whatsapp, setWhatsapp] = useState('');
   const [endereco, setEndereco] = useState('');
   const [indicacao, setIndicacao] = useState('');
   const [reputacao, setReputacao] = useState('');
   const [segmento, setSegmento] = useState('EMPRESTIMO');
 
-  // Máscara de CPF (Formatação Profissional)
-  const handleCpfChange = (text: string) => {
-    let v = text.replace(/\D/g, ''); // Remove tudo que não é número
-    if (v.length > 11) v = v.slice(0, 11); // Limita a 11 dígitos
-    
-    // Aplica a máscara 000.000.000-00
-    v = v.replace(/(\d{3})(\d)/, '$1.$2');
-    v = v.replace(/(\d{3})(\d)/, '$1.$2');
-    v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    
-    setCpf(v);
+  // Verifica se é usuário brasileiro para forçar a máscara de CPF
+  const isBrasil = i18n.language.startsWith('pt');
+
+  // Máscara de Documento Inteligente (Adaptável)
+  const handleDocumentoChange = (text: string) => {
+    if (isBrasil) {
+        // --- LÓGICA BRASIL (CPF RÍGIDO) ---
+        let v = text.replace(/\D/g, ''); // Remove letras
+        if (v.length > 11) v = v.slice(0, 11); // Trava em 11 números
+        
+        // Aplica os pontos e traço
+        v = v.replace(/(\d{3})(\d)/, '$1.$2');
+        v = v.replace(/(\d{3})(\d)/, '$1.$2');
+        v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        
+        setCpf(v);
+    } else {
+        // --- LÓGICA INTERNACIONAL (FLEXÍVEL) ---
+        // Permite letras e números, pois Tax IDs variam muito
+        setCpf(text);
+    }
   };
 
   const handleSalvar = () => {
@@ -38,7 +48,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
     
     aoSalvar({
       nome: nome.trim().toUpperCase(),
-      cpf: cpf, // <--- SALVA O CPF (Crucial para o Radar funcionar depois)
+      cpf: cpf, // Salva o documento (seja CPF ou Tax ID)
       whatsapp: whatsapp.trim(),
       endereco: endereco.trim(),
       indicacao: indicacao.trim(),
@@ -48,14 +58,14 @@ export default function TelaCadastro({ aoSalvar }: Props) {
 
     // Limpar campos
     setNome(''); 
-    setCpf(''); // Limpa CPF
+    setCpf(''); 
     setWhatsapp(''); 
     setEndereco(''); 
     setIndicacao(''); 
     setReputacao(''); 
     setSegmento('EMPRESTIMO');
     
-    Alert.alert(t('common.sucesso'), "Cliente cadastrado com sucesso!");
+    Alert.alert(t('common.sucesso'), t('auth.cadastroSucesso') || "Cliente cadastrado!");
   };
 
   return (
@@ -74,18 +84,22 @@ export default function TelaCadastro({ aoSalvar }: Props) {
             placeholderTextColor="#999"
           />
 
-          {/* --- CAMPO CPF NOVO --- */}
-          <Text style={styles.label}>CPF (Para Análise de Risco)</Text>
+          {/* --- CAMPO DE DOCUMENTO (INTERNACIONALIZADO) --- */}
+          {/* Usa as mesmas chaves de tradução do Radar para consistência */}
+          <Text style={styles.label}>
+             {t('radar.documentoLabel', 'CPF / Tax ID')}
+          </Text>
           <TextInput 
             style={styles.input} 
             value={cpf} 
-            onChangeText={handleCpfChange} // Usa a função com máscara
-            placeholder="000.000.000-00" 
+            onChangeText={handleDocumentoChange} 
+            placeholder={t('radar.documentoPlaceholder', '000.000.000-00')} 
             placeholderTextColor="#999"
-            keyboardType="numeric"
-            maxLength={14}
+            // Se for Brasil, teclado numérico. Se não, teclado normal (pode ter letras)
+            keyboardType={isBrasil ? "numeric" : "default"}
+            maxLength={isBrasil ? 14 : 20}
           />
-          {/* ---------------------- */}
+          {/* ----------------------------------------------- */}
 
           <Text style={styles.label}>{t('cadastro.segmento')}</Text>
           <View style={styles.rowSegmento}>
@@ -100,7 +114,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
              </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>{t('cadastro.whatsapp')}</Text>
+          <Text style={styles.label}>{t('radar.telefoneLabel', 'WhatsApp')}</Text>
           <TextInput 
             style={styles.input} 
             value={whatsapp} 
@@ -142,7 +156,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           </TouchableOpacity>
         </View>
         
-        {/* Espaço extra no final do scroll */}
         <View style={{height: 50}} />
       </ScrollView>
     </View>

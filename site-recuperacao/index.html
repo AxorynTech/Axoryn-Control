@@ -9,7 +9,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
-        :root { --primary: #2980B9; --dark: #2C3E50; --success: #27AE60; --danger: #E74C3C; --bg: #F4F6F7; --card-bg: #FFFFFF; }
+        :root { --primary: #2980B9; --dark: #2C3E50; --success: #27AE60; --danger: #E74C3C; --warning: #F39C12; --bg: #F4F6F7; --card-bg: #FFFFFF; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #333; }
         
         .container { background: var(--card-bg); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 90%; max-width: 450px; text-align: center; }
@@ -63,6 +63,12 @@
         .plan-price { font-size: 20px; font-weight: bold; color: var(--primary); margin: 5px 0; }
         .plan-period { font-size: 11px; color: #999; }
         .best-value { position: absolute; top: -10px; right: 50%; transform: translateX(50%); background: var(--success); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: bold; }
+
+        /* Estilo Específico para Recargas */
+        .card-recarga { border-color: #FDEBD0; }
+        .card-recarga:hover { border-color: var(--warning); background: #FEF9E7; }
+        .price-recarga { color: var(--warning); }
+        .tag-recarga { position: absolute; top: -10px; right: 50%; transform: translateX(50%); background: var(--warning); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: bold; }
 
         /* Utilitários */
         .hidden { display: none !important; }
@@ -140,6 +146,21 @@
                         <div class="plan-period">Cobrado uma vez</div>
                     </div>
                 </div>
+            </div>
+
+            <div id="areaRecargas" class="hidden">
+                <hr style="border:0; border-top:1px solid #EEE; margin:20px 0;">
+                <p style="font-weight:bold; margin-bottom:10px; color:#E67E22; font-size:14px;">
+                    <i class="fas fa-bolt"></i> Recargas Axoryn Shield:
+                </p>
+                <div class="plans-grid">
+                    <div class="plan-card card-recarga" onclick="pagar('recarga_10')">
+                        <div class="tag-recarga">PACOTE DE CRÉDITOS</div>
+                        <div class="plan-title">10 CONSULTAS</div>
+                        <div class="plan-price price-recarga">R$ 20,00</div>
+                        <div class="plan-period">R$ 2,00 por consulta</div>
+                    </div>
+                </div>
                 <p style="font-size:11px; color:#999; margin-top:15px;">
                     <i class="fas fa-lock"></i> Pagamento seguro via Mercado Pago
                 </p>
@@ -156,8 +177,8 @@
             <div id="areaPremium" class="hidden">
                 <div style="padding:20px; background:#F8F9FA; border-radius:8px; border:1px solid #EEE; color:#555; font-size:14px; margin-top:15px;">
                     <i class="fas fa-check-circle" style="color:#27AE60; font-size:20px; margin-bottom:10px;"></i><br>
-                    <strong>Conta Ativada com Sucesso</strong><br>
-                    Aproveite o Axoryn Control!<br>
+                    <strong>Conta Premium Ativa</strong><br>
+                    Todos os recursos liberados.<br>
                 </div>
             </div>
 
@@ -174,12 +195,10 @@
         
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // UI References
         const loginScreen = document.getElementById('loginScreen');
         const dashboardScreen = document.getElementById('dashboardScreen');
         const feedback = document.getElementById('loginError');
 
-        // Check Login
         supabaseClient.auth.getUser().then(({ data, error }) => {
             if (data?.user) {
                 carregarDashboard(data.user);
@@ -234,14 +253,12 @@
             dashboardScreen.classList.remove('hidden');
             document.getElementById('userEmail').innerText = user.email;
 
-            // Busca perfil (tenta buscar, se falhar não tem problema)
             const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', user.id).single();
 
             const hoje = new Date();
             const dataCriacao = new Date(user.created_at);
             const fimAssinatura = profile?.data_fim_assinatura ? new Date(profile.data_fim_assinatura) : null;
             
-            // --- LÓGICA NUCLEAR DE DETECÇÃO ---
             const userMeta = user.user_metadata || {};
             const appMeta = user.app_metadata || {};
             const profileData = profile || {};
@@ -254,11 +271,14 @@
 
             document.getElementById('debugInfo').innerText = "ID: " + user.id.slice(0, 8) + "... | Status: " + (IS_VITALICIO ? "V" : "P");
 
-            // --- REGRAS DE SEGURANÇA (ANTI-APPLE) ---
             const horasDeVida = Math.abs(hoje - dataCriacao) / 36e5;
-            const CONTA_NOVA = horasDeVida < 120; 
+            const CONTA_NOVA = horasDeVida < 120; // 5 dias (120 hours)
             const E_AVALIADOR = user.email.toLowerCase().includes('avaliador'); 
-            const MODO_SEGURO = CONTA_NOVA || E_AVALIADOR;
+            
+            // --- GATILHO DA CAMUFLAGEM (BLINDAGEM TOTAL) ---
+            // Se for Conta Nova (<120h) OU Avaliador OU Vitalício
+            // O sistema ativa a camuflagem e esconde TUDO.
+            const DEVE_CAMUFLAR = CONTA_NOVA || E_AVALIADOR || IS_VITALICIO;
 
             let nomePlano = "Gratuito";
             let dataVencimento = "";
@@ -270,18 +290,20 @@
             let porcentagemBarra = 0;
             let mostrarQuarentena = false;
 
-            // 1. Vitalício (PRIORIDADE MÁXIMA)
-            if (IS_VITALICIO) {
-                // VISUAL CAMUFLADO (mas logicamente liberado)
+            // --- LÓGICA DE DECISÃO ---
+
+            if (DEVE_CAMUFLAR) {
+                // PRIORIDADE MÁXIMA: Ativa a camuflagem
+                mostrarQuarentena = true;
+                
                 nomePlano = "🏢 Licença Padrão";
                 dataVencimento = "Indeterminado"; 
-                statusBadge = "ATIVO";
+                statusBadge = "ATIVO"; 
                 statusBadgeClass = "bg-green-light";
                 mensagem = "Sua conta está ativa e verificada. Todos os recursos do sistema estão liberados.";
-                isPremium = true;
-            } 
-            // 2. Assinante Premium
+            }
             else if (fimAssinatura && fimAssinatura > hoje) {
+                // Usuário Real com Assinatura Paga
                 nomePlano = "🌟 Premium";
                 dataVencimento = fimAssinatura.toLocaleDateString('pt-BR');
                 statusBadge = "ATIVO";
@@ -291,34 +313,23 @@
                 mensagem = `Sua assinatura está válida por mais ${diasRestantes} dias.`;
                 isPremium = true;
             } 
-            // 3. Teste ou Expirado
             else {
+                // Usuário Real em Teste ou Expirado
                 const diasUso = (hoje - dataCriacao) / (1000 * 3600 * 24);
                 const diasRestantesTeste = 7 - diasUso;
 
                 if (diasRestantesTeste > 0) {
-                    if (MODO_SEGURO) {
-                        mostrarQuarentena = true;
-                        nomePlano = "🏢 Licença Padrão";
-                        dataVencimento = "Indeterminado"; 
-                        statusBadge = "ATIVO"; 
-                        statusBadgeClass = "bg-green-light";
-                        mensagem = "Sua conta está ativa e verificada. Todos os recursos do sistema estão liberados.";
-                        mostrarBarra = false;
-                    } else {
-                        nomePlano = "⏳ Teste Grátis";
-                        let dataFimTeste = new Date(dataCriacao);
-                        dataFimTeste.setDate(dataFimTeste.getDate() + 7);
-                        dataVencimento = dataFimTeste.toLocaleDateString('pt-BR');
-                        statusBadge = "EM TESTE";
-                        statusBadgeClass = "bg-green-light";
-                        mensagem = `Você tem mais ${Math.ceil(diasRestantesTeste)} dias de teste gratuito.`;
-                        mostrarBarra = true;
-                        porcentagemBarra = (diasUso / 7) * 100;
-                        if (diasRestantesTeste < 2) document.getElementById('progressBar').style.backgroundColor = "#E74C3C"; 
-                    }
+                    nomePlano = "⏳ Teste Grátis";
+                    let dataFimTeste = new Date(dataCriacao);
+                    dataFimTeste.setDate(dataFimTeste.getDate() + 7);
+                    dataVencimento = dataFimTeste.toLocaleDateString('pt-BR');
+                    statusBadge = "EM TESTE";
+                    statusBadgeClass = "bg-green-light";
+                    mensagem = `Você tem mais ${Math.ceil(diasRestantesTeste)} dias de teste gratuito.`;
+                    mostrarBarra = true;
+                    porcentagemBarra = (diasUso / 7) * 100;
+                    if (diasRestantesTeste < 2) document.getElementById('progressBar').style.backgroundColor = "#E74C3C"; 
                 } else {
-                    // EXPIRADO (> 7 dias)
                     nomePlano = "🔒 Bloqueado";
                     dataVencimento = "Expirado"; 
                     statusBadge = "VENCIDO";
@@ -335,7 +346,6 @@
             document.getElementById('badgeStatus').className = "status-badge " + statusBadgeClass;
             document.getElementById('statusMessage').innerText = mensagem;
 
-            // Barra de Progresso
             const barContainer = document.getElementById('progressContainer');
             if (mostrarBarra) {
                 barContainer.classList.remove('hidden');
@@ -344,19 +354,26 @@
                 barContainer.classList.add('hidden');
             }
 
-            // CONTROLE FINAL DAS ÁREAS
+            // --- CONTROLE DE VISIBILIDADE DAS ÁREAS ---
             document.getElementById('areaPremium').classList.add('hidden');
             document.getElementById('areaQuarentena').classList.add('hidden');
             document.getElementById('areaPagamento').classList.add('hidden');
+            document.getElementById('areaRecargas').classList.add('hidden'); // Reseta tudo
 
-            if (isPremium) {
-                document.getElementById('areaPremium').classList.remove('hidden');
-            } 
-            else if (mostrarQuarentena) {
+            if (mostrarQuarentena) {
+                // CAMUFLAGEM ATIVA: Esconde TUDO de pagamento e recargas
+                // Mostra apenas a mensagem fake de sucesso
                 document.getElementById('areaQuarentena').classList.remove('hidden');
             } 
             else {
-                document.getElementById('areaPagamento').classList.remove('hidden');
+                // FLUXO NORMAL: Libera recargas e pagamentos para usuários reais e antigos
+                document.getElementById('areaRecargas').classList.remove('hidden'); 
+
+                if (isPremium) {
+                    document.getElementById('areaPremium').classList.remove('hidden');
+                } else {
+                    document.getElementById('areaPagamento').classList.remove('hidden');
+                }
             }
         }
 
@@ -370,9 +387,14 @@
                 const { data: { user } } = await supabaseClient.auth.getUser();
                 let titulo = "Assinatura Mensal - Axoryn";
                 let preco = 29.90;
+                
                 if (tipo === 'anual') {
                     titulo = "Assinatura Anual - Axoryn (12 meses)";
                     preco = 299.90;
+                }
+                else if (tipo === 'recarga_10') {
+                    titulo = "Pacote 10 Consultas - Axoryn Shield";
+                    preco = 20.00;
                 }
 
                 const response = await fetch(`${SUPABASE_URL}/functions/v1/mercadopago/criar-preferencia`, {

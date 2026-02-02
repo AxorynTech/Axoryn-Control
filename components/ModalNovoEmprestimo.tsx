@@ -1,5 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -22,21 +24,28 @@ type Props = {
 };
 
 export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelecionado, fechar, salvar }: Props) {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation();
   const [tipoOperacao, setTipoOperacao] = useState<'EMPRESTIMO' | 'VENDA'>('EMPRESTIMO');
 
   const [clienteId, setClienteId] = useState('');
   const [capital, setCapital] = useState('');
   const [dataInicio, setDataInicio] = useState('');
+  
+  // --- CALENDÁRIO ---
+  const [dataObjeto, setDataObjeto] = useState(new Date());
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
+
   const [taxa, setTaxa] = useState('20');
-  const [frequencia, setFrequencia] = useState('MENSAL'); // Compartilhado: MENSAL, SEMANAL, DIARIO, PARCELADO
+  const [frequencia, setFrequencia] = useState('MENSAL'); 
   const [garantia, setGarantia] = useState('');
   const [multa, setMulta] = useState('');
   const [produtos, setProdutos] = useState('');
   
-  // Controle de parcelas
   const [diasDiario, setDiasDiario] = useState('25');
   const [qtdParcelasVenda, setQtdParcelasVenda] = useState('1');
+  
+  // Controle de Venda (Apenas PRAZO ou MENSAL agora)
+  const [modVenda, setModVenda] = useState<'PRAZO' | 'MENSAL'>('PRAZO');
 
   useEffect(() => {
     if (visivel) {
@@ -46,9 +55,12 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       }
       
       const hoje = new Date();
+      setDataObjeto(hoje);
+      
       const dia = String(hoje.getDate()).padStart(2, '0');
       const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-      setDataInicio(`${dia}/${mes}/${hoje.getFullYear()}`);
+      const ano = hoje.getFullYear();
+      setDataInicio(`${dia}/${mes}/${ano}`);
 
       setCapital('');
       setGarantia('');
@@ -57,14 +69,32 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       setTipoOperacao('EMPRESTIMO');
       setFrequencia('MENSAL');
       setQtdParcelasVenda('1');
+      setModVenda('PRAZO'); 
     }
   }, [visivel, clientePreSelecionado]);
 
-  // Ao trocar de aba, ajusta defaults sugeridos
   const trocarAba = (novaAba: 'EMPRESTIMO' | 'VENDA') => {
     setTipoOperacao(novaAba);
-    if (novaAba === 'VENDA') setFrequencia('PARCELADO');
-    else setFrequencia('MENSAL');
+    if (novaAba === 'VENDA') {
+        setFrequencia('PARCELADO');
+        setModVenda('PRAZO');
+    } else {
+        setFrequencia('MENSAL');
+    }
+  };
+
+  const aoMudarData = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+        setMostrarCalendario(false);
+    }
+
+    if (selectedDate) {
+        setDataObjeto(selectedDate);
+        const dia = String(selectedDate.getDate()).padStart(2, '0');
+        const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const ano = selectedDate.getFullYear();
+        setDataInicio(`${dia}/${mes}/${ano}`);
+    }
   };
 
   const handleSalvar = () => {
@@ -72,37 +102,48 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     if (!capital) return Alert.alert(t('common.erro'), t('novoContrato.erroValor') || "Digite o valor.");
     if (!dataInicio) return Alert.alert(t('common.erro'), t('novoContrato.erroData') || "Informe a data.");
 
-    const valCapital = parseFloat(capital.replace(',', '.'));
-    const valTaxa = parseFloat(taxa.replace(',', '.'));
+    const valCapital = parseFloat(capital.replace(',', '.') || '0');
+    const valTaxa = parseFloat(taxa.replace(',', '.') || '0');
     const valMulta = parseFloat(multa.replace(',', '.') || '0');
 
     const textoDescritivo = tipoOperacao === 'VENDA' 
-      ? `PRODUTO: ${produtos}` 
+      ? `PRODUTO: ${produtos || 'Venda Diversa'}` 
       : garantia;
 
-    // Se for venda, respeita a frequência escolhida (PARCELADO ou MENSAL)
-    // Se for empréstimo, usa a frequência escolhida (MENSAL, SEMANAL, DIARIO)
-    const frequenciaFinal = frequencia;
-    
-    // Parcelas só existem se for VENDA PARCELADA
-    const parcelasFinal = (tipoOperacao === 'VENDA' && frequencia === 'PARCELADO') ? qtdParcelasVenda : null;
+    let frequenciaFinal = frequencia;
+    let parcelasFinal = null;
+
+    if (tipoOperacao === 'VENDA') {
+        // Lógica simplificada: Só tem MENSAL ou PARCELADO
+        if (modVenda === 'MENSAL') {
+            frequenciaFinal = 'MENSAL';
+            parcelasFinal = null; 
+        } else {
+            frequenciaFinal = 'PARCELADO';
+            const p = parseInt(qtdParcelasVenda);
+            parcelasFinal = isNaN(p) || p < 1 ? 1 : p;
+        }
+    } else {
+        // Lógica Empréstimo
+        frequenciaFinal = frequencia;
+        parcelasFinal = null;
+    }
 
     salvar(clienteId, {
-      tipo: tipoOperacao, // <--- ADICIONADO: Envia o tipo para o Hook saber se debita do caixa
+      tipo: tipoOperacao,
       capital: valCapital,
       taxa: valTaxa,
       frequencia: frequenciaFinal,
       garantia: textoDescritivo,
-      diasDiario: frequencia === 'DIARIO' ? diasDiario : null,
+      diasDiario: frequencia === 'DIARIO' ? parseInt(diasDiario) : null,
       totalParcelas: parcelasFinal,
-      dataInicio,
+      dataInicio, 
       valorMultaDiaria: valMulta
     });
   };
 
   return (
     <Modal visible={visivel} transparent animationType="slide" onRequestClose={fechar}>
-      {/* KeyboardAvoidingView substitui a View externa para empurrar o conteúdo */}
       <KeyboardAvoidingView 
         style={styles.fundo} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -144,15 +185,31 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
               </ScrollView>
             )}
 
-            {/* LINHA: VALOR e DATA */}
+            {/* LINHA: VALOR e DATA (Calendário para AMBOS) */}
             <View style={{flexDirection:'row', gap:10}}>
                 <View style={{flex:1.5}}>
                     <Text style={styles.label}>{tipoOperacao === 'VENDA' ? t('novoContrato.valorVenda') : t('novoContrato.valorEmprestimo')}</Text>
                     <TextInput style={styles.input} value={capital} onChangeText={setCapital} keyboardType="numeric" placeholder="0.00" />
                 </View>
+                
                 <View style={{flex:1}}>
                     <Text style={styles.label}>{t('novoContrato.data')}</Text>
-                    <TextInput style={styles.input} value={dataInicio} onChangeText={setDataInicio} placeholder="DD/MM/AAAA" />
+                    
+                    <TouchableOpacity onPress={() => setMostrarCalendario(true)} style={[styles.input, {justifyContent:'center'}]}>
+                         <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between'}}>
+                             <Text style={{fontSize:16, color:'#333'}}>{dataInicio}</Text>
+                             <Ionicons name="calendar-outline" size={18} color="#2980B9" />
+                         </View>
+                    </TouchableOpacity>
+
+                    {mostrarCalendario && (
+                        <DateTimePicker
+                            value={dataObjeto}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={aoMudarData}
+                        />
+                    )}
                 </View>
             </View>
 
@@ -164,44 +221,49 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                   value={produtos} 
                   onChangeText={setProdutos} 
                   multiline 
-                  placeholder={t('novoContrato.placeholderProdutos') || "Ex: 1 Perfume, 1 Kit..."} 
+                  placeholder={t('novoContrato.placeholderProdutos') || "Ex: 1 Perfume..."} 
                 />
                 
-                {/* --- SELETOR DE MODALIDADE (VENDA) --- */}
-                <View style={{marginTop: 10}}>
-                      <Text style={styles.label}>{t('novoContrato.modalidadeVenda')}</Text>
-                      <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'PARCELADO' ? 'MENSAL' : 'PARCELADO')}>
-                        <Text style={{fontWeight:'bold', color:'#333'}}>
-                            {frequencia === 'PARCELADO' ? t('novoContrato.freqParcelado') : t('novoContrato.freqMensalRecorrente')}
+                <Text style={styles.label}>{t('novoContrato.modalidadeVenda')}</Text>
+                <View style={styles.rowRadio}>
+                    {/* PARCELADO */}
+                    <TouchableOpacity 
+                        style={[styles.radioBtn, modVenda === 'PRAZO' && styles.radioBtnAtivo]} 
+                        onPress={() => setModVenda('PRAZO')}
+                    >
+                        <Text style={[styles.radioTxt, modVenda === 'PRAZO' && {color:'#FFF'}]}>
+                            {t('novoContrato.freqParcelado', 'PARCELADO')}
                         </Text>
-                      </TouchableOpacity>
+                    </TouchableOpacity>
+
+                    {/* MENSAL */}
+                    <TouchableOpacity 
+                        style={[styles.radioBtn, modVenda === 'MENSAL' && styles.radioBtnAtivo]} 
+                        onPress={() => setModVenda('MENSAL')}
+                    >
+                        <Text style={[styles.radioTxt, modVenda === 'MENSAL' && {color:'#FFF'}]}>
+                            {t('novoContrato.freqMensalRecorrente', 'MENSAL')}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
-                {/* LINHA UNIFICADA DE RECEBIMENTO: PARCELAS | JUROS | MULTA */}
                 <Text style={[styles.label, {marginTop: 15}]}>{t('novoContrato.condicoesRecebimento')}</Text>
                 <View style={{flexDirection:'row', gap:10}}>
-                    
-                    {/* Só mostra parcelas se for PARCELADO */}
-                    {frequencia === 'PARCELADO' && (
+                    {modVenda === 'PRAZO' && (
                         <View style={{flex:1}}>
-                           <Text style={{fontSize:12, color:'#555', fontWeight:'bold', marginBottom:2}}>{t('novoContrato.parcelas')}</Text>
+                           <Text style={styles.miniLabel}>{t('novoContrato.parcelas')}</Text>
                            <TextInput style={styles.input} value={qtdParcelasVenda} onChangeText={setQtdParcelasVenda} keyboardType="numeric" placeholder="Ex: 3" />
                         </View>
                     )}
                     
                     <View style={{flex:1}}>
-                       <Text style={{fontSize:12, color:'#555', fontWeight:'bold', marginBottom:2}}>{t('novoContrato.juros')}</Text>
+                       <Text style={styles.miniLabel}>{t('novoContrato.juros')}</Text>
                        <TextInput style={styles.input} value={taxa} onChangeText={setTaxa} keyboardType="numeric" />
                     </View>
+                    
                     <View style={{flex:1.2}}>
-                       <Text style={{fontSize:12, color:'#555', fontWeight:'bold', marginBottom:2}}>{t('novoContrato.multaDiaria')}</Text>
-                       <TextInput 
-                         style={styles.input} 
-                         value={multa} 
-                         onChangeText={setMulta} 
-                         keyboardType="numeric" 
-                         placeholder="0.00" 
-                       />
+                       <Text style={styles.miniLabel}>{t('novoContrato.multaDiaria')}</Text>
+                       <TextInput style={styles.input} value={multa} onChangeText={setMulta} keyboardType="numeric" placeholder="0.00" />
                     </View>
                 </View>
               </>
@@ -222,7 +284,6 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                   </View>
                 </View>
 
-                {/* --- SELETOR DE MODALIDADE (EMPRESTIMO) --- */}
                 <View style={{marginTop: 10}}>
                       <Text style={styles.label}>{t('novoContrato.modalidade')}</Text>
                       <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'MENSAL' ? 'SEMANAL' : frequencia === 'SEMANAL' ? 'DIARIO' : 'MENSAL')}>
@@ -265,9 +326,15 @@ const styles = StyleSheet.create({
   txtAba: { fontWeight: 'bold', color: '#95A5A6', fontSize: 12 },
   txtAbaAtiva: { color: '#2980B9' },
   label: { fontWeight: 'bold', color: '#555', marginBottom: 5, marginTop: 10 },
+  miniLabel: { fontSize:12, color:'#555', fontWeight:'bold', marginBottom:2 },
   input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 16, backgroundColor: '#FAFAFA' },
   btnFreq: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 12, alignItems: 'center', backgroundColor: '#EEE', marginTop: 0 },
   btnSalvar: { backgroundColor: '#27AE60', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 20 },
   txtSalvar: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  btnCancelar: { marginTop: 15, alignItems: 'center', padding: 10 }
+  btnCancelar: { marginTop: 15, alignItems: 'center', padding: 10 },
+  
+  rowRadio: { flexDirection: 'row', gap: 5, marginBottom: 5 },
+  radioBtn: { flex: 1, flexDirection: 'row', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#DDD', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA' },
+  radioBtnAtivo: { backgroundColor: '#2980B9', borderColor: '#2980B9' },
+  radioTxt: { fontSize: 11, fontWeight: 'bold', color: '#555', textAlign:'center' }
 });

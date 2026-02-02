@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // Hook de tradução
 import {
     ActivityIndicator,
     Alert,
@@ -20,11 +21,14 @@ interface Props {
 }
 
 export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome, compacto }: Props) {
+  const { t, i18n } = useTranslation();
   const [cpf, setCpf] = useState('');
   const [telefone, setTelefone] = useState('');
   
   const { investigar, resultado, loading, consultasRestantes } = useRiskRadar();
   const [detalhesVisiveis, setDetalhesVisiveis] = useState(false);
+
+  const isBrasil = i18n.language.startsWith('pt');
 
   useEffect(() => {
     if (initialCpf) setCpf(initialCpf);
@@ -36,14 +40,13 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
   };
 
   const handleInvestigar = async () => {
-      // Verifica se é undefined, null ou <= 0
       if (consultasRestantes === undefined || consultasRestantes <= 0) {
           Alert.alert(
-              "Limite Atingido",
-              "Seus créditos acabaram. Acesse o site para recarregar.",
+              t('radar.limiteTitulo', "Limite Atingido"),
+              t('radar.limiteMsg', "Seus créditos acabaram. Acesse o site para recarregar."),
               [
-                  { text: "Cancelar", style: "cancel" },
-                  { text: "Ir para o Site", onPress: abrirSiteRecarga }
+                  { text: t('common.cancelar', "Cancelar"), style: "cancel" },
+                  { text: t('radar.irSite', "Ir para o Site"), onPress: abrirSiteRecarga }
               ]
           );
           return;
@@ -58,23 +61,74 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
       return '#34495E'; 
   };
 
-  // Lógica visual
+  // --- MÁSCARAS DE PRIVACIDADE ---
+  const maskCpfPrivacy = (val: string) => {
+    if (!val) return '---';
+    // Se não for Brasil, mostra ID genérico
+    if (!isBrasil) {
+        if (val.length > 4) return `ID ****${val.slice(-4)}`;
+        return val;
+    }
+    // Brasil: Máscara de CPF
+    const clean = val.replace(/\D/g, '');
+    if (clean.length === 11) return `***.***.***-${clean.slice(9)}`;
+    return val;
+  };
+
+  const maskPhonePrivacy = (val: string) => {
+    if (!val) return '---';
+    // Se não for Brasil, mostra telefone internacional
+    if (!isBrasil) {
+        if (val.length > 4) return `(+) ****-${val.slice(-4)}`;
+        return val;
+    }
+    // Brasil: Máscara de Celular
+    const clean = val.replace(/\D/g, '');
+    if (clean.length >= 10) return `(**) *****-${clean.slice(-4)}`;
+    return val;
+  };
+
   const isSaldoBaixo = (consultasRestantes || 0) <= 3;
   const isZerado = (consultasRestantes || 0) <= 0;
-  const textoBotao = isZerado ? 'RECARREGAR NO SITE' : 'CONSULTAR AGORA';
+  
+  const textoBotao = isZerado 
+    ? t('radar.btnRecarregar', 'RECARREGAR NO SITE') 
+    : t('radar.btnConsultar', 'CONSULTAR AGORA');
+
+  const getStatusText = () => {
+      if (resultado.nivel === 'SEGURO') return t('radar.aprovado', 'APROVADO');
+      if (resultado.nivel === 'PERIGO') return t('radar.reprovado', 'REPROVADO');
+      return t('radar.atencao', 'ATENÇÃO');
+  };
+
+  // --- TRADUTOR INTELIGENTE (CORRIGE O BACKEND) ---
+  const traduzirMensagemBackend = (msg: string) => {
+      if (!msg) return "";
+      const msgLower = msg.toLowerCase();
+      
+      if (msgLower.includes('dupla') || (msgLower.includes('cpf') && msgLower.includes('celular'))) {
+          return t('radar.msgRestricaoDupla', 'Restrição Dupla');
+      }
+      if (msgLower.includes('cpf') || msgLower.includes('documento')) {
+          return t('radar.msgRestricaoDoc', 'Restrição no Documento');
+      }
+      if (msgLower.includes('celular') || msgLower.includes('telefone') || msgLower.includes('whatsapp')) {
+          return t('radar.msgRestricaoTel', 'Restrição no Telefone');
+      }
+      if (msgLower.includes('limpo') || msgLower.includes('seguro')) {
+          return t('radar.msgLimpo', 'Cliente Seguro');
+      }
+      return msg;
+  };
 
   return (
     <View style={[styles.container, compacto && {marginTop: 5, padding: 10}]}>
-      
-      {/* CABEÇALHO */}
       <View style={styles.header}>
         <View style={{flexDirection:'row', alignItems:'center'}}>
             <Ionicons name="shield-checkmark" size={compacto ? 18 : 22} color="#2980B9" />
             <Text style={[styles.title, compacto && {fontSize: 12}]}>AXORYN INTELLIGENCE</Text>
         </View>
         
-        {/* CORREÇÃO: Removi a verificação {!compacto && ...} */}
-        {/* Agora o badge aparece SEMPRE, independente de onde esteja */}
         <TouchableOpacity 
             onPress={abrirSiteRecarga} 
             style={[
@@ -82,43 +136,25 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
                 isSaldoBaixo && {borderColor:'#E74C3C', backgroundColor:'#FDEDEC'}
             ]}
         >
-            <Ionicons 
-                name={!isZerado ? "flash" : "alert-circle"} 
-                size={14} 
-                color={!isZerado && !isSaldoBaixo ? "#F1C40F" : "#E74C3C"}
-            />
-            
-            <Text style={[
-                styles.txtCreditos, 
-                isSaldoBaixo ? {color:'#C0392B'} : {color:'#B7950B'}
-            ]}>
-                {consultasRestantes === undefined || consultasRestantes === null 
-                    ? '...' 
-                    : (isZerado ? 'Acabou' : `Restam: ${consultasRestantes}`)
-                }
+            <Ionicons name={!isZerado ? "flash" : "alert-circle"} size={14} color={!isZerado && !isSaldoBaixo ? "#F1C40F" : "#E74C3C"} />
+            <Text style={[styles.txtCreditos, isSaldoBaixo ? {color:'#C0392B'} : {color:'#B7950B'}]}>
+                {consultasRestantes === undefined || consultasRestantes === null ? '...' : (isZerado ? t('radar.acabou', 'Acabou') : `${t('radar.restam', 'Restam')}: ${consultasRestantes}`)}
             </Text>
-            
             {isZerado && <Ionicons name="add-circle" size={14} color="#E74C3C" style={{marginLeft: 4}}/>}
         </TouchableOpacity>
       </View>
 
       {!resultado ? (
           <View>
-              {!compacto && <Text style={styles.help}>Análise de Risco (CPF e Celular).</Text>}
-              
+              {!compacto && <Text style={styles.help}>{t('radar.ajuda', 'Análise de Risco.')}</Text>}
               <View style={styles.formArea}>
                   <View style={{flexDirection:'row', gap: 5}}>
-                      <TextInput style={[styles.input, {flex: 1}]} placeholder="CPF" value={cpf} editable={false} />
-                      <TextInput style={[styles.input, {flex: 1}]} placeholder="WhatsApp" value={telefone} editable={false} />
+                      <TextInput style={[styles.input, {flex: 1, color: '#7F8C8D', textAlign: 'center'}]} placeholder={t('radar.documentoPlaceholder', 'ID')} value={maskCpfPrivacy(cpf)} editable={false} />
+                      <TextInput style={[styles.input, {flex: 1, color: '#7F8C8D', textAlign: 'center'}]} placeholder={t('radar.telefoneLabel', 'Phone')} value={maskPhonePrivacy(telefone)} editable={false} />
                   </View>
               </View>
-
               <TouchableOpacity 
-                style={[
-                    styles.btnInvestigar, 
-                    compacto && {padding: 10, marginTop: 10},
-                    isZerado && {backgroundColor: '#E74C3C'}
-                ]} 
+                style={[styles.btnInvestigar, compacto && {padding: 10, marginTop: 10}, isZerado && {backgroundColor: '#E74C3C'}]} 
                 onPress={!isZerado ? handleInvestigar : abrirSiteRecarga}
                 disabled={loading}
               >
@@ -132,38 +168,42 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
           </View>
       ) : (
           <View style={[styles.resultCard, { borderTopColor: getCor(resultado.nivel) }]}>
-              {/* Resultado Card */}
               <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 10}}>
                   <View>
-                      <Text style={[styles.statusTxt, { color: getCor(resultado.nivel) }]}>
-                          {resultado.nivel === 'SEGURO' ? 'APROVADO' : (resultado.nivel === 'PERIGO' ? 'REPROVADO' : 'ATENÇÃO')}
-                      </Text>
-                      <Text style={{fontSize:10, color:'#7F8C8D'}}>Score Calculado</Text>
+                      <Text style={[styles.statusTxt, { color: getCor(resultado.nivel) }]}>{getStatusText()}</Text>
+                      <Text style={{fontSize:10, color:'#7F8C8D'}}>{t('radar.scoreLabel', 'Score')}</Text>
                   </View>
                   <View style={[styles.scoreCircle, {borderColor: getCor(resultado.nivel)}]}>
                       <Text style={[styles.scoreNum, {color: getCor(resultado.nivel)}]}>{resultado.score}</Text>
                   </View>
               </View>
 
-              <Text style={styles.msg}>{resultado.mensagem}</Text>
+              {/* MENSAGEM DO BACKEND TRADUZIDA */}
+              <Text style={styles.msg}>{traduzirMensagemBackend(resultado.mensagem)}</Text>
               
               {resultado.financeiro && (resultado.financeiro.qtd_atrasos > 0) && (
                   <View style={styles.financeBox}>
                       <View style={styles.financeItem}>
-                          <Text style={styles.finLabel}>Dívida Total</Text>
-                          <Text style={styles.finValueRed}>R$ {resultado.financeiro.divida_total?.toFixed(2)}</Text>
+                          <Text style={styles.finLabel}>{t('radar.divida', 'Dívida')}</Text>
+                          <Text style={styles.finValueRed}>
+                             {/* MOEDA DINÂMICA (R$ ou $) */}
+                             {isBrasil ? 'R$' : '$'} {resultado.financeiro.divida_total?.toFixed(2)}
+                          </Text>
                       </View>
                       <View style={styles.divisorVertical}/>
                       <View style={styles.financeItem}>
-                          <Text style={styles.finLabel}>Maior Atraso</Text>
-                          <Text style={styles.finValueRed}>{resultado.financeiro.maior_atraso} Dias</Text>
+                          <Text style={styles.finLabel}>{t('radar.maiorAtraso', 'Atraso')}</Text>
+                          <Text style={styles.finValueRed}>
+                              {/* PALAVRA 'DIAS' TRADUZIDA */}
+                              {resultado.financeiro.maior_atraso} {t('radar.dias', 'dias')}
+                          </Text>
                       </View>
                   </View>
               )}
 
               <TouchableOpacity onPress={() => setDetalhesVisiveis(!detalhesVisiveis)} style={{marginTop:10}}>
                   <Text style={{color:'#2980B9', fontSize:11, fontWeight:'bold', textAlign:'center'}}>
-                      {detalhesVisiveis ? 'Ocultar Detalhes ▲' : 'Ver Detalhes ▼'}
+                      {detalhesVisiveis ? t('radar.ocultar', 'Ocultar') : t('radar.verDetalhes', 'Ver Detalhes')}
                   </Text>
               </TouchableOpacity>
 
@@ -171,7 +211,8 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
                   <View style={styles.criteriaBox}>
                       {resultado.criterios.map((c: string, i: number) => (
                           <Text key={i} style={[styles.criteriaTxt, c.includes('✅') ? {color:'#27AE60'} : {color:'#C0392B'}]}>
-                              {c}
+                              {/* Tradução básica de critérios */}
+                              {c.replace('Pendência', t('radar.atencao', 'Attention')).replace('Limpo', t('radar.aprovado', 'Clean'))}
                           </Text>
                       ))}
                   </View>
@@ -186,17 +227,13 @@ const styles = StyleSheet.create({
   container: { backgroundColor: '#F8F9FA', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7E9', marginTop: 10 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   title: { fontWeight: 'bold', fontSize: 14, color: '#2C3E50', marginLeft: 8 },
-  
-  // Badge Ajustado
   badgeCreditos: { flexDirection: 'row', backgroundColor: '#FEF9E7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 15, borderWidth:1, borderColor:'#F1C40F', alignItems:'center' },
   txtCreditos: { fontSize: 12, fontWeight: 'bold', color: '#B7950B', marginLeft: 4 },
-
   help: { fontSize: 11, color: '#7F8C8D', marginBottom: 10 },
   formArea: { gap: 8 },
   input: { backgroundColor: '#EAECEE', borderRadius: 6, padding: 8, borderWidth: 1, borderColor: '#D7DBDD', fontSize: 13, color: '#555' },
   btnInvestigar: { backgroundColor: '#2C3E50', borderRadius: 6, padding: 12, alignItems: 'center', marginTop: 10, elevation: 2 },
   txtBtn: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
-  
   resultCard: { marginTop: 5, backgroundColor: '#FFF', padding: 15, borderRadius: 8, elevation: 1 },
   statusTxt: { fontSize: 18, fontWeight: 'bold' },
   scoreCircle: { width: 50, height: 50, borderRadius: 25, borderWidth: 4, justifyContent:'center', alignItems:'center' },

@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Importante para salvar a escolha
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Image,
@@ -22,7 +23,7 @@ import ModalTermos from '../components/ModalTermos';
 import { supabase } from '../services/supabase';
 
 export default function Auth() {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t, i18n } = useTranslation(); // Hook de tradução
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,65 +35,53 @@ export default function Auth() {
   const [termosAceitos, setTermosAceitos] = useState(false);
   const [modalTermosVisivel, setModalTermosVisivel] = useState(false);
 
-  // 🔒 TRAVA DE SEGURANÇA PARA EVITAR CLIQUES DUPLOS
+  // 🔒 TRAVA DE SEGURANÇA PARA LINKS
   const processandoLink = useRef(false);
+
+  // --- FUNÇÃO DE TROCA DE IDIOMA ---
+  const mudarIdioma = async (lang: string) => {
+    try {
+      await AsyncStorage.setItem('user-language', lang); // Salva para a próxima vez
+      i18n.changeLanguage(lang); // Aplica instantaneamente
+    } catch (e) {
+      console.error("Erro ao salvar idioma", e);
+    }
+  };
 
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
-      // SE JÁ ESTIVER PROCESSANDO UM LINK, IGNORA OS OUTROS
-      if (processandoLink.current) {
-        console.log("🚫 Ignorando link duplicado/repetido.");
-        return;
-      }
-
-      // ATIVA A TRAVA
+      if (processandoLink.current) return;
       processandoLink.current = true;
-      
-      // LIBERA A TRAVA APÓS 2 SEGUNDOS
       setTimeout(() => { processandoLink.current = false; }, 2000);
 
       let url = event.url;
-      console.log("🔗 LINK RECEBIDO:", url);
-
       if (url.includes('%23')) url = url.replace('%23', '#');
 
       if (url.includes('access_token') && url.includes('refresh_token')) {
-        try {
-          const hashIndex = url.indexOf('#');
-          if (hashIndex === -1) return; 
+        const hashIndex = url.indexOf('#');
+        if (hashIndex === -1) return; 
+        const params = new URLSearchParams(url.substring(hashIndex + 1));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type'); 
 
-          const params = new URLSearchParams(url.substring(hashIndex + 1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          const type = params.get('type'); 
-
-          if (accessToken && refreshToken) {
-            
-            // LÓGICA DE CADASTRO (Vindo de confirmar.html)
-            if (type === 'signup') {
-              const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-              if (!error) {
-                Alert.alert("🎉 " + (t('common.sucesso') || "Parabéns!"), t('auth.cadastroConfirmado') || "Cadastro confirmado! Aproveite seus 7 dias gratuitos.", [
-                  { text: t('auth.comecarAgora') || "COMEÇAR AGORA", onPress: () => router.replace('/(tabs)') }
-                ]);
-              }
-            } 
-            // LÓGICA DE RECUPERAÇÃO (Vindo de recuperar.html)
-            else if (type === 'recovery') {
-              const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-              if (!error) {
-                // Abre o modal apenas uma vez
-                setModalNovaSenha(true); 
-              }
-            } 
-            // LOGIN DIRETO
-            else {
-              await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-              router.replace('/(tabs)');
+        if (accessToken && refreshToken) {
+          if (type === 'signup') {
+            const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+            if (!error) {
+              Alert.alert("🎉 " + t('common.sucesso', 'Sucesso'), t('auth.cadastroConfirmado', 'Cadastro confirmado!'), [
+                { text: t('auth.comecarAgora', 'COMEÇAR'), onPress: () => router.replace('/(tabs)') }
+              ]);
             }
+          } 
+          else if (type === 'recovery') {
+            const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+            if (!error) setModalNovaSenha(true); 
+          } 
+          else {
+            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+            router.replace('/(tabs)');
           }
-        } catch (error: any) {
-          console.log("Erro parser:", error);
         }
       }
     };
@@ -102,59 +91,80 @@ export default function Auth() {
     return () => sub.remove();
   }, []);
 
-  const loginComTimeout = async (acao: Promise<any>) => {
-    const tempoLimite = new Promise((_, reject) => setTimeout(() => reject(new Error("Sem resposta do servidor.")), 15000));
-    return Promise.race([acao, tempoLimite]);
-  };
-
   async function handleAuth() {
-    if (!email || !password) return Alert.alert(t('common.erro'), t('common.preenchaCampos') || "Preencha e-mail e senha.");
-    if (isSignUp && !termosAceitos) return Alert.alert(t('common.erro'), t('auth.aceiteTermos') || "Aceite os Termos de Uso.");
+    if (!email || !password) return Alert.alert(t('common.erro', 'Erro'), t('common.preenchaCampos', 'Preencha todos os campos.'));
+    if (isSignUp && !termosAceitos) return Alert.alert(t('common.erro', 'Erro'), t('auth.aceiteTermos', 'Aceite os termos.'));
 
     setLoading(true);
     try {
       if (isSignUp) {
-        // --- CADASTRO ---
-        const { error }: any = await loginComTimeout(
-          supabase.auth.signUp({ 
+        const { error }: any = await supabase.auth.signUp({ 
             email, 
             password,
-            options: {
-              emailRedirectTo: 'https://fantastic-clafoutis-45d812.netlify.app/confirmar.html' 
-            }
-          })
-        );
+            options: { emailRedirectTo: 'https://fantastic-clafoutis-45d812.netlify.app/confirmar.html' }
+        });
         if (error) throw error;
-        Alert.alert(t('common.sucesso'), t('auth.cadastroSucesso') || "Cadastro realizado! Verifique seu e-mail.");
+        Alert.alert(t('common.sucesso', 'Sucesso'), t('auth.cadastroSucesso', 'Verifique seu e-mail.'));
       } else {
-        // --- LOGIN ---
-        const { error, data }: any = await loginComTimeout(
-          supabase.auth.signInWithPassword({ email, password })
-        );
+        const { error, data }: any = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (data.session) router.replace('/(tabs)'); 
       }
     } catch (error: any) {
-      Alert.alert(t('common.erro'), error.message);
+      Alert.alert(t('common.erro', 'Erro'), error.message);
     } finally {
       setLoading(false);
     }
   }
 
+  // Pega o idioma atual para saber qual bandeira destacar
+  // (Usa startsWith para pegar 'pt-BR' como 'pt')
+  const langAtual = i18n.language || 'pt';
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        
         <View style={styles.header}>
           <Image source={require('../assets/images/app-icon.png')} style={styles.logo} resizeMode="contain" />
+          
+          {/* --- ÁREA DAS BANDEIRAS (SELETOR) --- */}
+          <View style={styles.langContainer}>
+            {/* PORTUGUÊS */}
+            <TouchableOpacity 
+              onPress={() => mudarIdioma('pt')} 
+              style={[styles.langBtn, langAtual.startsWith('pt') && styles.langBtnActive]}
+            >
+              <Text style={styles.flag}>🇧🇷</Text>
+            </TouchableOpacity>
+            
+            {/* INGLÊS */}
+            <TouchableOpacity 
+              onPress={() => mudarIdioma('en')} 
+              style={[styles.langBtn, langAtual.startsWith('en') && styles.langBtnActive]}
+            >
+              <Text style={styles.flag}>🇺🇸</Text>
+            </TouchableOpacity>
+            
+            {/* ESPANHOL */}
+            <TouchableOpacity 
+              onPress={() => mudarIdioma('es')} 
+              style={[styles.langBtn, langAtual.startsWith('es') && styles.langBtnActive]}
+            >
+              <Text style={styles.flag}>🇪🇸</Text>
+            </TouchableOpacity>
+          </View>
+          {/* ------------------------------------ */}
+
           <Text style={styles.title}>Axoryn Control</Text>
-          <Text style={styles.subtitle}>{isSignUp ? t('auth.criarContaTitulo') : t('auth.entrarTitulo')}</Text>
+          <Text style={styles.subtitle}>{isSignUp ? t('auth.criarContaTitulo', 'Criar Conta') : t('auth.entrarTitulo', 'Acessar Conta')}</Text>
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>{t('auth.email')}</Text>
+          <Text style={styles.label}>{t('auth.email', 'E-MAIL')}</Text>
           <TextInput style={styles.input} placeholder="seu@email.com" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
           
-          <Text style={styles.label}>{t('auth.senha')}</Text>
+          <Text style={styles.label}>{t('auth.senha', 'SENHA')}</Text>
           <View style={styles.passwordContainer}>
             <TextInput style={styles.inputPassword} placeholder="********" value={password} onChangeText={setPassword} secureTextEntry={!senhaVisivel} />
             <TouchableOpacity onPress={() => setSenhaVisivel(!senhaVisivel)} style={styles.eyeIcon}>
@@ -164,7 +174,7 @@ export default function Auth() {
 
           {!isSignUp && (
             <TouchableOpacity onPress={() => setModalRecuperar(true)} style={styles.btnEsqueci}>
-              <Text style={styles.txtEsqueci}>{t('auth.esqueciSenha')}</Text>
+              <Text style={styles.txtEsqueci}>{t('auth.esqueciSenha', 'Esqueci minha senha')}</Text>
             </TouchableOpacity>
           )}
 
@@ -174,17 +184,19 @@ export default function Auth() {
                 <Ionicons name={termosAceitos ? "checkbox" : "square-outline"} size={24} color={termosAceitos ? "#27AE60" : "#888"} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setModalTermosVisivel(true)}>
-                <Text style={styles.termosTexto}>{t('auth.liConcordo')} <Text style={styles.linkTermos}>{t('auth.termos')}</Text></Text>
+                <Text style={styles.termosTexto}>
+                  {t('auth.liConcordo', 'Li e concordo com os')} <Text style={styles.linkTermos}>{t('auth.termos', 'Termos de Uso')}</Text>
+                </Text>
               </TouchableOpacity>
             </View>
           )}
 
           <TouchableOpacity style={[styles.btnPrimary, loading && styles.btnDisabled]} onPress={handleAuth} disabled={loading}>
-            <Text style={styles.txtPrimary}>{loading ? t('auth.aguarde') : (isSignUp ? t('auth.btnCadastrar') : t('auth.btnEntrar'))}</Text>
+            <Text style={styles.txtPrimary}>{loading ? t('auth.aguarde', 'Aguarde...') : (isSignUp ? t('auth.btnCadastrar', 'CADASTRAR') : t('auth.btnEntrar', 'ENTRAR'))}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setIsSignUp(!isSignUp)}>
-            <Text style={styles.txtSecondary}>{isSignUp ? t('auth.jaTemConta') : t('auth.naoTemConta')}</Text>
+            <Text style={styles.txtSecondary}>{isSignUp ? t('auth.jaTemConta', 'Já tem conta? Entrar') : t('auth.naoTemConta', 'Não tem conta? Cadastre-se')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -199,8 +211,33 @@ export default function Auth() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F2F5' },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
-  header: { alignItems: 'center', marginBottom: 30 },
+  header: { alignItems: 'center', marginBottom: 20 },
   logo: { width: 100, height: 100, marginBottom: 15, borderRadius: 20 },
+  
+  // --- ESTILO DAS BANDEIRAS ---
+  langContainer: { 
+    flexDirection: 'row', 
+    gap: 15, 
+    marginBottom: 10,
+    backgroundColor: '#EAECEE',
+    padding: 8,
+    borderRadius: 30
+  },
+  langBtn: { 
+    padding: 6, 
+    borderRadius: 20, 
+    opacity: 0.3, // Bandeira inativa fica apagada
+    transform: [{ scale: 0.9 }]
+  },
+  langBtnActive: { 
+    opacity: 1, // Bandeira ativa fica 100% visível
+    backgroundColor: '#FFF', 
+    elevation: 3, // Sombra
+    transform: [{ scale: 1.1 }] // Fica um pouco maior
+  },
+  flag: { fontSize: 24 },
+  // ---------------------------
+
   title: { fontSize: 28, fontWeight: 'bold', color: '#2C3E50' },
   subtitle: { fontSize: 16, color: '#7F8C8D', marginTop: 5 },
   form: { backgroundColor: '#FFF', padding: 25, borderRadius: 15, elevation: 3 },
