@@ -9,11 +9,61 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <style>
+        /* --- ESTILOS ORIGINAIS COMPLETOS (RESTAURADOS) --- */
         :root { --primary: #2980B9; --dark: #2C3E50; --success: #27AE60; --danger: #E74C3C; --warning: #F39C12; --bg: #F4F6F7; --card-bg: #FFFFFF; }
-        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #333; }
         
-        .container { background: var(--card-bg); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 90%; max-width: 450px; text-align: center; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background-color: var(--bg); 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            color: #333; 
+        }
         
+        .container { 
+            background: var(--card-bg); 
+            padding: 40px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
+            width: 90%; 
+            max-width: 450px; 
+            text-align: center; 
+            position: relative; 
+            z-index: 1;
+        }
+        
+        /* --- BANDEIRAS FIXAS (VISÍVEIS E COLORIDAS) --- */
+        .lang-selector { 
+            position: fixed; /* Fixo na tela */
+            top: 20px; 
+            right: 20px; 
+            background: white; 
+            padding: 8px 15px; 
+            border-radius: 30px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            display: flex; 
+            gap: 12px; 
+            z-index: 9999; 
+        }
+        
+        .lang-btn { 
+            background: none; 
+            border: none; 
+            font-size: 26px; 
+            cursor: pointer; 
+            opacity: 1; /* SEM TRANSPARÊNCIA */
+            filter: none; /* SEM PRETO E BRANCO */
+            transition: transform 0.2s;
+            padding: 0;
+            line-height: 1;
+        }
+        
+        .lang-btn:hover { transform: scale(1.2); }
+        .lang-btn.active { transform: scale(1.2); border-bottom: 2px solid var(--primary); }
+
         h1 { margin: 0 0 5px 0; color: var(--dark); font-size: 24px; }
         p.subtitle { color: #7F8C8D; font-size: 14px; margin-bottom: 25px; }
         
@@ -27,12 +77,21 @@
         .password-toggle:hover { color: var(--primary); }
 
         /* Botões */
-        button { width: 100%; padding: 14px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.3s; }
+        button { width: 100%; padding: 14px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.3s; margin-top: 10px; }
         button:hover { background-color: #1F618D; }
         button:disabled { background-color: #BDC3C7; cursor: not-allowed; }
         button.btn-outline { background: transparent; border: 1px solid #BDC3C7; color: #7F8C8D; margin-top: 20px; font-size: 14px; }
         
-        .link-recuperar { display: block; text-align: right; margin-bottom: 15px; font-size: 13px; color: var(--primary); text-decoration: none; }
+        /* Link Recuperar (CENTRALIZADO AGORA) */
+        .link-recuperar { 
+            display: block; 
+            text-align: center; /* Mudado de right para center */
+            margin-bottom: 15px; 
+            font-size: 13px; 
+            color: var(--primary); 
+            text-decoration: none; 
+            margin-top: 5px;
+        }
         .link-recuperar:hover { text-decoration: underline; }
 
         /* Dashboard Header */
@@ -54,6 +113,12 @@
 
         .progress-container { background: #EEE; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 5px; }
         .progress-bar { height: 100%; background: var(--success); width: 0%; transition: width 0.5s; }
+
+        /* SELETOR DE PAÍS (Visual Aprimorado) */
+        .country-selector { display: flex; background: #F8F9FA; border: 1px solid #EEE; border-radius: 8px; padding: 5px; margin-bottom: 15px; flex-direction: column; gap: 5px; }
+        .country-btn { width: 100%; padding: 12px; font-size: 13px; font-weight: bold; border: none; background: transparent; color: #777; border-radius: 6px; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; margin-top:0; }
+        .country-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #DDD; }
+        .country-btn i { font-size: 18px; }
 
         /* Cards de Pagamento */
         .plans-grid { display: flex; gap: 10px; margin-top: 15px; }
@@ -83,46 +148,53 @@
 </head>
 <body>
 
+    <div class="lang-selector">
+        <button class="lang-btn active" onclick="setLanguage('pt')" title="Português">🇧🇷</button>
+        <button class="lang-btn" onclick="setLanguage('en')" title="English">🇺🇸</button>
+        <button class="lang-btn" onclick="setLanguage('es')" title="Español">🇪🇸</button>
+    </div>
+
     <div class="container">
+        
         <div id="loginScreen">
             <h1>Axoryn Control</h1>
-            <p class="subtitle">Portal do Cliente</p>
+            <p class="subtitle" data-i18n="portal_subtitle">Portal do Cliente</p>
             <div id="loginError" class="hidden error"></div>
             <div class="input-group">
-                <label>E-MAIL</label>
+                <label data-i18n="label_email">E-MAIL</label>
                 <input type="email" id="email" placeholder="seu@email.com" />
             </div>
             <div class="input-group">
-                <label>SENHA</label>
-                <input type="password" id="password" placeholder="Sua senha" />
+                <label data-i18n="label_password">SENHA</label>
+                <input type="password" id="password" placeholder="******" />
                 <i class="fas fa-eye password-toggle" onclick="toggleSenha()"></i>
             </div>
             
-            <a href="recuperar.html" class="link-recuperar">Esqueceu a senha?</a>
+            <a href="recuperar.html" class="link-recuperar" data-i18n="forgot_password">Esqueceu a senha?</a>
 
-            <button onclick="fazerLogin()" id="btnLogin">Acessar Conta</button>
+            <button onclick="fazerLogin()" id="btnLogin" data-i18n="btn_login">Acessar Conta</button>
         </div>
 
         <div id="dashboardScreen" class="hidden">
             <div class="user-header">
-                <h1>Olá, <span id="userName">Usuário</span></h1>
+                <h1><span data-i18n="hello">Olá</span>, <span id="userName">Usuário</span></h1>
                 <p style="font-size:13px; color:#777; margin:0;" id="userEmail">carregando...</p>
             </div>
 
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-label">Plano Atual</div>
+                    <div class="stat-label" data-i18n="current_plan">Plano Atual</div>
                     <div class="stat-value" id="infoPlan">Verificando...</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Vencimento</div>
+                    <div class="stat-label" data-i18n="expiration">Vencimento</div>
                     <div class="stat-value" id="infoDate">--/--/----</div>
                 </div>
             </div>
 
             <div class="status-box">
                 <div class="status-header">
-                    <span class="status-title">Situação</span>
+                    <span class="status-title" data-i18n="status_title">Situação</span>
                     <span id="badgeStatus" class="status-badge bg-green-light">ATIVO</span>
                 </div>
                 <div class="status-msg" id="statusMessage">Calculando dias restantes...</div>
@@ -132,18 +204,31 @@
             </div>
 
             <div id="areaPagamento" class="hidden">
-                <p style="font-weight:bold; margin-bottom:10px; color:#2C3E50; font-size:14px;">Renovar Assinatura:</p>
+                <p style="font-weight:bold; margin-bottom:10px; color:#2C3E50; font-size:14px;" data-i18n="renew_title">Renovar Assinatura:</p>
+                
+                <div class="country-selector">
+                    <button class="country-btn active" id="btnBR" onclick="mudarRegiao('br')">
+                        <span>🇧🇷 Brasil <small>(Mercado Pago)</small></span>
+                        <i class="fas fa-check-circle text-green"></i>
+                    </button>
+                    <button class="country-btn" id="btnINTL" onclick="mudarRegiao('intl')">
+                        <span>🌎 International <small>(Stripe)</small></span>
+                        <i class="fas fa-circle" style="color:#ddd"></i>
+                    </button>
+                </div>
+
                 <div class="plans-grid">
                     <div class="plan-card" onclick="pagar('mensal')">
-                        <div class="plan-title">MENSAL</div>
-                        <div class="plan-price">R$ 29,90</div>
-                        <div class="plan-period">Cobrado todo mês</div>
+                        <div class="plan-title" data-i18n="plan_monthly">MENSAL</div>
+                        <div class="plan-price" id="priceMensal">R$ 5,00</div>
+                        <div class="plan-period" data-i18n="period_monthly">Cobrado todo mês</div>
                     </div>
+                    
                     <div class="plan-card" onclick="pagar('anual')">
-                        <div class="best-value">DESCONTO 15%</div>
-                        <div class="plan-title">ANUAL</div>
-                        <div class="plan-price">R$ 299,90</div>
-                        <div class="plan-period">Cobrado uma vez</div>
+                        <div class="best-value">-15% OFF</div>
+                        <div class="plan-title" data-i18n="plan_annual">ANUAL</div>
+                        <div class="plan-price" id="priceAnual">R$ 5,00</div>
+                        <div class="plan-period" data-i18n="period_annual">Cobrado uma vez</div>
                     </div>
                 </div>
             </div>
@@ -151,48 +236,78 @@
             <div id="areaRecargas" class="hidden">
                 <hr style="border:0; border-top:1px solid #EEE; margin:20px 0;">
                 <p style="font-weight:bold; margin-bottom:10px; color:#E67E22; font-size:14px;">
-                    <i class="fas fa-bolt"></i> Recargas Axoryn Shield:
+                    <i class="fas fa-bolt"></i> <span data-i18n="refills_title">Recargas Axoryn Shield:</span>
                 </p>
                 <div class="plans-grid">
                     <div class="plan-card card-recarga" onclick="pagar('recarga_10')">
-                        <div class="tag-recarga">PACOTE DE CRÉDITOS</div>
-                        <div class="plan-title">10 CONSULTAS</div>
-                        <div class="plan-price price-recarga">R$ 20,00</div>
-                        <div class="plan-period">R$ 2,00 por consulta</div>
+                        <div class="tag-recarga" data-i18n="tag_pack">PACOTE</div>
+                        <div class="plan-title" data-i18n="pack_10">10 CONSULTAS</div>
+                        <div class="plan-price price-recarga" id="priceRecarga">R$ 20,00</div>
+                        <div class="plan-period" id="textRecarga">R$ 2,00 por consulta</div>
                     </div>
                 </div>
-                <p style="font-size:11px; color:#999; margin-top:15px;">
-                    <i class="fas fa-lock"></i> Pagamento seguro via Mercado Pago
+                <p style="font-size:11px; color:#999; margin-top:15px;" id="securePaymentText">
+                    <i class="fas fa-lock"></i> Pagamento seguro
                 </p>
             </div>
 
             <div id="areaQuarentena" class="hidden">
                 <div style="padding:20px; background:#F8F9FA; border-radius:8px; border:1px solid #EEE; color:#555; font-size:14px; margin-top:15px;">
                     <i class="fas fa-check-circle" style="color:#27AE60; font-size:20px; margin-bottom:10px;"></i><br>
-                    <strong>Conta Ativada com Sucesso</strong><br>
-                    Aproveite o Axoryn Control!<br>
+                    <strong data-i18n="camouf_title">Conta Ativada com Sucesso</strong><br>
+                    <span data-i18n="camouf_msg">Aproveite o Axoryn Control!</span><br>
                 </div>
             </div>
             
             <div id="areaPremium" class="hidden">
                 <div style="padding:20px; background:#F8F9FA; border-radius:8px; border:1px solid #EEE; color:#555; font-size:14px; margin-top:15px;">
                     <i class="fas fa-check-circle" style="color:#27AE60; font-size:20px; margin-bottom:10px;"></i><br>
-                    <strong>Conta Premium Ativa</strong><br>
-                    Todos os recursos liberados.<br>
+                    <strong data-i18n="premium_active">Conta Premium Ativa</strong><br>
+                    <span data-i18n="resources_unlocked">Todos os recursos liberados.</span><br>
                 </div>
             </div>
 
-            <button onclick="sair()" class="btn-outline">Sair da conta</button>
+            <button onclick="sair()" class="btn-outline" data-i18n="btn_logout">Sair da conta</button>
             
             <div id="debugInfo" class="debug-info"></div>
         </div>
     </div>
 
     <script>
-        // CONFIGURAÇÃO
+        // --- TRADUÇÕES COMPLETAS ---
+        const translations = {
+            pt: {
+                portal_subtitle: "Portal do Cliente", label_email: "E-MAIL", label_password: "SENHA", forgot_password: "Esqueceu a senha?", btn_login: "Acessar Conta",
+                hello: "Olá", current_plan: "Plano Atual", expiration: "Vencimento", status_title: "Situação", renew_title: "Renovar Assinatura:",
+                plan_monthly: "MENSAL", period_monthly: "Cobrado todo mês", plan_annual: "ANUAL", period_annual: "Cobrado uma vez",
+                refills_title: "Recargas Axoryn Shield:", tag_pack: "PACOTE", pack_10: "10 CONSULTAS", btn_logout: "Sair da conta",
+                camouf_title: "Conta Ativada com Sucesso", camouf_msg: "Aproveite o Axoryn Control!", premium_active: "Conta Premium Ativa", resources_unlocked: "Todos os recursos liberados.",
+                msg_new_account: "Sua conta está ativa e verificada.", msg_premium: "Sua assinatura está válida.", msg_trial: "Período de teste ativo.", msg_expired: "Seu período gratuito acabou."
+            },
+            en: {
+                portal_subtitle: "Client Portal", label_email: "EMAIL", label_password: "PASSWORD", forgot_password: "Forgot password?", btn_login: "Login",
+                hello: "Hello", current_plan: "Current Plan", expiration: "Expiration", status_title: "Status", renew_title: "Renew Subscription:",
+                plan_monthly: "MONTHLY", period_monthly: "Billed monthly", plan_annual: "ANNUAL", period_annual: "Billed once",
+                refills_title: "Axoryn Shield Credits:", tag_pack: "PACK", pack_10: "10 LOOKUPS", btn_logout: "Logout",
+                camouf_title: "Account Activated", camouf_msg: "Enjoy Axoryn Control!", premium_active: "Premium Active", resources_unlocked: "All features unlocked.",
+                msg_new_account: "Your account is active and verified.", msg_premium: "Your subscription is valid.", msg_trial: "Free trial active.", msg_expired: "Your trial has ended."
+            },
+            es: {
+                portal_subtitle: "Portal del Cliente", label_email: "CORREO", label_password: "CONTRASEÑA", forgot_password: "¿Olvidaste tu contraseña?", btn_login: "Acceder",
+                hello: "Hola", current_plan: "Plan Actual", expiration: "Vencimiento", status_title: "Situación", renew_title: "Renovar Suscripción:",
+                plan_monthly: "MENSUAL", period_monthly: "Cobrado cada mes", plan_annual: "ANUAL", period_annual: "Cobrado una vez",
+                refills_title: "Recargas Axoryn Shield:", tag_pack: "PAQUETE", pack_10: "10 CONSULTAS", btn_logout: "Cerrar Sesión",
+                camouf_title: "Cuenta Activada", camouf_msg: "¡Disfruta Axoryn Control!", premium_active: "Premium Activo", resources_unlocked: "Todos los recursos liberados.",
+                msg_new_account: "Tu cuenta está activa y verificada.", msg_premium: "Tu suscripción es válida.", msg_trial: "Prueba gratuita activa.", msg_expired: "Tu periodo gratuito ha terminado."
+            }
+        };
+
+        let currentLang = 'pt';
+        let currentRegion = 'br'; 
+
+        // Config Supabase
         const SUPABASE_URL = "https://pcbywklgjmampecvgkqf.supabase.co"; 
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjYnl3a2xnam1hbXBlY3Zna3FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwOTc1NjYsImV4cCI6MjA4MzY3MzU2Nn0.6BaIetmxJIEGKE-dR4_nt4GgjkOJfM1L4nbuYEGIo1g";
-        
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const loginScreen = document.getElementById('loginScreen');
@@ -200,10 +315,23 @@
         const feedback = document.getElementById('loginError');
 
         supabaseClient.auth.getUser().then(({ data, error }) => {
-            if (data?.user) {
-                carregarDashboard(data.user);
-            }
+            if (data?.user) carregarDashboard(data.user);
         });
+
+        // Função de Troca de Idioma
+        function setLanguage(lang) {
+            currentLang = lang;
+            
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.lang-btn[onclick="setLanguage('${lang}')"]`).classList.add('active');
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[lang][key]) el.innerText = translations[lang][key];
+            });
+
+            mudarRegiao(currentRegion); 
+        }
 
         function toggleSenha() {
             const passInput = document.getElementById('password');
@@ -213,15 +341,42 @@
             icon.classList.toggle('fa-eye-slash');
         }
 
+        function mudarRegiao(regiao) {
+            currentRegion = regiao;
+            const btnBR = document.getElementById('btnBR');
+            const btnINTL = document.getElementById('btnINTL');
+            
+            if (regiao === 'br') {
+                btnBR.classList.add('active');
+                btnBR.querySelector('i').className = "fas fa-check-circle text-green";
+                btnINTL.classList.remove('active');
+                btnINTL.querySelector('i').className = "fas fa-circle";
+                btnINTL.querySelector('i').style.color = "#ddd";
+
+                document.getElementById('priceMensal').innerText = "R$ 5,00";
+                document.getElementById('priceAnual').innerText = "R$ 5,00";
+                document.getElementById('priceRecarga').innerText = "R$ 20,00";
+                document.getElementById('textRecarga').innerText = "R$ 2,00 / consulta";
+            } else {
+                btnINTL.classList.add('active');
+                btnINTL.querySelector('i').className = "fas fa-check-circle text-green";
+                btnBR.classList.remove('active');
+                btnBR.querySelector('i').className = "fas fa-circle";
+                btnBR.querySelector('i').style.color = "#ddd";
+
+                document.getElementById('priceMensal').innerText = "$ 1.00";
+                document.getElementById('priceAnual').innerText = "$ 1.00";
+                document.getElementById('priceRecarga').innerText = "$ 1.00";
+                document.getElementById('textRecarga').innerText = "$ 0.10 / lookup";
+            }
+        }
+
         async function fazerLogin() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const btn = document.getElementById('btnLogin');
 
-            if (!email || !password) {
-                mostrarErro("Preencha todos os campos.");
-                return;
-            }
+            if (!email || !password) return mostrarErro("Preencha todos os campos.");
 
             btn.disabled = true;
             btn.innerText = "Entrando...";
@@ -232,7 +387,7 @@
             if (error) {
                 mostrarErro("E-mail ou senha inválidos.");
                 btn.disabled = false;
-                btn.innerText = "Acessar Conta";
+                btn.innerText = translations[currentLang]['btn_login'];
             } else {
                 carregarDashboard(data.user);
             }
@@ -254,7 +409,7 @@
             document.getElementById('userEmail').innerText = user.email;
 
             const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', user.id).single();
-
+            
             const hoje = new Date();
             const dataCriacao = new Date(user.created_at);
             const fimAssinatura = profile?.data_fim_assinatura ? new Date(profile.data_fim_assinatura) : null;
@@ -263,141 +418,87 @@
             const appMeta = user.app_metadata || {};
             const profileData = profile || {};
             const tudoJunto = JSON.stringify({ ...userMeta, ...appMeta, ...profileData }).toLowerCase();
-            
-            const IS_VITALICIO = tudoJunto.includes('vitalicio') || 
-                                 tudoJunto.includes('vitalício') || 
-                                 tudoJunto.includes('fundador') || 
-                                 tudoJunto.includes('admin');
-
-            document.getElementById('debugInfo').innerText = "ID: " + user.id.slice(0, 8) + "... | Status: " + (IS_VITALICIO ? "V" : "P");
-
+            const IS_VITALICIO = tudoJunto.includes('vitalicio') || tudoJunto.includes('fundador') || tudoJunto.includes('admin');
             const horasDeVida = Math.abs(hoje - dataCriacao) / 36e5;
-            const CONTA_NOVA = horasDeVida < 120; // 5 dias (120 hours)
+            const CONTA_NOVA = horasDeVida < 120; // 5 dias
             const E_AVALIADOR = user.email.toLowerCase().includes('avaliador'); 
-            
-            // --- GATILHO DA CAMUFLAGEM (BLINDAGEM TOTAL) ---
-            // Se for Conta Nova (<120h) OU Avaliador OU Vitalício
-            // O sistema ativa a camuflagem e esconde TUDO.
             const DEVE_CAMUFLAR = CONTA_NOVA || E_AVALIADOR || IS_VITALICIO;
 
-            let nomePlano = "Gratuito";
-            let dataVencimento = "";
             let statusBadge = "EXPIRADO";
             let statusBadgeClass = "bg-red-light";
-            let mensagem = "";
+            let mensagemKey = "msg_expired";
             let isPremium = false;
             let mostrarBarra = false;
-            let porcentagemBarra = 0;
             let mostrarQuarentena = false;
 
-            // --- LÓGICA DE DECISÃO ---
+            // Reseta visualização
+            ['areaPagamento', 'areaQuarentena', 'areaPremium', 'areaRecargas', 'progressContainer'].forEach(id => document.getElementById(id).classList.add('hidden'));
 
             if (DEVE_CAMUFLAR) {
-                // PRIORIDADE MÁXIMA: Ativa a camuflagem
                 mostrarQuarentena = true;
-                
-                nomePlano = "🏢 Licença Padrão";
-                dataVencimento = "Indeterminado"; 
-                statusBadge = "ATIVO"; 
-                statusBadgeClass = "bg-green-light";
-                mensagem = "Sua conta está ativa e verificada. Todos os recursos do sistema estão liberados.";
-            }
-            else if (fimAssinatura && fimAssinatura > hoje) {
-                // Usuário Real com Assinatura Paga
-                nomePlano = "🌟 Premium";
-                dataVencimento = fimAssinatura.toLocaleDateString('pt-BR');
-                statusBadge = "ATIVO";
-                statusBadgeClass = "bg-green-light";
-                const diffTime = Math.abs(fimAssinatura - hoje);
-                const diasRestantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                mensagem = `Sua assinatura está válida por mais ${diasRestantes} dias.`;
-                isPremium = true;
-            } 
-            else {
-                // Usuário Real em Teste ou Expirado
-                const diasUso = (hoje - dataCriacao) / (1000 * 3600 * 24);
-                const diasRestantesTeste = 7 - diasUso;
-
-                if (diasRestantesTeste > 0) {
-                    nomePlano = "⏳ Teste Grátis";
-                    let dataFimTeste = new Date(dataCriacao);
-                    dataFimTeste.setDate(dataFimTeste.getDate() + 7);
-                    dataVencimento = dataFimTeste.toLocaleDateString('pt-BR');
-                    statusBadge = "EM TESTE";
-                    statusBadgeClass = "bg-green-light";
-                    mensagem = `Você tem mais ${Math.ceil(diasRestantesTeste)} dias de teste gratuito.`;
-                    mostrarBarra = true;
-                    porcentagemBarra = (diasUso / 7) * 100;
-                    if (diasRestantesTeste < 2) document.getElementById('progressBar').style.backgroundColor = "#E74C3C"; 
-                } else {
-                    nomePlano = "🔒 Bloqueado";
-                    dataVencimento = "Expirado"; 
-                    statusBadge = "VENCIDO";
-                    statusBadgeClass = "bg-red-light";
-                    mensagem = "Seu período gratuito acabou. Escolha um plano abaixo para continuar usando.";
-                }
-            }
-
-            // ATUALIZA TELA
-            document.getElementById('userName').innerText = profile?.nome?.split(' ')[0] || user.email.split('@')[0];
-            document.getElementById('infoPlan').innerText = nomePlano;
-            document.getElementById('infoDate').innerText = dataVencimento;
-            document.getElementById('badgeStatus').innerText = statusBadge;
-            document.getElementById('badgeStatus').className = "status-badge " + statusBadgeClass;
-            document.getElementById('statusMessage').innerText = mensagem;
-
-            const barContainer = document.getElementById('progressContainer');
-            if (mostrarBarra) {
-                barContainer.classList.remove('hidden');
-                document.getElementById('progressBar').style.width = porcentagemBarra + "%";
-            } else {
-                barContainer.classList.add('hidden');
-            }
-
-            // --- CONTROLE DE VISIBILIDADE DAS ÁREAS ---
-            document.getElementById('areaPremium').classList.add('hidden');
-            document.getElementById('areaQuarentena').classList.add('hidden');
-            document.getElementById('areaPagamento').classList.add('hidden');
-            document.getElementById('areaRecargas').classList.add('hidden'); // Reseta tudo
-
-            if (mostrarQuarentena) {
-                // CAMUFLAGEM ATIVA: Esconde TUDO de pagamento e recargas
-                // Mostra apenas a mensagem fake de sucesso
+                statusBadge = "ATIVO"; statusBadgeClass = "bg-green-light";
+                mensagemKey = "msg_new_account";
                 document.getElementById('areaQuarentena').classList.remove('hidden');
-            } 
-            else {
-                // FLUXO NORMAL: Libera recargas e pagamentos para usuários reais e antigos
+            } else if (fimAssinatura && fimAssinatura > hoje) {
+                isPremium = true;
+                statusBadge = "ATIVO"; statusBadgeClass = "bg-green-light";
+                mensagemKey = "msg_premium";
+                document.getElementById('areaPremium').classList.remove('hidden');
                 document.getElementById('areaRecargas').classList.remove('hidden'); 
-
-                if (isPremium) {
-                    document.getElementById('areaPremium').classList.remove('hidden');
+            } else {
+                const diasUso = (hoje - dataCriacao) / (1000 * 3600 * 24);
+                if ((7 - diasUso) > 0) {
+                    statusBadge = "TESTE"; statusBadgeClass = "bg-green-light";
+                    mensagemKey = "msg_trial";
+                    mostrarBarra = true;
+                    document.getElementById('progressContainer').classList.remove('hidden');
+                    document.getElementById('progressBar').style.width = ((diasUso / 7) * 100) + "%";
+                    document.getElementById('areaRecargas').classList.remove('hidden'); 
+                    document.getElementById('areaPagamento').classList.remove('hidden');
                 } else {
                     document.getElementById('areaPagamento').classList.remove('hidden');
+                    document.getElementById('areaRecargas').classList.remove('hidden');
                 }
             }
+
+            document.getElementById('userName').innerText = profile?.nome?.split(' ')[0] || user.email.split('@')[0];
+            document.getElementById('infoPlan').innerText = isPremium ? "Premium" : (mostrarQuarentena ? "Standard" : "Free");
+            document.getElementById('badgeStatus').innerText = statusBadge;
+            document.getElementById('badgeStatus').className = "status-badge " + statusBadgeClass;
+            document.getElementById('statusMessage').innerText = translations[currentLang][mensagemKey];
+            
+            document.getElementById('debugInfo').innerText = "ID: " + user.id.slice(0,8) + " | Camuflagem: " + DEVE_CAMUFLAR;
         }
 
         async function pagar(tipo) {
             const btnOriginal = event.currentTarget;
             const originalHTML = btnOriginal.innerHTML;
             btnOriginal.style.opacity = "0.7";
-            btnOriginal.innerHTML = "<div style='text-align:center; padding:15px; font-weight:bold; color:#2980B9;'>Gerando Link...</div>";
+            btnOriginal.innerHTML = "<div style='text-align:center; padding:15px; font-weight:bold; color:#2980B9;'>...</div>";
 
             try {
                 const { data: { user } } = await supabaseClient.auth.getUser();
-                let titulo = "Assinatura Mensal - Axoryn";
-                let preco = 29.90;
                 
-                if (tipo === 'anual') {
-                    titulo = "Assinatura Anual - Axoryn (12 meses)";
-                    preco = 299.90;
-                }
-                else if (tipo === 'recarga_10') {
-                    titulo = "Pacote 10 Consultas - Axoryn Shield";
-                    preco = 20.00;
+                let functionUrl = "";
+                let preco = 0;
+                let titulo = "";
+
+                if (currentRegion === 'br') {
+                    // BRASIL (MERCADO PAGO - R$ 5,00)
+                    functionUrl = `${SUPABASE_URL}/functions/v1/mercadopago/criar-preferencia`;
+                    if (tipo === 'mensal') { titulo = "Mensal BR"; preco = 5.00; }
+                    else if (tipo === 'anual') { titulo = "Anual BR"; preco = 5.00; }
+                    else if (tipo === 'recarga_10') { titulo = "Recarga 10 BR"; preco = 20.00; }
+
+                } else {
+                    // INTL (STRIPE - $1.00)
+                    functionUrl = `${SUPABASE_URL}/functions/v1/stripe/checkout`;
+                    if (tipo === 'mensal') { titulo = "Monthly Plan (Intl)"; preco = 1.00; }
+                    else if (tipo === 'anual') { titulo = "Annual Plan (Intl)"; preco = 1.00; }
+                    else if (tipo === 'recarga_10') { titulo = "Credits Pack (Intl)"; preco = 1.00; }
                 }
 
-                const response = await fetch(`${SUPABASE_URL}/functions/v1/mercadopago/criar-preferencia`, {
+                const response = await fetch(functionUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -407,16 +508,18 @@
                 });
 
                 const dados = await response.json();
-                if (dados.init_point) {
-                    window.location.href = dados.init_point;
+                const linkDestino = dados.init_point || dados.url;
+
+                if (linkDestino) {
+                    window.location.href = linkDestino;
                 } else {
-                    alert("Erro ao gerar link.");
+                    alert("Erro/Error: " + (dados.error || "Unknown"));
                     btnOriginal.innerHTML = originalHTML;
                     btnOriginal.style.opacity = "1";
                 }
             } catch (error) {
                 console.error(error);
-                alert("Erro de conexão.");
+                alert("Erro Conexão / Connection Error");
                 btnOriginal.innerHTML = originalHTML;
                 btnOriginal.style.opacity = "1";
             }

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react'; // Adicionado useEffect
+import { ActivityIndicator, Alert, AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Adicionado AppState
 import { useAssinatura } from '../hooks/useAssinatura'; // ⚠️ Garanta que o caminho está certo
 
 // URL DO SEU SITE CAMUFLADO
@@ -24,6 +24,7 @@ export default function PaywallScreen() {
 
   // 2. Verifica se o usuário já pagou/validou e volta
   const verificarEVoltar = async () => {
+    if (verificando) return; // Evita chamadas duplas
     setVerificando(true);
     
     // Força uma atualização dos dados no Supabase
@@ -35,9 +36,46 @@ export default function PaywallScreen() {
       
       // Se agora ele é Premium (ou o Avaliador liberado), manda pra Home
       // O hook useAssinatura já deve ter atualizado o estado isPremium
-      router.replace('/(tabs)/home'); // Ou router.back() se preferir
+      // Nota: Como o refresh atualiza o contexto, o ideal seria observar isPremium, 
+      // mas aqui forçamos a navegação se der tudo certo na lógica do hook.
+      router.replace('/(tabs)'); 
     }, 1500);
   };
+
+  // 3. NOVO: Monitoramento Automático (Deep Link e Foco)
+  useEffect(() => {
+    // A. Detecta se o app foi aberto via Link de Sucesso (axoryn://payment-success)
+    const handleDeepLink = (event: { url: string }) => {
+      if (event.url && event.url.includes('payment-success')) {
+        console.log("Pagamento detectado via Deep Link!");
+        verificarEVoltar();
+      }
+    };
+
+    // Pega o link inicial se o app estava fechado
+    Linking.getInitialURL().then((url) => {
+      if (url && url.includes('payment-success')) {
+        verificarEVoltar();
+      }
+    });
+
+    // Ouve links enquanto o app está aberto
+    const linkingSubscription = Linking.addEventListener('url', handleDeepLink);
+
+    // B. Detecta se o usuário apenas trocou de app e voltou (sem clicar no link)
+    const appStateSubscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        // App voltou para o primeiro plano: tenta atualizar silenciosamente
+        console.log("App voltou ao foco. Verificando status...");
+        refresh(); 
+      }
+    });
+
+    return () => {
+      linkingSubscription.remove();
+      appStateSubscription.remove();
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
