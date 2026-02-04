@@ -16,38 +16,80 @@ export function useFluxoPessoal() {
     try {
       setLoading(true);
       
-      // 1. Busca Contas
-      const { data: dataContas, error: errContas } = await supabase.from('contas_pessoais').select('*').order('id');
-      if (errContas) throw errContas;
-
-      // 2. Busca Movimentos (últimos 100 para a tela)
-      const { data: dataMov, error: errMov } = await supabase.from('fluxo_pessoal').select('*').order('data_movimento', { ascending: false }).limit(100);
-      if (errMov) throw errMov;
-
-      // 3. Calcula Saldos
-      const contasCalculadas = dataContas.map((c: any) => ({ ...c, saldo: 0 }));
-
-      for (let c of contasCalculadas) {
-          const { data: inputs } = await supabase.from('fluxo_pessoal').select('valor').eq('conta_id', c.id).eq('tipo', 'ENTRADA');
-          const { data: outputs } = await supabase.from('fluxo_pessoal').select('valor').eq('conta_id', c.id).eq('tipo', 'SAIDA');
-          
-          const totalEntrada = inputs?.reduce((acc, i) => acc + i.valor, 0) || 0;
-          const totalSaida = outputs?.reduce((acc, i) => acc + i.valor, 0) || 0;
-          c.saldo = totalEntrada - totalSaida;
+      // 1. Busca saldos (RPC)
+      let { data: contasComSaldo, error: errContas } = await supabase.rpc('buscar_saldos_contas');
+      
+      if (errContas) {
+        console.error("Erro RPC:", errContas);
+        throw errContas;
       }
 
-      const totalGeral = contasCalculadas.reduce((acc: number, c: any) => acc + c.saldo, 0);
+      // --- AUTO-CORREÇÃO: Se não tiver Carteira, cria agora! ---
+      // Isso garante que NENHUM usuário fique sem a conta principal.
+      const temCarteira = contasComSaldo?.some((c: any) => c.nome === 'Carteira');
+      
+      if (!temCarteira) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+              // Cria a conta Carteira silenciosamente
+              const { error: errCriar } = await supabase.from('contas_pessoais').insert([{
+                  nome: 'Carteira',
+                  instituicao: 'Dinheiro em Mãos',
+                  user_id: user.id
+              }]);
+              
+              if (!errCriar) {
+                  // Busca de novo para atualizar a lista com a Carteira criada
+                  const retry = await supabase.rpc('buscar_saldos_contas');
+                  contasComSaldo = retry.data;
+              }
+          }
+      }
+      // -----------------------------------------------------------
 
-      setContas(contasCalculadas);
+      // 2. Busca Movimentos (últimos 100)
+      const { data: dataMov, error: errMov } = await supabase
+        .from('fluxo_pessoal')
+        .select('*')
+        .order('data_movimento', { ascending: false })
+        .limit(100);
+      
+      if (errMov) throw errMov;
+
+      // 3. Formata e Calcula
+      const contasFormatadas = (contasComSaldo || []).map((c: any) => ({
+        ...c,
+        saldo: parseFloat(c.saldo) || 0
+      }));
+
+      const totalGeral = contasFormatadas.reduce((acc: number, c: any) => acc + c.saldo, 0);
+
+      setContas(contasFormatadas);
       setMovimentos(dataMov || []);
       setSaldoGeral(totalGeral);
 
-    } catch (error) { console.log(error); } finally { setLoading(false); }
+    } catch (error) { 
+      console.log(error); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
+  // Auxiliar para pegar ID
+  const getUserId = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id;
   };
 
   const adicionarConta = async (nome: string, instituicao: string) => {
-    const { error } = await supabase.from('contas_pessoais').insert([{ nome, instituicao }]);
+    const userId = await getUserId();
+    const { error } = await supabase.from('contas_pessoais').insert([{ 
+      nome, 
+      instituicao,
+      user_id: userId 
+    }]);
     if (!error) await fetchData();
+    else Alert.alert("Erro", "Falha ao criar conta.");
   };
 
   const excluirConta = async (id: number) => {
@@ -57,19 +99,38 @@ export function useFluxoPessoal() {
   };
 
   const adicionarMovimento = async (dados: any) => {
+    const userId = await getUserId();
+
     const { error } = await supabase.from('fluxo_pessoal').insert([{
-        conta_id: dados.conta_id, type: dados.tipo, valor: dados.valor, descricao: dados.descricao, data_movimento: dados.data, tipo: dados.tipo
+        conta_id: dados.conta_id, 
+        valor: dados.valor, 
+        descricao: dados.descricao, 
+        data_movimento: dados.data, 
+        tipo: dados.tipo,
+        user_id: userId 
     }]);
-    if (!error) { await fetchData(); return true; }
-    return false;
+    
+    if (error) {
+        Alert.alert("Erro", "Falha ao salvar lançamento.");
+        return false;
+    } 
+
+    await fetchData(); 
+    return true;
   };
 
   const editarMovimento = async (id: number, dados: any) => {
     const { error } = await supabase.from('fluxo_pessoal').update({
-        conta_id: dados.conta_id, tipo: dados.tipo, valor: dados.valor, descricao: dados.descricao, data_movimento: dados.data
+        conta_id: dados.conta_id, 
+        valor: dados.valor, 
+        descricao: dados.descricao, 
+        data_movimento: dados.data,
+        tipo: dados.tipo
     }).eq('id', id);
-    if (!error) { await fetchData(); return true; }
-    return false;
+    
+    if (error) return false;
+    await fetchData(); 
+    return true;
   };
 
   const excluirMovimento = async (id: number) => {
@@ -80,27 +141,34 @@ export function useFluxoPessoal() {
   const transferir = async (origemId: number, destinoId: number, valor: number, data: string, descricao: string) => {
     try {
         if (origemId === destinoId) { Alert.alert("Erro", "Origem e destino iguais."); return false; }
-        const { error: err1 } = await supabase.from('fluxo_pessoal').insert([{ conta_id: origemId, tipo: 'SAIDA', valor: valor, data_movimento: data, descricao: `Transf. Enviada: ${descricao}` }]);
-        if(err1) throw err1;
-        const { error: err2 } = await supabase.from('fluxo_pessoal').insert([{ conta_id: destinoId, tipo: 'ENTRADA', valor: valor, data_movimento: data, descricao: `Transf. Recebida: ${descricao}` }]);
-        if(err2) throw err2;
+        const userId = await getUserId();
+
+        const [res1, res2] = await Promise.all([
+          supabase.from('fluxo_pessoal').insert([{ 
+              conta_id: origemId, tipo: 'SAIDA', valor, data_movimento: data, descricao: `Transf. Enviada: ${descricao}`,
+              user_id: userId 
+          }]),
+          supabase.from('fluxo_pessoal').insert([{ 
+              conta_id: destinoId, tipo: 'ENTRADA', valor, data_movimento: data, descricao: `Transf. Recebida: ${descricao}`,
+              user_id: userId 
+          }])
+        ]);
+
+        if(res1.error || res2.error) throw new Error("Erro no banco");
+
         await fetchData();
         Alert.alert("Sucesso", "Transferência realizada!");
         return true;
     } catch (e) { Alert.alert("Erro", "Falha na transferência."); return false; }
   };
 
-  // --- NOVA FUNÇÃO: GERAR PDF ---
   const gerarRelatorioPDF = async (contaId: number, nomeConta: string, dataInicio: string, dataFim: string) => {
     try {
-        // 1. Converter datas BR (DD/MM/AAAA) para ISO (AAAA-MM-DD) para busca
         const [dI, mI, aI] = dataInicio.split('/');
         const isoInicio = `${aI}-${mI}-${dI}`;
-        
         const [dF, mF, aF] = dataFim.split('/');
         const isoFim = `${aF}-${mF}-${dF}`;
 
-        // 2. Buscar dados filtrados
         const { data: extrato, error } = await supabase
             .from('fluxo_pessoal')
             .select('*')
@@ -115,32 +183,20 @@ export function useFluxoPessoal() {
             return;
         }
 
-        // 3. Calcular Totais do Relatório
-        let totalEntradas = 0;
-        let totalSaidas = 0;
+        let totalEntradas = 0, totalSaidas = 0;
         
         const linhasHTML = extrato.map(item => {
             const dataFmt = item.data_movimento.split('-').reverse().join('/');
             const valorFmt = item.valor.toFixed(2).replace('.', ',');
             const cor = item.tipo === 'ENTRADA' ? 'green' : 'red';
             const sinal = item.tipo === 'ENTRADA' ? '+' : '-';
-            
-            if (item.tipo === 'ENTRADA') totalEntradas += item.valor;
-            else totalSaidas += item.valor;
-
-            return `
-              <tr>
-                <td>${dataFmt}</td>
-                <td>${item.descricao}</td>
-                <td style="color:${cor}; text-align:right; font-weight:bold;">${sinal} R$ ${valorFmt}</td>
-              </tr>
-            `;
+            if (item.tipo === 'ENTRADA') totalEntradas += item.valor; else totalSaidas += item.valor;
+            return `<tr><td>${dataFmt}</td><td>${item.descricao}</td><td style="color:${cor}; text-align:right; font-weight:bold;">${sinal} R$ ${valorFmt}</td></tr>`;
         }).join('');
 
         const saldoPeriodo = totalEntradas - totalSaidas;
         const corSaldo = saldoPeriodo >= 0 ? 'green' : 'red';
 
-        // 4. Montar HTML
         const html = `
           <html>
             <head>
@@ -161,47 +217,19 @@ export function useFluxoPessoal() {
                 <p><strong>Extrato de Conta:</strong> ${nomeConta}</p>
                 <p><strong>Período:</strong> ${dataInicio} até ${dataFim}</p>
               </div>
-
-              <table>
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Descrição</th>
-                    <th style="text-align:right">Valor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${linhasHTML}
-                </tbody>
-              </table>
-
+              <table><thead><tr><th>Data</th><th>Descrição</th><th style="text-align:right">Valor</th></tr></thead><tbody>${linhasHTML}</tbody></table>
               <div class="totais">
                 <p>Total Entradas: <span style="color:green">R$ ${totalEntradas.toFixed(2).replace('.', ',')}</span></p>
                 <p>Total Saídas: <span style="color:red">R$ ${totalSaidas.toFixed(2).replace('.', ',')}</span></p>
                 <p class="saldo-final">Resultado do Período: R$ ${saldoPeriodo.toFixed(2).replace('.', ',')}</p>
               </div>
-              
-              <div style="margin-top: 50px; text-align: center; font-size: 10px; color: #999;">
-                 Gerado automaticamente por Axoryn Control em ${new Date().toLocaleString('pt-BR')}
-              </div>
             </body>
-          </html>
-        `;
+          </html>`;
 
-        // 5. Gerar e Compartilhar
         const { uri } = await Print.printToFileAsync({ html });
         await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-
-    } catch (e) {
-        Alert.alert("Erro", "Falha ao gerar PDF.");
-        console.log(e);
-    }
+    } catch (e) { Alert.alert("Erro", "Falha ao gerar PDF."); }
   };
 
-  return {
-    contas, movimentos, saldoGeral, loading,
-    adicionarConta, excluirConta,
-    adicionarMovimento, editarMovimento, excluirMovimento,
-    transferir, gerarRelatorioPDF // <--- Exportado
-  };
+  return { contas, movimentos, saldoGeral, loading, adicionarConta, excluirConta, adicionarMovimento, editarMovimento, excluirMovimento, transferir, gerarRelatorioPDF };
 }
