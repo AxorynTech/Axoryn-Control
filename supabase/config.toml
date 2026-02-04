@@ -354,7 +354,7 @@ allow_dynamic_registration = false
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
-# `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).
+# `oneshot` — fallback mode if hot reload causes issues (eg. in large repos or with symlinks).
 policy = "per_worker"
 # Port to attach the Chrome inspector for debugging edge functions.
 inspector_port = 8083
@@ -404,3 +404,10 @@ entrypoint = "./functions/mercadopago/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/mercadopago/*.html" ]
+
+# ADICIONADO: Configuração da Função Stripe para permitir Webhook (público)
+[functions.stripe]
+enabled = true
+verify_jwt = false
+import_map = "./functions/stripe/deno.json"
+entrypoint = "./functions/stripe/index.ts"

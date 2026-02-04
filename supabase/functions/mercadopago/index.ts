@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,13 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
+// 1. CONFIGURAÇÃO DOS PLANOS (BRL)
+// Centraliza os valores e regras para evitar fraudes no Frontend
+const PLANS: any = {
+  'mensal':  { price: 14.99,  title: 'Assinatura Mensal (Premium)', credits: 0 },
+  'anual':   { price: 149.90, title: 'Assinatura Anual (Premium)',  credits: 0 },
+  'recarga': { price: 20.00,  title: 'Recarga 10 Consultas',        credits: 10 }
+};
+
 Deno.serve(async (req: Request) => {
-  // 1. Lida com CORS
+  // Lida com CORS
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
     const url = new URL(req.url)
     const MP_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
+    
+    // Conecta ao Supabase com Permissão de Admin (Service Role)
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
 
     // Tenta ler o corpo da requisição de forma segura
     let body: any = {}
@@ -31,8 +45,7 @@ Deno.serve(async (req: Request) => {
     })
 
     // 🛡️ ESCUDO IMEDIATO PARA payment.created
-    // Se for criação ou ordem do mercante, respondemos 200 e PARAMOS por aqui.
-    if (body.action === 'payment.created' || body.topic === 'merchant_order' || body.action === 'payment.updated' && body.data?.id === undefined) {
+    if (body.action === 'payment.created' || body.topic === 'merchant_order' || (body.action === 'payment.updated' && body.data?.id === undefined)) {
       return new Response(JSON.stringify({ status: 'ignored' }), { 
         status: 200, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -40,31 +53,40 @@ Deno.serve(async (req: Request) => {
     }
 
     // 🚀 ROTA A: CRIAÇÃO DE PAGAMENTO (Seu App chamando a função)
-    if (body.price && body.email) {
-      // Forçamos a URL de notificação manualmente para evitar erros de detecção dinâmica
-      // Substitua 'mercadopago' pelo nome real da sua função se for diferente
+    // Alterado: Agora verifica 'type' e 'email' em vez de 'price'
+    if (body.email && body.type) {
+      
+      const selectedPlan = PLANS[body.type];
+      if (!selectedPlan) {
+        return new Response(JSON.stringify({ error: "Plano inválido" }), { status: 400, headers: corsHeaders });
+      }
+
+      // Forçamos a URL de notificação manualmente
       const notificationUrl = `https://${new URL(req.url).hostname}/functions/v1/mercadopago`
 
       const preference = {
         items: [{ 
-          title: "Assinatura Axoryn", 
+          title: selectedPlan.title, 
           quantity: 1, 
           currency_id: 'BRL', 
-          unit_price: Number(body.price) 
+          unit_price: selectedPlan.price // Usa o preço do servidor, não do front
         }],
         payer: { 
           email: body.email,
-          // --- NOVOS DADOS PARA LIBERAR CARTÃO E BOLETO ---
-          name: body.firstName || 'Cliente',  // Nome (Virá do site)
-          surname: body.lastName || '',       // Sobrenome (Virá do site)
+          name: body.firstName || 'Cliente',
+          surname: body.lastName || '',
           identification: {
             type: 'CPF',
-            // Remove pontos e traços caso o site envie formatado
             number: body.docNumber ? String(body.docNumber).replace(/\D/g, '') : '' 
           }
-          // ------------------------------------------------
         },
         external_reference: String(body.user_id),
+        // Metadados para o Webhook saber o que fazer depois
+        metadata: {
+          user_id: body.user_id,
+          type: body.type, // 'mensal', 'anual' ou 'recarga'
+          credits: selectedPlan.credits
+        },
         notification_url: notificationUrl
       }
 
@@ -95,31 +117,58 @@ Deno.serve(async (req: Request) => {
       if (res.ok) {
         const pData = await res.json()
         if (pData.status === 'approved') {
-          const supabase = createClient(
-            Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-          )
+          
+          // Recupera os dados salvos nos metadados da preferência
+          const meta = pData.metadata || {};
+          // Fallback: se não tiver metadata, usa external_reference e assume mensal
+          const userId = meta.user_id || pData.external_reference;
+          const type = meta.type || 'mensal';
+          const creditsToAdd = Number(meta.credits || 0);
 
-          await supabase.from('assinaturas').upsert({
-            user_id: pData.external_reference,
-            payment_id: String(paymentId),
-            status: 'approved',
-            valor: pData.transaction_amount
-          })
-          console.log(`Sucesso: Usuário ${pData.external_reference} liberado.`)
+          console.log(`Pagamento MP Aprovado (${type}) para: ${userId}`);
+
+          if (userId) {
+            if (type === 'recarga' && creditsToAdd > 0) {
+              // --- LÓGICA DE RECARGA ---
+              const { data: currentData } = await supabase
+                .from('user_credits')
+                .select('consultas_restantes')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+              const novoSaldo = (currentData?.consultas_restantes || 0) + creditsToAdd;
+
+              await supabase.from('user_credits').upsert({
+                user_id: userId,
+                consultas_restantes: novoSaldo,
+                ultima_renovacao: new Date().toISOString()
+              });
+              console.log(`Recarga efetuada. Novo saldo: ${novoSaldo}`);
+
+            } else {
+              // --- LÓGICA DE ASSINATURA ---
+              await supabase.from('assinaturas').upsert({
+                user_id: userId,
+                payment_id: String(paymentId),
+                status: 'approved',
+                valor: pData.transaction_amount,
+                plano: type // Salva 'mensal' ou 'anual' para o Frontend saber a validade
+              })
+              console.log(`Assinatura ${type} liberada.`)
+            }
+          }
         }
       }
     }
 
-    // Resposta padrão para qualquer outra notificação do MP
+    // Resposta padrão
     return new Response(JSON.stringify({ success: true }), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     })
 
-  } catch (err) {
+  } catch (err: any) {
     console.error("Erro Crítico:", err.message)
-    // Retornar 200 mesmo no erro evita que o Mercado Pago desative seu Webhook por 502
     return new Response(JSON.stringify({ error: "Erro tratado" }), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
