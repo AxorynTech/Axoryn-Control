@@ -7,111 +7,111 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req: Request) => {
-  // 1. Resposta rápida para o navegador (CORS)
+  // 1. Lida com CORS
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    // Leitura segura do corpo da mensagem
-    const text = await req.text()
-    let body: any = {}
-    try { body = text ? JSON.parse(text) : {} } catch(e) {}
+    const url = new URL(req.url)
+    const MP_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
 
-    // =================================================================
-    // 🛡️ ESCUDO CONTRA O ERRO 502 (CRUCIAL)
-    // O Mercado Pago manda avisos de "payment.created" ou "merchant_order".
-    // Se recebermos isso, respondemos 200 imediatamente e NÃO fazemos nada.
-    // Isso impede o servidor de travar tentando processar pagamento vazio.
-    // =================================================================
-    if (body.action === 'payment.created' || body.topic === 'merchant_order') {
-        return new Response("OK (Ignorado)", { status: 200, headers: corsHeaders })
+    // Tenta ler o corpo da requisição de forma segura
+    let body: any = {}
+    try {
+      const rawBody = await req.text()
+      body = rawBody ? JSON.parse(rawBody) : {}
+    } catch (e) {
+      console.error("Erro ao ler JSON:", e)
     }
 
-    // Carrega tokens
-    const MP_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
-    
-    // =================================================================
-    // ROTA A: CRIAR O LINK (Vem do seu Site)
-    // =================================================================
-    if (body.price && body.email) {
-      console.log(`🚀 Gerando QR Code para: ${body.email}`)
+    // --- LOG DE ENTRADA ---
+    console.log("Recebido:", { 
+      action: body?.action, 
+      topic: body?.topic, 
+      id: body?.data?.id || body?.id 
+    })
 
-      // Monta a URL para onde o Mercado Pago deve mandar o aviso depois
-      const reqUrl = new URL(req.url)
-      const notificationUrl = `${reqUrl.origin}/functions/v1/mercadopago`
+    // 🛡️ ESCUDO IMEDIATO PARA payment.created
+    // Se for criação ou ordem do mercante, respondemos 200 e PARAMOS por aqui.
+    if (body.action === 'payment.created' || body.topic === 'merchant_order' || body.action === 'payment.updated' && body.data?.id === undefined) {
+      return new Response(JSON.stringify({ status: 'ignored' }), { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
+    }
+
+    // 🚀 ROTA A: CRIAÇÃO DE PAGAMENTO (Seu App chamando a função)
+    if (body.price && body.email) {
+      // Forçamos a URL de notificação manualmente para evitar erros de detecção dinâmica
+      // Substitua 'mercadopago' pelo nome real da sua função se for diferente
+      const notificationUrl = `https://${new URL(req.url).hostname}/functions/v1/mercadopago`
 
       const preference = {
-        items: [{ title: "Assinatura Axoryn", quantity: 1, currency_id: 'BRL', unit_price: Number(body.price) }],
+        items: [{ 
+          title: "Assinatura Axoryn", 
+          quantity: 1, 
+          currency_id: 'BRL', 
+          unit_price: Number(body.price) 
+        }],
         payer: { email: body.email },
-        external_reference: body.user_id,
-        auto_return: "approved",
-        back_urls: {
-            success: "https://axoryn.com/sucesso",
-            failure: "https://axoryn.com/erro",
-            pending: "https://axoryn.com/pendente"
-        },
+        external_reference: String(body.user_id),
         notification_url: notificationUrl
       }
 
       const mpRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MP_TOKEN}` },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${MP_TOKEN}` 
+        },
         body: JSON.stringify(preference)
       })
 
       const mpData = await mpRes.json()
-      return new Response(JSON.stringify(mpData), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify(mpData), { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
     }
 
-    // =================================================================
-    // ROTA B: WEBHOOK (Vem do Mercado Pago)
-    // =================================================================
-    // Tenta achar o ID do pagamento em qualquer lugar possível
-    const pId = body?.data?.id || body?.id || new URL(req.url).searchParams.get('id') || new URL(req.url).searchParams.get('data.id')
-    
-    if (pId) {
-      // Pergunta para o Mercado Pago: "Qual o status REAL desse ID?"
-      const res = await fetch(`https://api.mercadopago.com/v1/payments/${pId}`, {
+    // ✅ ROTA B: WEBHOOK DE PAGAMENTO APROVADO
+    const paymentId = body?.data?.id || body?.id || url.searchParams.get('id')
+
+    if (paymentId && (body.action === 'payment.updated' || url.searchParams.has('id'))) {
+      const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
         headers: { 'Authorization': `Bearer ${MP_TOKEN}` }
       })
 
       if (res.ok) {
         const pData = await res.json()
-        const status = pData.status // approved, pending, rejected, etc.
+        if (pData.status === 'approved') {
+          const supabase = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+          )
 
-        // 🛑 BARREIRA FINAL: Só deixamos passar se for APROVADO
-        if (status !== 'approved') {
-             // Se for 'pending' ou qualquer outra coisa, tchau. 200 OK.
-             console.log(`⏳ Status: ${status} (Ignorado)`)
-             return new Response("OK", { status: 200, headers: corsHeaders })
-        }
-
-        // ✅ Se chegou aqui, é dinheiro confirmado!
-        if (status === 'approved' && pData.external_reference) {
-            console.log(`✅ DINHEIRO NA MÃO! Liberando user: ${pData.external_reference}`)
-            
-            // Só conectamos no Supabase AGORA (Economiza memória e evita crash)
-            const SUP_URL = Deno.env.get('SUPABASE_URL')
-            const SUP_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-            const supabase = createClient(SUP_URL!, SUP_KEY!)
-
-            await supabase.from('assinaturas').upsert({
-              user_id: pData.external_reference,
-              payment_id: String(pId),
-              status: 'approved',
-              valor: pData.transaction_amount
-            })
-            // O Trigger do banco vai liberar os 30 dias ou 1 ano automaticamente
+          await supabase.from('assinaturas').upsert({
+            user_id: pData.external_reference,
+            payment_id: String(paymentId),
+            status: 'approved',
+            valor: pData.transaction_amount
+          })
+          console.log(`Sucesso: Usuário ${pData.external_reference} liberado.`)
         }
       }
     }
 
-    return new Response("OK", { status: 200, headers: corsHeaders })
+    // Resposta padrão para qualquer outra notificação do MP
+    return new Response(JSON.stringify({ success: true }), { 
+      status: 200, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    })
 
-  } catch (err: any) {
-    // 🚨 REDE DE SEGURANÇA TOTAL
-    // Se der qualquer erro no código, respondemos 200 para o Mercado Pago
-    // Isso evita que apareça "502" ou "500" no painel deles.
-    console.error("🔥 Erro capturado (Respondendo 200):", err.message)
-    return new Response(JSON.stringify({ error: "Handled" }), { status: 200, headers: corsHeaders })
+  } catch (err) {
+    console.error("Erro Crítico:", err.message)
+    // Retornar 200 mesmo no erro evita que o Mercado Pago desative seu Webhook por 502
+    return new Response(JSON.stringify({ error: "Erro tratado" }), { 
+      status: 200, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    })
   }
 })
