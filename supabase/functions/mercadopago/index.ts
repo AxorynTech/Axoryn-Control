@@ -52,7 +52,18 @@ Deno.serve(async (req: Request) => {
           currency_id: 'BRL', 
           unit_price: Number(body.price) 
         }],
-        payer: { email: body.email },
+        payer: { 
+          email: body.email,
+          // --- NOVOS DADOS PARA LIBERAR CARTÃO E BOLETO ---
+          name: body.firstName || 'Cliente',  // Nome (Virá do site)
+          surname: body.lastName || '',       // Sobrenome (Virá do site)
+          identification: {
+            type: 'CPF',
+            // Remove pontos e traços caso o site envie formatado
+            number: body.docNumber ? String(body.docNumber).replace(/\D/g, '') : '' 
+          }
+          // ------------------------------------------------
+        },
         external_reference: String(body.user_id),
         notification_url: notificationUrl
       }
