@@ -1,36 +1,57 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Alert } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker'; // <--- IMPORT NOVO
+import React, { useEffect, useState } from 'react';
+import { Alert, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Props = {
   visivel: boolean;
   fechar: () => void;
-  // ATUALIZADO: Agora recebe tamb�m o valor da multa
+  // ATUALIZADO: Agora recebe também o valor da multa
   confirmar: (valorTotal: number, qtdParcelas: number, dataPrimeira: string, multaDiaria: number) => void;
 };
 
 export default function ModalParcelamento({ visivel, fechar, confirmar }: Props) {
   const [valorTotal, setValorTotal] = useState('');
   const [qtdParcelas, setQtdParcelas] = useState('');
-  const [dataPrimeira, setDataPrimeira] = useState('');
   const [multa, setMulta] = useState('');
+  
+  // ESTADO NOVO: Data para o calendário
+  const [date, setDate] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
+
+  // Reseta a data para hoje sempre que abrir o modal
+  useEffect(() => {
+    if (visivel) {
+      setDate(new Date());
+    }
+  }, [visivel]);
 
   const calcularParcela = () => {
     if(!valorTotal || !qtdParcelas) return '0.00';
     return (parseFloat(valorTotal) / parseInt(qtdParcelas)).toFixed(2);
   };
 
+  // Função que captura a mudança no calendário
+  const onChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowPicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+
   const handleConfirmar = () => {
-    if (!valorTotal || !qtdParcelas || !dataPrimeira) return Alert.alert("Erro", "Preencha tudo");
+    if (!valorTotal || !qtdParcelas) return Alert.alert("Erro", "Preencha tudo");
     
     // Envia os dados, incluindo a multa (se estiver vazio, vai 0)
     confirmar(
       parseFloat(valorTotal), 
       parseInt(qtdParcelas), 
-      dataPrimeira,
+      date.toLocaleDateString('pt-BR'), // <--- Envia a data formatada
       multa ? parseFloat(multa) : 0
     );
     
-    setValorTotal(''); setQtdParcelas(''); setDataPrimeira(''); setMulta('');
+    setValorTotal(''); setQtdParcelas(''); setMulta('');
   };
 
   return (
@@ -38,7 +59,7 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
       <View style={styles.fundo}>
         <View style={styles.card}>
           <View style={styles.cabecalho}>
-            {/* \u00C7 = �, \u00C3 = � */}
+            {/* \u00C7 = Ç, \u00C3 = Ã */}
             <Text style={styles.titulo}>NEGOCIA{'\u00C7'}{'\u00C3'}O / ACORDO</Text>
           </View>
 
@@ -64,7 +85,26 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
             />
 
             <Text style={styles.label}>Data da 1{'\u00AA'} Parcela</Text>
-            <TextInput style={styles.input} value={dataPrimeira} onChangeText={setDataPrimeira} placeholder="DD/MM/AAAA" />
+            
+            {/* SUBSTITUIÇÃO: Botão que abre o calendário */}
+            <TouchableOpacity 
+              style={styles.inputBotao} 
+              onPress={() => setShowPicker(true)}
+            >
+              <Text style={styles.textoData}>
+                {date.toLocaleDateString('pt-BR')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Componente do Calendário */}
+            {showPicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="default"
+                onChange={onChange}
+              />
+            )}
 
             <View style={styles.resumo}>
               <Text style={styles.resumoTexto}>
@@ -95,6 +135,22 @@ const styles = StyleSheet.create({
   aviso: { fontSize: 12, color: '#666', textAlign: 'center', marginBottom: 15, fontStyle: 'italic' },
   label: { fontSize: 12, fontWeight: 'bold', color: '#333', marginBottom: 5, marginLeft: 2 },
   input: { backgroundColor: '#F1F3F4', padding: 12, borderRadius: 8, marginBottom: 10, color: '#333', fontSize: 16, fontWeight: 'bold' },
+  
+  // ADAPTADO: Estilo do botão que finge ser input
+  inputBotao: { 
+    backgroundColor: '#F1F3F4', 
+    padding: 12, 
+    borderRadius: 8, 
+    marginBottom: 10, 
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  textoData: {
+    color: '#333', 
+    fontSize: 16, 
+    fontWeight: 'bold'
+  },
+
   resumo: { alignItems: 'center', marginBottom: 20, padding: 10, backgroundColor: '#F5EEF8', borderRadius: 8 },
   resumoTexto: { fontSize: 14, color: '#555' },
   botaoConfirmar: { backgroundColor: '#8E44AD', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 10 },

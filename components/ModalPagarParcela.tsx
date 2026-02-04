@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Alert } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker'; // <--- IMPORT NOVO
+import React, { useEffect, useState } from 'react';
+import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Contrato } from '../types';
 
 type Props = {
@@ -10,11 +11,26 @@ type Props = {
 };
 
 export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar }: Props) {
-  const [data, setData] = useState('');
+  // Mudamos de string para Date
+  const [date, setDate] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
 
+  // Reseta para a data de hoje ao abrir
   useEffect(() => {
-    if (visivel) setData(new Date().toLocaleDateString('pt-BR'));
+    if (visivel) {
+      setDate(new Date());
+    }
   }, [visivel]);
+
+  // Função que captura a mudança no calendário
+  const onChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowPicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
 
   return (
     <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar}>
@@ -33,17 +49,31 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
             )}
             
             <Text style={styles.label}>Data do Pagamento</Text>
-            <TextInput 
-              style={styles.input} 
-              value={data} 
-              onChangeText={setData} 
-              placeholder="DD/MM/AAAA"
-              keyboardType="numeric"
-            />
+            
+            {/* SUBSTITUIÇÃO: Botão com aparência de Input que abre o calendário */}
+            <TouchableOpacity 
+              style={styles.inputBotao} 
+              onPress={() => setShowPicker(true)}
+            >
+              <Text style={styles.textoData}>
+                {date.toLocaleDateString('pt-BR')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Componente do Calendário */}
+            {showPicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="default"
+                onChange={onChange}
+                maximumDate={new Date()} // Opcional: Evita datas futuras
+              />
+            )}
             
             <TouchableOpacity 
               style={styles.botaoConfirmar} 
-              onPress={() => confirmar(data)}
+              onPress={() => confirmar(date.toLocaleDateString('pt-BR'))}
             >
               <Text style={styles.textoBotao}>CONFIRMAR RECEBIMENTO</Text>
             </TouchableOpacity>
@@ -66,7 +96,24 @@ const styles = StyleSheet.create({
   corpo: { padding: 20 },
   descricao: { textAlign: 'center', color: '#555', marginBottom: 20, fontSize: 14, lineHeight: 20 },
   label: { fontSize: 12, fontWeight: 'bold', color: '#333', marginBottom: 5, marginLeft: 2 },
-  input: { backgroundColor: '#F1F3F4', padding: 14, borderRadius: 8, marginBottom: 20, color: '#333', fontSize: 16, textAlign: 'center', fontWeight: 'bold' },
+  
+  // ADAPTADO: Renomeei para inputBotao para manter a semântica
+  inputBotao: { 
+    backgroundColor: '#F1F3F4', 
+    padding: 14, 
+    borderRadius: 8, 
+    marginBottom: 20, 
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  
+  // NOVO: Estilo do texto dentro do botão
+  textoData: {
+    color: '#333', 
+    fontSize: 16, 
+    fontWeight: 'bold'
+  },
+
   botaoConfirmar: { backgroundColor: '#27AE60', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
   textoBotao: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
   botaoCancelar: { alignItems: 'center', padding: 10 },

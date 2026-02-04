@@ -219,7 +219,7 @@ export default function Perfil() {
           </View>
           <Text style={styles.cardDesc}>{textoDescricao}</Text>
           <TouchableOpacity style={styles.btnManage} onPress={abrirGerenciadorConta}>
-            <Text style={styles.txtManage}>{t('perfil.gerenciarWeb') || 'Gerenciar Conta Web'}</Text>
+            <Text style={styles.txtManage}>{t('perfil.gerenciarWeb') || 'Gerenciar Conta'}</Text>
             <Ionicons name="open-outline" size={16} color="#FFF" style={{ marginLeft: 8 }} />
           </TouchableOpacity>
         </View>

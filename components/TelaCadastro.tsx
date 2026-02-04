@@ -65,7 +65,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
     setReputacao(''); 
     setSegmento('EMPRESTIMO');
     
-    Alert.alert(t('common.sucesso'), t('auth.cadastroSucesso') || "Cliente cadastrado!");
+    Alert.alert(t('common.sucesso'), "Cliente salvo com sucesso!");
   };
 
   return (

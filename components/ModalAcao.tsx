@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker'; // <--- IMPORT NOVO
+import React, { useEffect, useState } from 'react';
+import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type Props = {
   visivel: boolean;
@@ -9,19 +10,31 @@ type Props = {
 };
 
 export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
-  const [data, setData] = useState('');
+  // Mudamos o estado de string para Date para funcionar com o calendário
+  const [date, setDate] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
 
   // Toda vez que abrir o modal, reseta a data para hoje
   useEffect(() => {
     if (visivel) {
-      setData(new Date().toLocaleDateString('pt-BR'));
+      setDate(new Date());
     }
   }, [visivel]);
 
-  // Define a cor baseada no tipo de a��o
+  // Função que captura a mudança no calendário
+  const onChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowPicker(false); // Fecha o modal nativo no Android
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+
+  // Define a cor baseada no tipo de ação
   const corPrincipal = tipo === 'QUITAR' ? '#27AE60' : '#2980B9';
   
-  // CORRE��O AQUI: Trocamos 's�' por 's\u00F3'
+  // Texto descritivo (Mantido original)
   const textoDescricao = tipo === 'QUITAR' 
     ? 'O cliente pagou tudo? Informe a data:' 
     : 'O cliente pagou s\u00F3 os juros? Informe a data:';
@@ -30,7 +43,7 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
     <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar}>
       <View style={styles.fundo}>
         <View style={styles.card}>
-          {/* Cabe�alho com cor din�mica */}
+          {/* Cabeçalho com cor dinâmica */}
           <View style={[styles.cabecalho, { backgroundColor: corPrincipal }]}>
             <Text style={styles.titulo}>{tipo}</Text>
           </View>
@@ -39,17 +52,33 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
             <Text style={styles.descricao}>{textoDescricao}</Text>
             
             <Text style={styles.label}>Data do Pagamento</Text>
-            <TextInput 
-              style={styles.input} 
-              value={data} 
-              onChangeText={setData} 
-              placeholder="DD/MM/AAAA"
-              keyboardType="numeric"
-            />
+            
+            {/* SUBSTITUIÇÃO: Em vez de TextInput, usamos um TouchableOpacity 
+               com a mesma aparência para abrir o calendário.
+            */}
+            <TouchableOpacity 
+              style={styles.inputBotao} 
+              onPress={() => setShowPicker(true)}
+            >
+              <Text style={styles.textoData}>
+                {date.toLocaleDateString('pt-BR')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Componente do Calendário (Invisível até ser chamado) */}
+            {showPicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="default"
+                onChange={onChange}
+                maximumDate={new Date()} // Opcional: Evita datas futuras
+              />
+            )}
             
             <TouchableOpacity 
               style={[styles.botaoConfirmar, { backgroundColor: corPrincipal }]} 
-              onPress={() => confirmar(data)}
+              onPress={() => confirmar(date.toLocaleDateString('pt-BR'))}
             >
               <Text style={styles.textoBotao}>CONFIRMAR {tipo}</Text>
             </TouchableOpacity>
@@ -75,14 +104,21 @@ const styles = StyleSheet.create({
   descricao: { textAlign: 'center', color: '#666', marginBottom: 20, fontSize: 14 },
   
   label: { fontSize: 12, fontWeight: 'bold', color: '#333', marginBottom: 5, marginLeft: 2 },
-  input: { 
+  
+  // ADAPTADO: Renomeei 'input' para 'inputBotao' e adicionei alignItems para centralizar o texto
+  inputBotao: { 
     backgroundColor: '#F1F3F4', 
     padding: 14, 
     borderRadius: 8, 
     marginBottom: 20, 
+    alignItems: 'center', 
+    justifyContent: 'center'
+  },
+  
+  // NOVO: Estilo do texto da data dentro do botão
+  textoData: {
     color: '#333', 
     fontSize: 16, 
-    textAlign: 'center',
     fontWeight: 'bold'
   },
   
