@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -40,14 +40,10 @@ export default function TelaFluxoPessoal() {
   const [valor, setValor] = useState('');
   const [descricao, setDescricao] = useState('');
   
-  // Pega o formato de data do arquivo de idioma
+  // Data agora é string manual
   const localeData = t('common.formatoData', { defaultValue: 'pt-BR' });
   const [data, setData] = useState(new Date().toLocaleDateString(localeData));
   const [contaIdForm, setContaIdForm] = useState<number | null>(null);
-
-  // --- CALENDÁRIO ---
-  const [dataObjeto, setDataObjeto] = useState(new Date());
-  const [mostrarCalendario, setMostrarCalendario] = useState(false);
 
   // Form Conta
   const [nomeNovaConta, setNomeNovaConta] = useState('');
@@ -63,20 +59,24 @@ export default function TelaFluxoPessoal() {
   const [dataInicioRel, setDataInicioRel] = useState('');
   const [dataFimRel, setDataFimRel] = useState('');
 
+  const moeda = t('common.moeda', { defaultValue: 'R$' });
+
+  // --- HELPER DE DATA ATUAL ---
+  const getDataHojeString = () => {
+    return new Date().toLocaleDateString(localeData);
+  };
+
   // --- HELPER DE TRADUÇÃO DA CONTA ---
-  // Se o nome for "Carteira", retorna a tradução. Senão, retorna o nome original.
   const getNomeConta = (nomeOriginal: string | undefined) => {
       if (!nomeOriginal) return '';
-      if (nomeOriginal === 'Carteira') return t('menuAbas.carteira'); // Traduz para Wallet/Cartera
+      if (nomeOriginal === 'Carteira') return t('menuAbas.carteira'); 
       return nomeOriginal;
   };
 
-  // --- SEPARAÇÃO E CÁLCULOS ---
+  // --- CÁLCULOS ---
   const contaCarteira = contas.find(c => c.nome === 'Carteira');
   const outrasContas = contas.filter(c => c.nome !== 'Carteira');
   const saldoPessoalTotal = outrasContas.reduce((acc, c) => acc + c.saldo, 0);
-
-  const moeda = t('common.moeda', { defaultValue: 'R$' });
 
   // --- EXIBIÇÃO ---
   const listaExibida = contaSelecionada 
@@ -87,7 +87,6 @@ export default function TelaFluxoPessoal() {
     ? contas.find(c => c.id === contaSelecionada)?.saldo || 0
     : saldoPessoalTotal; 
 
-  // Usa o Helper para exibir o nome no Saldo Principal
   const nomeExibido = contaSelecionada
     ? getNomeConta(contas.find(c => c.id === contaSelecionada)?.nome)
     : t('fluxo.totalPessoal');
@@ -95,18 +94,6 @@ export default function TelaFluxoPessoal() {
   const formatarMoeda = (val: number) => {
     if (!visivel) return '••••'; 
     return `${moeda} ${val.toFixed(2).replace('.', ',')}`;
-  };
-
-  // --- LÓGICA DO CALENDÁRIO ---
-  const aoMudarData = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-        setMostrarCalendario(false);
-    }
-
-    if (selectedDate) {
-        setDataObjeto(selectedDate);
-        setData(selectedDate.toLocaleDateString(localeData)); 
-    }
   };
 
   const abrirNovo = () => {
@@ -140,7 +127,6 @@ export default function TelaFluxoPessoal() {
       if (!contaSelecionada) return;
       const conta = contas.find(c => c.id === contaSelecionada);
       if (!conta) return;
-      // Passa o nome traduzido para o PDF
       await gerarRelatorioPDF(conta.id, getNomeConta(conta.nome), dataInicioRel, dataFimRel);
       setModalRelatorio(false);
   };
@@ -151,16 +137,15 @@ export default function TelaFluxoPessoal() {
     setValor(item.valor.toString().replace('.', ','));
     setDescricao(item.descricao);
     
+    // Converte YYYY-MM-DD para o formato local (ex: DD/MM/AAAA) para exibir no input
     const dataBanco = item.data_movimento || ''; 
     if (dataBanco.includes('-')) {
         const [ano, mes, dia] = dataBanco.split('-');
-        const dObj = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-        setData(dObj.toLocaleDateString(localeData));
-        setDataObjeto(dObj);
+        // Cria data objeto em UTC ou local, o importante é remontar a string
+        // Simplesmente remontando a string:
+        setData(`${dia}/${mes}/${ano}`);
     } else {
-        const hoje = new Date();
-        setData(hoje.toLocaleDateString(localeData));
-        setDataObjeto(hoje);
+        setData(getDataHojeString());
     }
     
     setContaIdForm(item.conta_id);
@@ -170,9 +155,13 @@ export default function TelaFluxoPessoal() {
   const handleSalvarMovimento = async () => {
     if (!valor || !descricao || !contaIdForm) return alert(t('fluxo.erroPreencha'));
     
-    const ano = dataObjeto.getFullYear();
-    const mes = String(dataObjeto.getMonth() + 1).padStart(2, '0');
-    const dia = String(dataObjeto.getDate()).padStart(2, '0');
+    // Validação simples da data manual
+    if (!data || data.length < 8 || !data.includes('/')) {
+        return Alert.alert("Erro", "Data inválida. Use o formato DD/MM/AAAA");
+    }
+
+    // Converter DD/MM/AAAA para YYYY-MM-DD
+    const [dia, mes, ano] = data.split('/');
     const dataISO = `${ano}-${mes}-${dia}`;
     
     const valorFloat = parseFloat(valor.replace(',', '.'));
@@ -225,10 +214,7 @@ export default function TelaFluxoPessoal() {
     setIdEdicao(null); setValor(''); setDescricao(''); 
     setContaIdForm(contaSelecionada || null);
     setTipo('ENTRADA'); 
-    
-    const hoje = new Date();
-    setData(hoje.toLocaleDateString(localeData));
-    setDataObjeto(hoje);
+    setData(getDataHojeString());
   };
 
   if (loading) return <ActivityIndicator style={{marginTop: 50}} size="large" color="#2C3E50" />;
@@ -332,8 +318,6 @@ export default function TelaFluxoPessoal() {
                     </View>
                     <View style={{ marginLeft: 10, flex: 1 }}>
                         <Text style={styles.desc}>{item.descricao}</Text>
-                        
-                        {/* AQUI: Usa o helper para traduzir o nome da conta na lista */}
                         <Text style={styles.contaBadge}>
                             {getNomeConta(contas.find(c => c.id === item.conta_id)?.nome)}
                         </Text>
@@ -359,155 +343,168 @@ export default function TelaFluxoPessoal() {
         )}
       </View>
 
-      {/* MODAL NOVA CONTA */}
+      {/* MODAL NOVA CONTA (Atualizado com KeyboardAvoidingView) */}
       <Modal visible={modalNovaConta} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.modalPequeno}>
-            <Text style={styles.modalTitle}>{t('fluxo.criarConta')}</Text>
-            <Text style={styles.labelInput}>{t('fluxo.placeholderNome')}</Text>
-            <TextInput placeholder={t('fluxo.placeholderNome')} style={styles.input} value={nomeNovaConta} onChangeText={setNomeNovaConta} autoFocus />
-            <Text style={styles.labelInput}>{t('fluxo.placeholderInst')}</Text>
-            <TextInput placeholder={t('fluxo.placeholderInst')} style={styles.input} value={instituicaoConta} onChangeText={setInstituicaoConta} />
-            <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalNovaConta(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleSalvarConta} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('fluxo.btnCriar')}</Text></TouchableOpacity>
+         <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+         >
+            <View style={styles.overlay}>
+                <View style={styles.modalPequeno}>
+                    <Text style={styles.modalTitle}>{t('fluxo.criarConta')}</Text>
+                    <Text style={styles.labelInput}>{t('fluxo.placeholderNome')}</Text>
+                    <TextInput placeholder={t('fluxo.placeholderNome')} style={styles.input} value={nomeNovaConta} onChangeText={setNomeNovaConta} autoFocus />
+                    <Text style={styles.labelInput}>{t('fluxo.placeholderInst')}</Text>
+                    <TextInput placeholder={t('fluxo.placeholderInst')} style={styles.input} value={instituicaoConta} onChangeText={setInstituicaoConta} />
+                    <View style={styles.rowBtns}>
+                    <TouchableOpacity onPress={() => setModalNovaConta(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={handleSalvarConta} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('fluxo.btnCriar')}</Text></TouchableOpacity>
+                    </View>
+                </View>
             </View>
-          </View>
-        </View>
+         </KeyboardAvoidingView>
       </Modal>
 
-      {/* MODAL MOVIMENTO */}
+      {/* MODAL MOVIMENTO (Atualizado com KeyboardAvoidingView + ScrollView + Data Manual) */}
       <Modal visible={modalMovimento} transparent animationType="slide">
-        <View style={styles.overlay}>
-          <View style={styles.modal}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                <Text style={styles.modalTitle}>{idEdicao ? t('fluxo.editarLancamento') : t('fluxo.novoLancamento')}</Text>
-                {idEdicao && (
-                    <TouchableOpacity onPress={handleExcluirNoModal} style={{ padding: 5 }}>
-                        <Ionicons name="trash-outline" size={24} color="#E74C3C" />
-                    </TouchableOpacity>
-                )}
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+        >
+            <View style={styles.overlay}>
+                <View style={styles.modal}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                            <Text style={styles.modalTitle}>{idEdicao ? t('fluxo.editarLancamento') : t('fluxo.novoLancamento')}</Text>
+                            {idEdicao && (
+                                <TouchableOpacity onPress={handleExcluirNoModal} style={{ padding: 5 }}>
+                                    <Ionicons name="trash-outline" size={24} color="#E74C3C" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        <Text style={styles.labelInput}>{t('fluxo.contaMov')}</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+                        {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
+                            <TouchableOpacity key={c.id} onPress={() => setContaIdForm(c.id)} style={[styles.badgeConta, contaIdForm === c.id && styles.badgeContaAtivo]}>
+                            <Text style={{ color: contaIdForm === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        </View>
+
+                        <View style={styles.rowTipo}>
+                        <TouchableOpacity onPress={() => setTipo('ENTRADA')} style={[styles.btnTipo, tipo === 'ENTRADA' && {backgroundColor:'#27AE60', borderColor:'transparent'}]}>
+                            <Text style={{color: tipo==='ENTRADA'?'#FFF':'#27AE60'}}>{t('fluxo.entrada')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setTipo('SAIDA')} style={[styles.btnTipo, tipo === 'SAIDA' && {backgroundColor:'#E74C3C', borderColor:'transparent'}]}>
+                            <Text style={{color: tipo==='SAIDA'?'#FFF':'#E74C3C'}}>{t('fluxo.saida')}</Text>
+                        </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.labelInput}>{t('fluxo.valor')} ({moeda})</Text>
+                        <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={valor} onChangeText={setValor} />
+                        
+                        <Text style={styles.labelInput}>{t('fluxo.descricao')}</Text>
+                        <TextInput placeholder="Ex: Salário" style={styles.input} value={descricao} onChangeText={setDescricao} />
+                        
+                        {/* --- DATA MANUAL SUBSTITUINDO O CALENDÁRIO --- */}
+                        <Text style={styles.labelInput}>{t('fluxo.data')}</Text>
+                        <TextInput 
+                            style={styles.input} 
+                            value={data} 
+                            onChangeText={setData} 
+                            placeholder="DD/MM/AAAA"
+                            keyboardType="numbers-and-punctuation"
+                            maxLength={10} 
+                        />
+
+                        <View style={styles.rowBtns}>
+                        <TouchableOpacity onPress={() => setModalMovimento(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={handleSalvarMovimento} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('common.salvar')}</Text></TouchableOpacity>
+                        </View>
+                    </ScrollView>
+                </View>
             </View>
-
-            <Text style={styles.labelInput}>{t('fluxo.contaMov')}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-              {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
-                <TouchableOpacity key={c.id} onPress={() => setContaIdForm(c.id)} style={[styles.badgeConta, contaIdForm === c.id && styles.badgeContaAtivo]}>
-                  {/* AQUI: Traduz no badge de seleção */}
-                  <Text style={{ color: contaIdForm === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.rowTipo}>
-              <TouchableOpacity onPress={() => setTipo('ENTRADA')} style={[styles.btnTipo, tipo === 'ENTRADA' && {backgroundColor:'#27AE60', borderColor:'transparent'}]}>
-                <Text style={{color: tipo==='ENTRADA'?'#FFF':'#27AE60'}}>{t('fluxo.entrada')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setTipo('SAIDA')} style={[styles.btnTipo, tipo === 'SAIDA' && {backgroundColor:'#E74C3C', borderColor:'transparent'}]}>
-                <Text style={{color: tipo==='SAIDA'?'#FFF':'#E74C3C'}}>{t('fluxo.saida')}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.labelInput}>{t('fluxo.valor')} ({moeda})</Text>
-            <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={valor} onChangeText={setValor} />
-            
-            <Text style={styles.labelInput}>{t('fluxo.descricao')}</Text>
-            <TextInput placeholder="Ex: Salário" style={styles.input} value={descricao} onChangeText={setDescricao} />
-            
-            {/* --- CALENDÁRIO --- */}
-            <Text style={styles.labelInput}>{t('fluxo.data')}</Text>
-            <TouchableOpacity onPress={() => setMostrarCalendario(true)} style={[styles.input, {justifyContent:'center'}]}>
-                 <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between'}}>
-                     <Text style={{fontSize:16, color:'#333'}}>{data}</Text>
-                     <Ionicons name="calendar-outline" size={20} color="#2C3E50" />
-                 </View>
-            </TouchableOpacity>
-
-            {mostrarCalendario && (
-                <DateTimePicker
-                    value={dataObjeto}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={aoMudarData}
-                />
-            )}
-            {/* ------------------ */}
-
-            <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalMovimento(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleSalvarMovimento} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('common.salvar')}</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* --- MODAL DE TRANSFERÊNCIA --- */}
+      {/* --- MODAL DE TRANSFERÊNCIA (Atualizado com KeyboardAvoidingView) --- */}
       <Modal visible={modalTransferencia} transparent animationType="slide">
-        <View style={styles.overlay}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{t('fluxo.transferirEntreContas')}</Text>
-            
-            {/* DE: ORIGEM */}
-            <Text style={styles.labelInput}>{t('fluxo.deOrigem')}:</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-              {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
-                <TouchableOpacity key={c.id} onPress={() => setTransfOrigem(c.id)} style={[styles.badgeConta, transfOrigem === c.id && {backgroundColor:'#E74C3C'}]}>
-                  {/* AQUI: Traduz no badge de origem */}
-                  <Text style={{ color: transfOrigem === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
-                </TouchableOpacity>
-              ))}
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+        >
+            <View style={styles.overlay}>
+                <View style={styles.modal}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <Text style={styles.modalTitle}>{t('fluxo.transferirEntreContas')}</Text>
+                        
+                        {/* DE: ORIGEM */}
+                        <Text style={styles.labelInput}>{t('fluxo.deOrigem')}:</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+                        {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
+                            <TouchableOpacity key={c.id} onPress={() => setTransfOrigem(c.id)} style={[styles.badgeConta, transfOrigem === c.id && {backgroundColor:'#E74C3C'}]}>
+                            <Text style={{ color: transfOrigem === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        </View>
+
+                        <View style={{alignItems:'center', marginVertical:-5}}><Ionicons name="arrow-down" size={20} color="#999"/></View>
+
+                        {/* PARA: DESTINO */}
+                        <Text style={styles.labelInput}>{t('fluxo.paraDestino')}:</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+                        {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
+                            <TouchableOpacity key={c.id} onPress={() => setTransfDestino(c.id)} style={[styles.badgeConta, transfDestino === c.id && {backgroundColor:'#27AE60'}]}>
+                            <Text style={{ color: transfDestino === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        </View>
+
+                        <Text style={styles.labelInput}>{t('fluxo.valorTransferencia')} ({moeda})</Text>
+                        <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={transfValor} onChangeText={setTransfValor} />
+                        <Text style={styles.labelInput}>{t('fluxo.descricao')}</Text>
+                        <TextInput placeholder={t('cadastro.placeholderIndicacao')} style={styles.input} value={transfDesc} onChangeText={setTransfDesc} />
+
+                        <View style={styles.rowBtns}>
+                        <TouchableOpacity onPress={() => setModalTransferencia(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={handleRealizarTransferencia} style={[styles.btnSave, {backgroundColor:'#2980B9'}]}><Text style={{color:'#FFF'}}>{t('fluxo.transferir')}</Text></TouchableOpacity>
+                        </View>
+                    </ScrollView>
+                </View>
             </View>
-
-            <View style={{alignItems:'center', marginVertical:-5}}><Ionicons name="arrow-down" size={20} color="#999"/></View>
-
-            {/* PARA: DESTINO */}
-            <Text style={styles.labelInput}>{t('fluxo.paraDestino')}:</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-              {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
-                <TouchableOpacity key={c.id} onPress={() => setTransfDestino(c.id)} style={[styles.badgeConta, transfDestino === c.id && {backgroundColor:'#27AE60'}]}>
-                  {/* AQUI: Traduz no badge de destino */}
-                  <Text style={{ color: transfDestino === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.labelInput}>{t('fluxo.valorTransferencia')} ({moeda})</Text>
-            <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={transfValor} onChangeText={setTransfValor} />
-            <Text style={styles.labelInput}>{t('fluxo.descricao')}</Text>
-            <TextInput placeholder={t('cadastro.placeholderIndicacao')} style={styles.input} value={transfDesc} onChangeText={setTransfDesc} />
-
-            <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalTransferencia(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleRealizarTransferencia} style={[styles.btnSave, {backgroundColor:'#2980B9'}]}><Text style={{color:'#FFF'}}>{t('fluxo.transferir')}</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* --- MODAL DE RELATÓRIO PDF --- */}
+      {/* --- MODAL DE RELATÓRIO PDF (Atualizado com KeyboardAvoidingView) --- */}
       <Modal visible={modalRelatorio} transparent animationType="slide">
-        <View style={styles.overlay}>
-          <View style={styles.modalPequeno}>
-            <Text style={styles.modalTitle}>{t('fluxo.gerarExtratoPDF')}</Text>
-            <Text style={{textAlign:'center', color:'#7F8C8D', marginBottom:15}}>
-                {/* AQUI: Traduz no modal de relatório */}
-                Conta: <Text style={{fontWeight:'bold', color:'#2C3E50'}}>{getNomeConta(contas.find(c=>c.id===contaSelecionada)?.nome)}</Text>
-            </Text>
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+        >
+            <View style={styles.overlay}>
+                <View style={styles.modalPequeno}>
+                    <Text style={styles.modalTitle}>{t('fluxo.gerarExtratoPDF')}</Text>
+                    <Text style={{textAlign:'center', color:'#7F8C8D', marginBottom:15}}>
+                        {/* AQUI: Traduz no modal de relatório */}
+                        Conta: <Text style={{fontWeight:'bold', color:'#2C3E50'}}>{getNomeConta(contas.find(c=>c.id===contaSelecionada)?.nome)}</Text>
+                    </Text>
 
-            <Text style={styles.labelInput}>{t('fluxo.dataInicio')} ({localeData === 'pt-BR' ? 'DD/MM/AAAA' : 'MM/DD/YYYY'})</Text>
-            <TextInput style={styles.input} value={dataInicioRel} onChangeText={setDataInicioRel} placeholder="01/01/2024" keyboardType="numeric"/>
+                    <Text style={styles.labelInput}>{t('fluxo.dataInicio')} (DD/MM/AAAA)</Text>
+                    <TextInput style={styles.input} value={dataInicioRel} onChangeText={setDataInicioRel} placeholder="01/01/2024" keyboardType="numeric"/>
 
-            <Text style={styles.labelInput}>{t('fluxo.dataFim')} ({localeData === 'pt-BR' ? 'DD/MM/AAAA' : 'MM/DD/YYYY'})</Text>
-            <TextInput style={styles.input} value={dataFimRel} onChangeText={setDataFimRel} placeholder="31/01/2024" keyboardType="numeric"/>
+                    <Text style={styles.labelInput}>{t('fluxo.dataFim')} (DD/MM/AAAA)</Text>
+                    <TextInput style={styles.input} value={dataFimRel} onChangeText={setDataFimRel} placeholder="31/01/2024" keyboardType="numeric"/>
 
-            <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalRelatorio(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleGerarPDF} style={[styles.btnSave, {backgroundColor:'#E74C3C'}]}>
-                  <Text style={{color:'#FFF'}}>{t('fluxo.gerarPDF')}</Text>
-              </TouchableOpacity>
+                    <View style={styles.rowBtns}>
+                    <TouchableOpacity onPress={() => setModalRelatorio(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={handleGerarPDF} style={[styles.btnSave, {backgroundColor:'#E74C3C'}]}>
+                        <Text style={{color:'#FFF'}}>{t('fluxo.gerarPDF')}</Text>
+                    </TouchableOpacity>
+                    </View>
+                </View>
             </View>
-          </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
@@ -515,6 +512,9 @@ export default function TelaFluxoPessoal() {
 }
 
 const styles = StyleSheet.create({
+  // Adicionei este estilo para o KeyboardAvoidingView
+  keyboardView: { flex: 1 },
+
   cardConta: { backgroundColor: '#FFF', padding: 12, borderRadius: 10, marginRight: 10, minWidth: 110, alignItems: 'center', justifyContent: 'center', elevation: 2 },
   cardContaAtivo: { backgroundColor: '#2C3E50' },
   txtContaNome: { fontSize: 13, color: '#7F8C8D', fontWeight: 'bold' },
@@ -536,8 +536,11 @@ const styles = StyleSheet.create({
   data: { color: '#BDC3C7', fontSize: 11 },
   
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
-  modal: { backgroundColor: '#FFF', padding: 20, borderRadius: 10 },
+  
+  // Ajustei para max-height para evitar problemas se o teclado comprimir muito
+  modal: { backgroundColor: '#FFF', padding: 20, borderRadius: 10, maxHeight: '90%' },
   modalPequeno: { backgroundColor: '#FFF', padding: 20, borderRadius: 10 },
+  
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#2C3E50', marginBottom: 15, textAlign: 'center' },
   
   input: { borderWidth: 1, borderColor: '#ECF0F1', padding: 12, borderRadius: 8, marginBottom: 10, fontSize: 16, backgroundColor: '#F9F9F9', width: '100%' },

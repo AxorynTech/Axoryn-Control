@@ -118,12 +118,15 @@ export default function ResumoScreen() {
 
           // --- 4. FILTRO DE OPERAÇÕES ---
           // Aceita palavras de todos os idiomas
-          const isRecebimento = /Recebido|Received|Recibido/i.test(mov);
+          const isRecebimento = /Recebido|Received|Recibido|Parcela/i.test(mov); // Adicionado 'Parcela' para garantir
           const isQuitacao = /QUITADO|SETTLED|LIQUIDADO/i.test(mov);
           const isRenovacao = /RENOVAÇÃO|RENEWAL|RENOVACIÓN/i.test(mov);
-          const isAcordo = /ACORDO|AGREEMENT|ACUERDO/i.test(mov);
+          // const isAcordo = /ACORDO|AGREEMENT|ACUERDO/i.test(mov); // Mantido comentado para referência
 
-          const ehOperacaoFinanceira = isRecebimento || isQuitacao || isRenovacao || isAcordo;
+          // CORREÇÃO AQUI: Removemos 'isAcordo' da verificação financeira.
+          // Assim, a criação do acordo (dívida total) não entra no caixa.
+          // Apenas quando houver "Recebido", "Parcela", "Quitado" ou "Renovação".
+          const ehOperacaoFinanceira = isRecebimento || isQuitacao || isRenovacao;
 
           // Se achou valor e data válida
           if (valor > 0 && !isNaN(dataMov.getTime()) && ehOperacaoFinanceira) {

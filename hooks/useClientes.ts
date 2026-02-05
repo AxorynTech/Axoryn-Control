@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'; // Adicionado useMemo e useCallback
 import { useTranslation } from 'react-i18next';
 import { Alert } from 'react-native';
 import { supabase } from '../services/supabase';
@@ -9,10 +9,8 @@ export function useClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchData(); }, []);
-
-  // --- HELPERS DE DATA (INTELIGENTES) ---
-  const lerDataLocal = (dataStr: string) => {
+  // --- HELPERS DE DATA (Memorizados para performance) ---
+  const lerDataLocal = useCallback((dataStr: string) => {
      if(!dataStr) return new Date();
      
      // Se estiver em Inglês ('en' ou 'en-US'), assume MM/DD/AAAA
@@ -30,9 +28,9 @@ export function useClientes() {
      const mes = Number(partes[1]);
      const ano = Number(partes[2]);
      return new Date(ano, mes - 1, dia);
-  };
+  }, [i18n.language]);
 
-  const paraBancoISO = (dataStr: string) => {
+  const paraBancoISO = useCallback((dataStr: string) => {
      try {
        const d = lerDataLocal(dataStr);
        const ano = d.getFullYear();
@@ -40,9 +38,9 @@ export function useClientes() {
        const dia = String(d.getDate()).padStart(2, '0');
        return `${ano}-${mes}-${dia}`;
      } catch (e) { return new Date().toISOString().split('T')[0]; }
-  };
+  }, [lerDataLocal]);
 
-  const formatarDataDoBanco = (dataISO: string) => {
+  const formatarDataDoBanco = useCallback((dataISO: string) => {
     if (!dataISO) return '';
     if (dataISO.includes('-')) {
        const [ano, mes, dia] = dataISO.split('-');
@@ -52,10 +50,10 @@ export function useClientes() {
        return `${dia}/${mes}/${ano}`;
     }
     return dataISO;
-  };
+  }, [i18n.language]);
 
-  // Processa os dados brutos do banco
-  const processarClienteRaw = (cli: any): Cliente => {
+  // Processa os dados brutos do banco (Memorizado)
+  const processarClienteRaw = useCallback((cli: any): Cliente => {
       return {
         id: cli.id,
         nome: cli.nome,
@@ -86,9 +84,9 @@ export function useClientes() {
           lucroJurosPorParcela: c.lucro_juros_por_parcela
         })).sort((a: any, b: any) => b.id - a.id)
       };
-  };
+  }, [formatarDataDoBanco]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -105,10 +103,13 @@ export function useClientes() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [processarClienteRaw]);
+
+  // Executa uma vez ao montar ou se fetchData mudar (o que não acontece pois está memorizado)
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   // Recarrega APENAS um cliente (Performance)
-  const refreshCliente = async (clienteId: string) => {
+  const refreshCliente = useCallback(async (clienteId: string) => {
       try {
           const { data, error } = await supabase
             .from('clientes')
@@ -121,7 +122,7 @@ export function useClientes() {
               setClientes(prev => prev.map(c => c.id === clienteId ? clienteAtualizado : c));
           }
       } catch (e) { console.log("Erro refreshCliente", e); }
-  };
+  }, [processarClienteRaw]);
 
   const getUserId = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -138,7 +139,7 @@ export function useClientes() {
             .select('id')
             .eq('nome', 'Carteira')
             .eq('user_id', userId) 
-            .limit(1); // Garante pegar apenas 1
+            .limit(1); 
             
         if (data && data.length > 0) return data[0].id;
 
@@ -157,7 +158,9 @@ export function useClientes() {
     return null;
   };
 
-  const calcularTotais = () => {
+  // --- OTIMIZAÇÃO: useMemo nos Totais ---
+  // Só recalcula quando 'clientes' mudar, e não a cada render.
+  const totais = useMemo(() => {
     let capitalTotal = 0, lucro = 0, multas = 0, vendas = 0;
     clientes.forEach(cli => {
       (cli.contratos || []).forEach(con => {
@@ -174,10 +177,10 @@ export function useClientes() {
       });
     });
     return { capital: capitalTotal, lucro, multas, vendas };
-  };
+  }, [clientes]);
 
-  // --- AÇÕES ---
-  const adicionarCliente = async (dados: Partial<Cliente>) => {
+  // --- AÇÕES (Todas memorizadas com useCallback) ---
+  const adicionarCliente = useCallback(async (dados: Partial<Cliente>) => {
     try {
       const { error } = await supabase.from('clientes').insert([{
         nome: dados.nome, whatsapp: dados.whatsapp, cpf: dados.cpf, endereco: dados.endereco, indicacao: dados.indicacao,
@@ -186,9 +189,9 @@ export function useClientes() {
       if (error) throw error;
       await fetchData(); 
     } catch (e) { Alert.alert(t('common.erro'), "Falha ao salvar"); }
-  };
+  }, [fetchData, t]);
 
-  const editarCliente = async (nomeAntigo: string, dados: Partial<Cliente>) => {
+  const editarCliente = useCallback(async (nomeAntigo: string, dados: Partial<Cliente>) => {
     const cliente = clientes.find(c => c.nome === nomeAntigo);
     if (!cliente?.id) return;
     try {
@@ -199,9 +202,9 @@ export function useClientes() {
         if (error) throw error;
         await fetchData();
     } catch(e) { Alert.alert(t('common.erro'), "Falha ao editar"); }
-  };
+  }, [clientes, fetchData, t]);
 
-  const excluirCliente = (nomeCliente: string) => {
+  const excluirCliente = useCallback((nomeCliente: string) => {
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return;
     Alert.alert(t('fluxo.excluirTitulo'), `${t('fluxo.excluirMsg')} ${nomeCliente}?`, [
@@ -211,19 +214,19 @@ export function useClientes() {
           if (!error) await fetchData();
         }}
     ]);
-  };
+  }, [clientes, fetchData, t]);
 
-  const alternarBloqueio = async (cliente: Cliente) => {
+  const alternarBloqueio = useCallback(async (cliente: Cliente) => {
     try {
-        if (!cliente.id) return; // Proteção
+        if (!cliente.id) return; 
         const novoStatus = !cliente.bloqueado;
         const { error } = await supabase.from('clientes').update({ bloqueado: novoStatus }).eq('id', cliente.id);
         if (error) throw error;
         await refreshCliente(cliente.id);
     } catch (e) { Alert.alert(t('common.erro'), "Não foi possível alterar o bloqueio."); }
-  };
+  }, [refreshCliente, t]);
 
-  const adicionarContrato = async (nomeCliente: string, novoContrato: any) => {
+  const adicionarContrato = useCallback(async (nomeCliente: string, novoContrato: any) => {
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return Alert.alert(t('common.erro'), t('novoContrato.erroCliente'));
 
@@ -243,7 +246,7 @@ export function useClientes() {
 
                 if (saldoAtual < valorEmprestimo) {
                       const confirmacao = await new Promise<boolean>((resolve) => {
-                         Alert.alert(t('fluxo.aviso'), `Saldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`, [
+                          Alert.alert(t('fluxo.aviso'), `Saldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`, [
                                 { text: t('common.cancelar'), onPress: () => resolve(false), style: 'cancel' },
                                 { text: "Continuar", onPress: () => resolve(true), style: 'destructive' }
                             ]);
@@ -328,13 +331,13 @@ export function useClientes() {
             const idCarteira = await garantirCarteira();
             const userId = await getUserId();
             if (idCarteira && userId) {
-                 let descTipo = t('cadastro.segEmprestimo');
-                 if (freq === 'SEMANAL') descTipo += ` ${t('novoContrato.freqSEMANAL')}`;
-                 else if (freq === 'DIARIO') descTipo += ` ${t('novoContrato.freqDIARIO')}`;
-                 else if (freq === 'MENSAL') descTipo += ` ${t('novoContrato.freqMENSAL')}`;
-                 else if (freq === 'PARCELADO') descTipo += ` ${t('novoContrato.freqParcelado').split(' ')[0]}`;
+                  let descTipo = t('cadastro.segEmprestimo');
+                  if (freq === 'SEMANAL') descTipo += ` ${t('novoContrato.freqSEMANAL')}`;
+                  else if (freq === 'DIARIO') descTipo += ` ${t('novoContrato.freqDIARIO')}`;
+                  else if (freq === 'MENSAL') descTipo += ` ${t('novoContrato.freqMENSAL')}`;
+                  else if (freq === 'PARCELADO') descTipo += ` ${t('novoContrato.freqParcelado').split(' ')[0]}`;
 
-                 await supabase.from('fluxo_pessoal').insert([{
+                  await supabase.from('fluxo_pessoal').insert([{
                     tipo: 'SAIDA',
                     valor: Number(novoContrato.capital),
                     descricao: `${descTipo} p/ ${nomeCliente}`,
@@ -345,11 +348,11 @@ export function useClientes() {
             }
         }
 
-        if (cliente.id) await refreshCliente(cliente.id); // CORREÇÃO TS
+        if (cliente.id) await refreshCliente(cliente.id); 
     } catch (e: any) { Alert.alert(t('common.erro'), e.message); }
-  };
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
 
-  const acaoRenovarQuitar = async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
+  const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
     try {
       const vJuro = contrato.capital * (contrato.taxa / 100);
       let vMulta = 0;
@@ -430,16 +433,16 @@ export function useClientes() {
       if(error) throw error;
       
       const cliente = clientes.find(c => c.contratos.some(ct => ct.id === contrato.id));
-      if (cliente?.id) await refreshCliente(cliente.id); // CORREÇÃO TS
+      if (cliente?.id) await refreshCliente(cliente.id);
       
       const val = tipo === 'RENOVAR' ? (vJuro + vMulta) : (contrato.capital + vJuro + vMulta);
       const tipoTraduzido = tipo === 'RENOVAR' ? t('modalAcao.tipoRenovar') : t('modalAcao.tipoQuitar');
       Alert.alert(t('common.sucesso'), `${tipoTraduzido} ${t('common.sucesso')}!\n💰 R$ ${val.toFixed(2)}`);
 
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao processar."); }
-  };
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
 
-  const pagarParcela = async (nomeCliente: string, contrato: Contrato, dataPagamento: string) => {
+  const pagarParcela = useCallback(async (nomeCliente: string, contrato: Contrato, dataPagamento: string) => {
     try {
       let vMulta = 0;
       if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
@@ -472,14 +475,14 @@ export function useClientes() {
          h.unshift(t('historico.finalizado', { data: dataPagamento }));
          updates.status = 'QUITADO';
          updates.capital = 0;
-      } else {
+       } else {
          updates.capital = novoSaldo;
          const d = lerDataLocal(contrato.proximoVencimento || dataPagamento); 
          if (contrato.frequencia === 'SEMANAL') d.setDate(d.getDate() + 7);
          else if (contrato.frequencia === 'DIARIO') d.setDate(d.getDate() + 1);
          else d.setMonth(d.getMonth() + 1);
          updates.proximo_vencimento = paraBancoISO(d.toLocaleDateString(i18n.language));
-      }
+       }
 
       const { error } = await supabase.from('contratos').update(updates).eq('id', contrato.id);
       if(error) throw error;
@@ -501,13 +504,13 @@ export function useClientes() {
       }
 
       const cliente = clientes.find(c => c.nome === nomeCliente);
-      if(cliente?.id) await refreshCliente(cliente.id); // CORREÇÃO TS
+      if(cliente?.id) await refreshCliente(cliente.id); 
 
       Alert.alert(t('common.sucesso'), `${t('pastaCliente.pagarParcela')} OK!\n💰 R$ ${((contrato.valorParcela||0)+vMulta).toFixed(2)}`);
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao pagar."); }
-  };
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
 
-  const criarAcordo = async (nomeCliente: string, contratoId: number, valorTotal: number, qtd: number, data: string, multaDiaria: number) => {
+  const criarAcordo = useCallback(async (nomeCliente: string, contratoId: number, valorTotal: number, qtd: number, data: string, multaDiaria: number) => {
     try {
         const contrato = clientes.find(c => c.nome === nomeCliente)?.contratos.find(ct => ct.id === contratoId);
         const saldoAnt = contrato?.capital || 0;
@@ -525,21 +528,23 @@ export function useClientes() {
         if (error) throw error;
         
         const cliente = clientes.find(c => c.nome === nomeCliente);
-        if(cliente?.id) await refreshCliente(cliente.id); // CORREÇÃO TS
+        if(cliente?.id) await refreshCliente(cliente.id); 
 
         Alert.alert(t('common.sucesso'), "Acordo realizado!");
     } catch(e) { Alert.alert(t('common.erro'), "Falha no acordo"); }
-  };
+  }, [clientes, paraBancoISO, refreshCliente, t]);
   
-  const editarContrato = async (nomeCliente: string, id: number, dados: any) => { Alert.alert(t('fluxo.aviso'), "Edição rápida indisponível."); }; 
-  const excluirContrato = async (id: number) => { 
+  const editarContrato = useCallback(async (nomeCliente: string, id: number, dados: any) => { Alert.alert(t('fluxo.aviso'), "Edição rápida indisponível."); }, [t]);
+  
+  const excluirContrato = useCallback(async (id: number) => { 
       const { error } = await supabase.from('contratos').delete().eq('id', id);
       if(!error) await fetchData(); 
-  };
-  const importarDados = (d: any) => {};
+  }, [fetchData]);
+  
+  const importarDados = useCallback((d: any) => {}, []);
 
   return {
-    clientes, loading, totais: calcularTotais(), fetchData,
+    clientes, loading, totais, fetchData,
     adicionarCliente, editarCliente, excluirCliente,
     adicionarContrato, editarContrato, excluirContrato,
     acaoRenovarQuitar, pagarParcela, criarAcordo, importarDados,

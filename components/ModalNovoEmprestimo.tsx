@@ -1,5 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,12 +27,10 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
 
   const [clienteId, setClienteId] = useState('');
   const [capital, setCapital] = useState('');
+  
+  // Agora a data é apenas texto simples
   const [dataInicio, setDataInicio] = useState('');
   
-  // --- CALENDÁRIO ---
-  const [dataObjeto, setDataObjeto] = useState(new Date());
-  const [mostrarCalendario, setMostrarCalendario] = useState(false);
-
   const [taxa, setTaxa] = useState('20');
   const [frequencia, setFrequencia] = useState('MENSAL'); 
   const [garantia, setGarantia] = useState('');
@@ -54,9 +50,8 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
         if (cli) setClienteId(cli.id);
       }
       
+      // Preenche automaticamente com a data de hoje formatada (DD/MM/AAAA)
       const hoje = new Date();
-      setDataObjeto(hoje);
-      
       const dia = String(hoje.getDate()).padStart(2, '0');
       const mes = String(hoje.getMonth() + 1).padStart(2, '0');
       const ano = hoje.getFullYear();
@@ -83,24 +78,19 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     }
   };
 
-  const aoMudarData = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-        setMostrarCalendario(false);
-    }
-
-    if (selectedDate) {
-        setDataObjeto(selectedDate);
-        const dia = String(selectedDate.getDate()).padStart(2, '0');
-        const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const ano = selectedDate.getFullYear();
-        setDataInicio(`${dia}/${mes}/${ano}`);
-    }
+  // Função simples para atualizar o texto da data
+  const handleDataChange = (text: string) => {
+    setDataInicio(text);
   };
 
   const handleSalvar = () => {
     if (!clienteId) return Alert.alert(t('common.erro'), t('novoContrato.erroCliente') || "Selecione um cliente.");
     if (!capital) return Alert.alert(t('common.erro'), t('novoContrato.erroValor') || "Digite o valor.");
-    if (!dataInicio) return Alert.alert(t('common.erro'), t('novoContrato.erroData') || "Informe a data.");
+    
+    // Validação básica da data manual
+    if (!dataInicio || dataInicio.length < 8) {
+        return Alert.alert(t('common.erro'), t('novoContrato.erroData') || "Informe a data corretamente.");
+    }
 
     const valCapital = parseFloat(capital.replace(',', '.') || '0');
     const valTaxa = parseFloat(taxa.replace(',', '.') || '0');
@@ -114,7 +104,6 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     let parcelasFinal = null;
 
     if (tipoOperacao === 'VENDA') {
-        // Lógica simplificada: Só tem MENSAL ou PARCELADO
         if (modVenda === 'MENSAL') {
             frequenciaFinal = 'MENSAL';
             parcelasFinal = null; 
@@ -124,7 +113,6 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
             parcelasFinal = isNaN(p) || p < 1 ? 1 : p;
         }
     } else {
-        // Lógica Empréstimo
         frequenciaFinal = frequencia;
         parcelasFinal = null;
     }
@@ -137,7 +125,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       garantia: textoDescritivo,
       diasDiario: frequencia === 'DIARIO' ? parseInt(diasDiario) : null,
       totalParcelas: parcelasFinal,
-      dataInicio, 
+      dataInicio, // Envia a string da data diretamente
       valorMultaDiaria: valMulta
     });
   };
@@ -185,7 +173,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
               </ScrollView>
             )}
 
-            {/* LINHA: VALOR e DATA (Calendário para AMBOS) */}
+            {/* LINHA: VALOR e DATA (Agora manual) */}
             <View style={{flexDirection:'row', gap:10}}>
                 <View style={{flex:1.5}}>
                     <Text style={styles.label}>{tipoOperacao === 'VENDA' ? t('novoContrato.valorVenda') : t('novoContrato.valorEmprestimo')}</Text>
@@ -195,21 +183,15 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                 <View style={{flex:1}}>
                     <Text style={styles.label}>{t('novoContrato.data')}</Text>
                     
-                    <TouchableOpacity onPress={() => setMostrarCalendario(true)} style={[styles.input, {justifyContent:'center'}]}>
-                         <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between'}}>
-                             <Text style={{fontSize:16, color:'#333'}}>{dataInicio}</Text>
-                             <Ionicons name="calendar-outline" size={18} color="#2980B9" />
-                         </View>
-                    </TouchableOpacity>
-
-                    {mostrarCalendario && (
-                        <DateTimePicker
-                            value={dataObjeto}
-                            mode="date"
-                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                            onChange={aoMudarData}
-                        />
-                    )}
+                    {/* INPUT MANUAL SUBSTITUINDO O CALENDÁRIO */}
+                    <TextInput 
+                        style={styles.input} 
+                        value={dataInicio} 
+                        onChangeText={handleDataChange} 
+                        placeholder="DD/MM/AAAA" 
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={10} 
+                    />
                 </View>
             </View>
 
@@ -293,7 +275,6 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                 <View style={{marginTop: 10}}>
                       <Text style={styles.label}>{t('novoContrato.modalidade')}</Text>
                       <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'MENSAL' ? 'SEMANAL' : frequencia === 'SEMANAL' ? 'DIARIO' : 'MENSAL')}>
-                        {/* AQUI ESTAVA O PROBLEMA: Usamos agora a chave dinâmica para traduzir */}
                         <Text style={{fontWeight:'bold', color:'#333'}}>
                             {t(`novoContrato.freq${frequencia}`)}
                         </Text>
