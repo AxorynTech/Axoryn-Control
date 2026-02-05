@@ -40,8 +40,16 @@
     "msgRestricaoDupla": "Double Restriction (ID & Phone)",
     "msgRestricaoDoc": "Restriction on ID",
     "msgRestricaoTel": "Restriction on Phone",
-    "msgLimpo": "Nothing found. Safe client.",
-    "dias": "days"
+    "dias": "days",
+    "renovacaoTitulo": "Renewal",
+    "msgRenovacao": "Your monthly credits have been renewed! +10 queries.",
+    "recargaTitulo": "Recharge",
+    "msgRecargaSucesso": "10 queries package released for YOU! 🚀",
+    "erroRecarga": "Failed to recharge.",
+    "erroConsulta": "Connection or query failed.",
+    "criterioSemAtraso": "No delays detected",
+    "msgLimpo": "CLEAR. Client approved.",
+    "tituloSection": "🛡️ RISK ANALYSIS (AXORYN SHIELD)"
   },
   "termos": {
     "tituloPrincipal": "Terms of Use and Legal Policy",
@@ -90,6 +98,7 @@
     "saldo": "Balance",
     "totalPessoal": "Total Personal (w/o Wallet)",
     "novoLancamento": "New Entry",
+    "transferir": "Transfer",
     "selecioneConta": "Select a specific account to view statement.",
     "nenhumLancamento": "No entries in this account.",
     "criarConta": "Create New Account",
@@ -107,7 +116,30 @@
     "excluirMsg": "Delete this entry?",
     "btnApagar": "Delete",
     "erroPreencha": "Fill in all fields!",
-    "erroPreenchaConta": "Fill in name and institution!"
+    "erroPreenchaConta": "Fill in name and institution!",
+    "transferirEntreContas": "Transfer between Accounts",
+    "deOrigem": "From (Source)",
+    "paraDestino": "To (Destination)",
+    "valorTransferencia": "Transfer Value",
+    "origemDestinoIguais": "Source and destination are the same!",
+    "gerarExtratoPDF": "Generate PDF Statement",
+    "dataInicio": "Start Date",
+    "dataFim": "End Date",
+    "gerarPDF": "Generate PDF",
+    "aviso": "Warning",
+    "selecioneContaPrimeiro": "Select an account first.",
+    "transferencia": "Transfer",
+    "extratoConta": "Account Statement",
+    "periodo": "Period",
+    "totalEntradas": "Total Income",
+    "totalSaidas": "Total Expense",
+    "resultadoPeriodo": "Period Result",
+    "nenhumaMovimentacao": "No transactions found in this period.",
+    "falhaTransferencia": "Transfer failed.",
+    "sucessoTransferencia": "Transfer successful!",
+    "falhaSalvar": "Failed to save entry.",
+    "falhaCriarConta": "Failed to create account.",
+    "falhaPDF": "Failed to generate PDF."
   },
   "resumo": {
     "titulo": "Financial Summary",
@@ -129,15 +161,39 @@
     "endereco": "Address",
     "indicacao": "Referral",
     "reputacao": "Initial Reputation",
-    "btnSalvar": "REGISTER CLIENT"
+    "btnSalvar": "REGISTER CLIENT",
+    "placeholderEndereco": "Street, Number, District",
+    "placeholderIndicacao": "Optional",
+    "placeholderReputacao": "e.g., Good payer, Neutral...",
+    "msgSucesso": "Client saved successfully!"
   },
   "perfil": {
     "statusConta": "Account Status",
-    "gerenciarWeb": "Manage Web Account",
+    "gerenciarWeb": "Manage Account",
     "opcoes": "Options",
     "meusDados": "My Data",
     "suporte": "Support",
-    "idioma": "Language / Idioma"
+    "idioma": "Language / Idioma",
+    "usuarioRegistrado": "Registered User",
+    "contaPadrao": "STANDARD ACCOUNT",
+    "descPadrao": "Access the portal to check your license status.",
+    "contaVerificada": "Verified Account",
+    "licencaAtiva": "ACTIVE LICENSE",
+    "descPremium": "Your account is active and fully operational.",
+    "erroNavegador": "Could not open browser.",
+    "msgSuporte": "Hello, I need help with App support.",
+    "nivelIniciante": "Beginner",
+    "nivelProfissional": "Professional",
+    "nivelMagnata": "Tycoon",
+    "rankingGlobal": "Global Ranking",
+    "suaPosicao": "Your Rank",
+    "lugar": "Place",
+    "calculando": "Calculating...",
+    "totalXP": "Total XP",
+    "proximoNivel": "Next Level",
+    "clientes": "Clients",
+    "contratos": "Contracts",
+    "consultas": "Queries"
   },
   "dashboardStats": {
     "visaoGeral": "Overview",
@@ -169,8 +225,12 @@
     "btnConfirmarVenda": "CONFIRM SALE",
     "btnConfirmarEmprestimo": "CONFIRM LOAN",
     "cancelar": "Cancel",
+    "freqUnico": "💵 CASH (Single Payment)",
     "freqParcelado": "📅 INSTALLMENTS",
     "freqMensalRecorrente": "🗓️ MONTHLY (Recurring)",
+    "freqMENSAL": "MONTHLY",
+    "freqSEMANAL": "WEEKLY",
+    "freqDIARIO": "DAILY",
     "erroCliente": "Select a client.",
     "erroValor": "Enter value.",
     "erroData": "Select date."
@@ -289,12 +349,84 @@
     "venceHojeStatus": "Due Today!",
     "tudoEmDia": "Everything looks good!"
   },
+  "modalNovoEmprestimo": {
+    "produtoPrefix": "PRODUCT: ",
+    "vendaDiversa": "Misc. Sale",
+    "placeholderParcelas": "e.g., 3"
+  },
+  "modalAcao": {
+    "descricaoQuitar": "Did the client pay everything? Enter date:",
+    "descricaoRenovar": "Did the client pay interest only? Enter date:",
+    "labelData": "Payment Date",
+    "btnConfirmar": "CONFIRM",
+    "tipoQuitar": "SETTLE",
+    "tipoRenovar": "RENEW"
+  },
+  "pagarParcela": {
+    "titulo": "RECEIVE INSTALLMENT",
+    "confirmarMsg": "Confirm receipt of installment",
+    "valor": "Amount",
+    "dataPagamento": "Payment Date",
+    "btnReceber": "CONFIRM RECEIPT"
+  },
   "common": {
     "erro": "Error",
     "sucesso": "Success",
     "preenchaCampos": "Fill in all fields.",
     "cancelar": "Cancel",
     "salvar": "Save",
-    "dias": "days"
+    "dias": "days",
+    "moeda": "$",
+    "formatoData": "en-US"
+  },
+  "barraPesquisa": {
+    "placeholder": "🔍 Search client..."
+  },
+  "modalDadosPessoais": {
+    "titulo": "My Data",
+    "nome": "Name",
+    "email": "E-mail",
+    "idUsuario": "User ID",
+    "membroDesde": "Member since",
+    "avisoSenha": "For security, your password is not shown.",
+    "usuarioPadrao": "Axoryn User"
+  },
+  "modalEditarCliente": {
+    "tituloEditar": "Edit Client",
+    "erroNome": "Name is required",
+    "btnSalvarMudancas": "SAVE CHANGES"
+  },
+  "notificacao": {
+    "titulo": "Boss, We Have Work! 🎩",
+    "corpo": "You have {{qtd}} collections due today (Total: {{valor}})"
+  },
+  "modalParcelamento": {
+    "titulo": "NEGOTIATION / AGREEMENT",
+    "aviso": "Upon confirmation, the loan becomes a fixed installment plan.",
+    "valorTotal": "TOTAL Agreement Value",
+    "qtdParcelas": "Number of Installments",
+    "multaDiaria": "Daily Late Fee",
+    "dataPrimeira": "Date of 1st Installment",
+    "serao": "Will be",
+    "de": "of",
+    "btnCriar": "CREATE PLAN"
+  },
+  "historico": {
+    "criadoParcelado": "{{data}}: {{tipo}} Installments ({{qtd}}x ${{valor}})",
+    "criadoSemanal": "{{data}}: {{tipo}} Weekly (4x ${{valor}})",
+    "criadoDiario": "{{data}}: {{tipo}} Daily ({{dias}}x ${{valor}})",
+    "criadoMensal": "{{data}}: {{tipo}} Monthly (${{valor}})",
+    "renovacao": "{{data}}: RENEWAL (Interest ${{juros}}",
+    "comMulta": "Fine ${{valor}}",
+    "quitado": "{{data}}: SETTLED - Total ${{total}}",
+    "recebido": "{{data}}: Received ${{valor}}",
+    "finalizado": "{{data}}: CONTRACT CLOSED!",
+    "acordo": "{{data}}: AGREEMENT ${{valor}} ({{qtd}}x)"
+  },
+  "status": {
+    "ATIVO": "ACTIVE",
+    "QUITADO": "SETTLED",
+    "PARCELADO": "INSTALLMENTS",
+    "ATRASADO": "OVERDUE"
   }
 }

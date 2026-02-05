@@ -2,10 +2,10 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next'; // <--- Importação
 import { Alert, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Cliente, Contrato } from '../types';
-import RiskRadarCSI from './RiskRadarCSI'; // O seu Radar importado aqui
+import RiskRadarCSI from './RiskRadarCSI';
 
 type Props = {
   cliente: Cliente;
@@ -29,9 +29,20 @@ export default function PastaCliente({
   aoAlternarBloqueio 
 }: Props) {
 
-  const { t } = useTranslation();
+  const { t } = useTranslation(); // <--- Hook
   const [historicoVisivel, setHistoricoVisivel] = useState(false);
   const [historicoConteudo, setHistoricoConteudo] = useState<string[]>([]);
+
+  // --- HELPERS DE TRADUÇÃO ---
+  const traduzirStatus = (status: string) => {
+      // Busca a chave 'status.ATIVO', 'status.QUITADO', etc.
+      return t(`status.${status}`, { defaultValue: status });
+  };
+
+  const traduzirFrequencia = (freq: string) => {
+      // Busca 'novoContrato.freqMENSAL', etc.
+      return t(`novoContrato.freq${freq}`, { defaultValue: freq });
+  };
 
   const abrirWhatsapp = (numero: string) => {
     if (!numero) return Alert.alert("Ops", t('pastaCliente.erroZap') || "Cliente sem número cadastrado.");
@@ -54,13 +65,17 @@ export default function PastaCliente({
     aoNovoEmprestimo();
   };
 
-  // --- LÓGICA DO PDF (MANTIDA INTACTA) ---
+  // --- LÓGICA DO PDF ---
   const gerarPDF = async (con: Contrato) => {
     try {
       const dataEmissao = new Date().toLocaleDateString('pt-BR');
       const isVenda = con.frequencia === 'PARCELADO' || (con.garantia && con.garantia.startsWith('PRODUTO:'));
       const labelGarantia = isVenda ? (t('pdf.produtoServico') || '📦 Produto/Serviço') : (t('pdf.garantia') || '🔐 Garantia');
       const textoGarantia = con.garantia ? con.garantia.replace('PRODUTO:', '').trim() : (t('pdf.naoInformada') || 'Não informada');
+
+      // Traduz status e frequência para o PDF
+      const statusPDF = traduzirStatus(con.status);
+      const freqPDF = traduzirFrequencia(con.frequencia || 'MENSAL');
 
       const linhasHistorico = (con.movimentacoes || []).map((m, index) => `
         <tr style="background-color: ${index % 2 === 0 ? '#fff' : '#f9f9f9'}">
@@ -123,8 +138,8 @@ export default function PastaCliente({
               <div class="box">
                 <div class="label">${t('pdf.resumoFinanceiro') || 'RESUMO FINANCEIRO'}</div>
                 <div class="row-items">
-                  <div class="item"><span>Status:</span> <b>${con.status}</b></div>
-                  <div class="item"><span>${t('pdf.frequencia') || 'Frequência'}:</span> <b>${con.frequencia}</b></div>
+                  <div class="item"><span>Status:</span> <b>${statusPDF}</b></div>
+                  <div class="item"><span>${t('pdf.frequencia') || 'Frequência'}:</span> <b>${freqPDF}</b></div>
                   <div class="item"><span>${t('pdf.inicio') || 'Início'}:</span> ${con.dataInicio || '-'}</div>
                   <div class="item"><span>${t('pdf.vencimento') || 'Vencimento'}:</span> <b style="color:#C0392B">${con.proximoVencimento}</b></div>
                 </div>
@@ -235,7 +250,8 @@ export default function PastaCliente({
           {/* =========== RADAR DE RISCO AUTOMÁTICO =========== */}
           {/* ================================================= */}
           <View style={styles.radarContainer}>
-             <Text style={styles.radarLabel}>🛡️ ANÁLISE DE RISCO (AXORYN SHIELD)</Text>
+             {/* AQUI ESTÁ A CORREÇÃO PRINCIPAL */}
+             <Text style={styles.radarLabel}>{t('radar.tituloSection')}</Text>
              <RiskRadarCSI 
                 compacto={true}
                 initialNome={cliente.nome}
@@ -278,9 +294,11 @@ export default function PastaCliente({
                   <Text style={styles.conValor}>R$ {con.capital?.toFixed(2)}</Text>
                 </View>
                 <View style={{flexDirection:'row', alignItems:'center', gap: 10}}>
+                  {/* --- MUDANÇA AQUI: Tradução do STATUS --- */}
                   <View style={[styles.badge, con.status === 'QUITADO' ? {backgroundColor:'#CCC'} : con.status === 'PARCELADO' ? {backgroundColor:'#8E44AD'} : {backgroundColor:'#E67E22'}]}>
-                    <Text style={styles.badgeTxt}>{con.status}</Text>
+                    <Text style={styles.badgeTxt}>{traduzirStatus(con.status)}</Text>
                   </View>
+                  
                   <TouchableOpacity onPress={() => abrirHistoricoCompleto(con.movimentacoes || [])} style={styles.btnIcone}>
                       <Ionicons name="search-circle" size={28} color="#2980B9" />
                   </TouchableOpacity>
@@ -310,7 +328,8 @@ export default function PastaCliente({
                    </Text>
                  </View>
               ) : (
-                 <Text style={styles.info}>{t('pastaCliente.juros')}: {con.taxa}% ({con.frequencia || 'MENSAL'})</Text>
+                 // --- MUDANÇA AQUI: Tradução da FREQUÊNCIA ---
+                 <Text style={styles.info}>{t('pastaCliente.juros')}: {con.taxa}% ({traduzirFrequencia(con.frequencia || 'MENSAL')})</Text>
               )}
 
               {con.status !== 'QUITADO' && (

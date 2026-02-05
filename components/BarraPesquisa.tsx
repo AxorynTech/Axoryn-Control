@@ -1,12 +1,15 @@
 ﻿import React from 'react';
-import { TextInput, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
+import { StyleSheet, TextInput, View } from 'react-native';
 
 export function BarraPesquisa({ texto, aoDigitar }: any) {
+  const { t } = useTranslation(); // <--- Hook de tradução
+
   return (
     <View style={styles.container}>
       <TextInput 
         style={styles.input}
-        placeholder="🔍 Buscar cliente..."
+        placeholder={t('barraPesquisa.placeholder')} // <--- Texto traduzido
         placeholderTextColor="#999"
         value={texto}
         onChangeText={aoDigitar}

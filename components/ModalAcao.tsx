@@ -1,5 +1,6 @@
-import DateTimePicker from '@react-native-community/datetimepicker'; // <--- IMPORT NOVO
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type Props = {
@@ -10,6 +11,8 @@ type Props = {
 };
 
 export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
+  const { t } = useTranslation(); // <--- Hook de tradução
+  
   // Mudamos o estado de string para Date para funcionar com o calendário
   const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
@@ -34,10 +37,18 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
   // Define a cor baseada no tipo de ação
   const corPrincipal = tipo === 'QUITAR' ? '#27AE60' : '#2980B9';
   
-  // Texto descritivo (Mantido original)
+  // Texto descritivo Traduzido
   const textoDescricao = tipo === 'QUITAR' 
-    ? 'O cliente pagou tudo? Informe a data:' 
-    : 'O cliente pagou s\u00F3 os juros? Informe a data:';
+    ? t('modalAcao.descricaoQuitar') 
+    : t('modalAcao.descricaoRenovar');
+
+  // Título Traduzido
+  const tituloTraduzido = tipo === 'QUITAR'
+    ? t('modalAcao.tipoQuitar')
+    : t('modalAcao.tipoRenovar');
+
+  // Formato da data vindo do JSON (pt-BR, en-US, etc)
+  const localeData = t('common.formatoData', { defaultValue: 'pt-BR' });
 
   return (
     <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar}>
@@ -45,13 +56,13 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
         <View style={styles.card}>
           {/* Cabeçalho com cor dinâmica */}
           <View style={[styles.cabecalho, { backgroundColor: corPrincipal }]}>
-            <Text style={styles.titulo}>{tipo}</Text>
+            <Text style={styles.titulo}>{tituloTraduzido}</Text>
           </View>
 
           <View style={styles.corpo}>
             <Text style={styles.descricao}>{textoDescricao}</Text>
             
-            <Text style={styles.label}>Data do Pagamento</Text>
+            <Text style={styles.label}>{t('modalAcao.labelData')}</Text>
             
             {/* SUBSTITUIÇÃO: Em vez de TextInput, usamos um TouchableOpacity 
                com a mesma aparência para abrir o calendário.
@@ -61,7 +72,7 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
               onPress={() => setShowPicker(true)}
             >
               <Text style={styles.textoData}>
-                {date.toLocaleDateString('pt-BR')}
+                {date.toLocaleDateString(localeData)}
               </Text>
             </TouchableOpacity>
 
@@ -78,13 +89,15 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
             
             <TouchableOpacity 
               style={[styles.botaoConfirmar, { backgroundColor: corPrincipal }]} 
-              onPress={() => confirmar(date.toLocaleDateString('pt-BR'))}
+              onPress={() => confirmar(date.toLocaleDateString(localeData))}
             >
-              <Text style={styles.textoBotao}>CONFIRMAR {tipo}</Text>
+              <Text style={styles.textoBotao}>
+                {t('modalAcao.btnConfirmar')} {tituloTraduzido}
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity onPress={fechar} style={styles.botaoCancelar}>
-              <Text style={styles.textoCancelar}>Cancelar</Text>
+              <Text style={styles.textoCancelar}>{t('common.cancelar')}</Text>
             </TouchableOpacity>
           </View>
         </View>

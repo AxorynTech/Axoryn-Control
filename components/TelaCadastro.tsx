@@ -43,7 +43,8 @@ export default function TelaCadastro({ aoSalvar }: Props) {
 
   const handleSalvar = () => {
     if (!nome.trim()) {
-       return Alert.alert(t('common.erro'), t('common.preenchaCampos') || "Nome é obrigatório");
+       // CORREÇÃO: Usando chave de tradução para erro
+       return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
     }
     
     aoSalvar({
@@ -65,7 +66,8 @@ export default function TelaCadastro({ aoSalvar }: Props) {
     setReputacao(''); 
     setSegmento('EMPRESTIMO');
     
-    Alert.alert(t('common.sucesso'), "Cliente salvo com sucesso!");
+    // CORREÇÃO: Usando chave de tradução para sucesso
+    Alert.alert(t('common.sucesso'), t('cadastro.msgSucesso'));
   };
 
   return (
@@ -125,29 +127,32 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           />
 
           <Text style={styles.label}>{t('cadastro.endereco')}</Text>
+          {/* CORREÇÃO: Placeholder traduzido */}
           <TextInput 
             style={styles.input} 
             value={endereco} 
             onChangeText={setEndereco} 
-            placeholder="Rua, Número, Bairro" 
+            placeholder={t('cadastro.placeholderEndereco')} 
             placeholderTextColor="#999"
           />
 
           <Text style={styles.label}>{t('cadastro.indicacao')}</Text>
+          {/* CORREÇÃO: Placeholder traduzido */}
           <TextInput 
             style={styles.input} 
             value={indicacao} 
             onChangeText={setIndicacao} 
-            placeholder="Opcional" 
+            placeholder={t('cadastro.placeholderIndicacao')} 
             placeholderTextColor="#999"
           />
 
           <Text style={styles.label}>{t('cadastro.reputacao')}</Text>
+          {/* CORREÇÃO: Placeholder traduzido */}
           <TextInput 
             style={styles.input} 
             value={reputacao} 
             onChangeText={setReputacao} 
-            placeholder="Ex: Bom pagador, Neutro..." 
+            placeholder={t('cadastro.placeholderReputacao')} 
             placeholderTextColor="#999"
           />
 

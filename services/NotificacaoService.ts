@@ -1,4 +1,5 @@
 ﻿import * as Notifications from 'expo-notifications';
+import i18n from '../i18n'; // <--- Importação direta da instância de tradução
 import { Cliente } from '../types';
 
 // Configuração da Notificação
@@ -62,10 +63,22 @@ export async function verificarNotificacoes(clientes: Cliente[]) {
     // Limpa notificações antigas para não acumular spam
     await Notifications.cancelAllScheduledNotificationsAsync();
 
+    // --- TRADUÇÃO AQUI ---
+    // Como não estamos num componente, usamos i18n.t diretamente
+    const moeda = i18n.t('common.moeda', { defaultValue: 'R$' });
+    
+    const titulo = i18n.t('notificacao.titulo');
+    
+    // Passamos as variáveis (qtd e valor) para a string traduzida
+    const corpo = i18n.t('notificacao.corpo', { 
+        qtd: qtdCobrancas, 
+        valor: `${moeda} ${valorTotal.toFixed(2)}` 
+    });
+
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Chefe, Temos Trabalho! 🎩",
-        body: `O Sr. tem ${qtdCobrancas} cobranças para fazer hoje (Total: R$ ${valorTotal.toFixed(2)})`,
+        title: titulo,
+        body: corpo,
         sound: true,
       },
       trigger: null, // Manda na hora

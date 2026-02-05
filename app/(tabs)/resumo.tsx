@@ -3,40 +3,35 @@ import { useClientes } from '@/hooks/useClientes';
 import { supabase } from '@/services/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
+import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ResumoScreen() {
-  const { t } = useTranslation(); // <--- Hook de tradução
-  // Agora desestruturamos o fetchData também
+  const { t } = useTranslation(); 
   const { clientes, fetchData } = useClientes(); 
   const [totais, setTotais] = useState({ dia: 0, semana: 0, mes: 0 });
   const [historicoRecente, setHistoricoRecente] = useState<any[]>([]);
 
-  // Atualiza os cálculos locais sempre que a lista de 'clientes' mudar
+  // Recalcula sempre que os dados mudarem
   useEffect(() => {
     calcularFinancas();
   }, [clientes]);
 
-  // Recarrega dados do banco ao entrar na tela (Foco)
   useFocusEffect(
     useCallback(() => {
       fetchData();
     }, [])
   );
 
-  // --- ✅ NOVO: REALTIME NO RESUMO ---
   useEffect(() => {
     console.log("📊 Iniciando Realtime na tela de Resumo...");
-    
     const canalResumo = supabase
       .channel('atualizacao-resumo')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'contratos' }, // Monitora pagamentos/emprestimos
+        { event: '*', schema: 'public', table: 'contratos' }, 
         (payload) => {
-          console.log('💰 Pagamento/Alteração detectada! Atualizando Resumo...', payload);
-          fetchData(); // Busca os dados atualizados do Supabase
+          fetchData(); 
         }
       )
       .subscribe();
@@ -45,7 +40,6 @@ export default function ResumoScreen() {
       supabase.removeChannel(canalResumo);
     };
   }, []);
-  // --------------------------------
 
   const calcularFinancas = () => {
     let somaDia = 0;
@@ -56,63 +50,104 @@ export default function ResumoScreen() {
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
 
-    // Configura datas de corte (Semana e Mês)
     const inicioSemana = new Date(hoje);
-    inicioSemana.setDate(hoje.getDate() - hoje.getDay()); // Domingo
+    inicioSemana.setDate(hoje.getDate() - hoje.getDay()); 
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
     clientes.forEach(cli => {
       (cli.contratos || []).forEach(con => {
         (con.movimentacoes || []).forEach(mov => {
           
-          // 1. Tenta encontrar a data no início da frase (dd/mm/yyyy)
-          const dateMatch = mov.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-          if (!dateMatch) return;
+          let dataMov: Date | null = null;
+          let dataOriginal = '';
 
-          const dia = parseInt(dateMatch[1]);
-          const mes = parseInt(dateMatch[2]);
-          const ano = parseInt(dateMatch[3]);
-          const dataMov = new Date(ano, mes - 1, dia);
-
-          // 2. Tenta encontrar o valor (seja Recebido ou Total)
-          let valor = 0;
-
-          // Caso A: Pagamento de Parcela ("Recebido R$ 50.00")
-          const matchRecebido = mov.match(/Recebido R\$\s*([\d\.]+)/);
-          if (matchRecebido) {
-             valor = parseFloat(matchRecebido[1]);
+          // --- ESTRATÉGIA 1: ISO (YYYY-MM-DD) ---
+          const isoMatch = mov.match(/(\d{4})-(\d{2})-(\d{2})/);
+          if (isoMatch) {
+             const ano = parseInt(isoMatch[1]);
+             const mes = parseInt(isoMatch[2]);
+             const dia = parseInt(isoMatch[3]);
+             dataMov = new Date(ano, mes - 1, dia);
+             dataOriginal = isoMatch[0];
           } 
-          // Caso B: Renovação ou Quitação ("Total R$ 150.00")
           else {
-             const matchTotal = mov.match(/Total R\$\s*([\d\.]+)/);
-             if (matchTotal && (mov.includes('RENOVAÇÃO') || mov.includes('QUITADO'))) {
-                valor = parseFloat(matchTotal[1]);
+             // --- ESTRATÉGIA 2: FORMATO COM BARRAS (XX/XX/XXXX) ---
+             // Aceita 1 ou 2 dígitos para dia/mês (d/m/yyyy ou dd/mm/yyyy)
+             const slashMatch = mov.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+             
+             if (slashMatch) {
+                const p1 = parseInt(slashMatch[1]); // Primeiro número
+                const p2 = parseInt(slashMatch[2]); // Segundo número
+                const p3 = parseInt(slashMatch[3]); // Ano
+
+                // --- LÓGICA CONTEXTUAL (O Segredo!) ---
+                // Verifica se a linha tem palavras em INGLÊS
+                const temIngles = /SETTLED|RECEIVED|RENEWAL|AGREEMENT|Daily|Weekly|Monthly/i.test(mov);
+
+                if (p1 > 12) {
+                    // Se o 1º nº é > 12, SÓ PODE SER DIA (25/02)
+                    dataMov = new Date(p3, p2 - 1, p1);
+                } else if (p2 > 12) {
+                    // Se o 2º nº é > 12, SÓ PODE SER DIA (02/25) - Formato US
+                    dataMov = new Date(p3, p1 - 1, p2);
+                } else {
+                    // AMBIGUIDADE (ex: 02/05 ou 2/5):
+                    // Se a frase tem inglês, assume Mês/Dia. Senão, assume Dia/Mês.
+                    if (temIngles) {
+                        // Formato US: Mês/Dia/Ano
+                        dataMov = new Date(p3, p1 - 1, p2);
+                    } else {
+                        // Formato BR: Dia/Mês/Ano
+                        dataMov = new Date(p3, p2 - 1, p1);
+                    }
+                }
+                dataOriginal = slashMatch[0];
              }
           }
 
-          // Se achou um valor válido e uma data válida
-          if (valor > 0 && !isNaN(dataMov.getTime())) {
+          if (!dataMov) return;
+
+          // --- 3. VALOR (R$ ou $) ---
+          // Agora aceita espaços opcionais e formatos variados
+          const valueMatch = mov.match(/(?:R\$|\$)\s*([\d\.]+)/);
+          let valor = 0;
+
+          if (valueMatch) {
+             valor = parseFloat(valueMatch[1]);
+          }
+
+          // --- 4. FILTRO DE OPERAÇÕES ---
+          // Aceita palavras de todos os idiomas
+          const isRecebimento = /Recebido|Received|Recibido/i.test(mov);
+          const isQuitacao = /QUITADO|SETTLED|LIQUIDADO/i.test(mov);
+          const isRenovacao = /RENOVAÇÃO|RENEWAL|RENOVACIÓN/i.test(mov);
+          const isAcordo = /ACORDO|AGREEMENT|ACUERDO/i.test(mov);
+
+          const ehOperacaoFinanceira = isRecebimento || isQuitacao || isRenovacao || isAcordo;
+
+          // Se achou valor e data válida
+          if (valor > 0 && !isNaN(dataMov.getTime()) && ehOperacaoFinanceira) {
             
-            // Soma Dia
-            if (dataMov.getTime() === hoje.getTime()) {
+            // Compara datas zerando as horas para evitar bugs de fuso
+            const dMov = new Date(dataMov);
+            dMov.setHours(0,0,0,0);
+
+            if (dMov.getTime() === hoje.getTime()) {
               somaDia += valor;
             }
 
-            // Soma Semana (>= Domingo E <= Hoje)
-            if (dataMov >= inicioSemana && dataMov <= new Date()) {
+            if (dMov >= inicioSemana && dMov <= new Date()) {
               somaSemana += valor;
             }
 
-            // Soma Mês (Mesmo Mês e Ano)
-            if (dataMov.getMonth() === hoje.getMonth() && dataMov.getFullYear() === hoje.getFullYear()) {
+            if (dMov.getMonth() === hoje.getMonth() && dMov.getFullYear() === hoje.getFullYear()) {
               somaMes += valor;
             }
 
-            // Adiciona ao histórico
             listaMov.push({
               cliente: cli.nome,
-              descricao: mov, // Guarda o texto original para exibir
-              dataOriginal: dateMatch[0],
+              descricao: mov, 
+              dataOriginal: dataOriginal,
               valor: valor,
               rawDate: dataMov
             });
@@ -121,12 +156,13 @@ export default function ResumoScreen() {
       });
     });
 
-    // Ordena: Mais recente primeiro
     listaMov.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
 
     setTotais({ dia: somaDia, semana: somaSemana, mes: somaMes });
-    setHistoricoRecente(listaMov.slice(0, 15)); // Pega apenas os 15 últimos
+    setHistoricoRecente(listaMov.slice(0, 15)); 
   };
+
+  const moeda = t('common.moeda', { defaultValue: 'R$' });
 
   const CardResumo = ({ titulo, valor, cor, icone }: any) => (
     <View style={[styles.card, { borderLeftColor: cor }]}>
@@ -134,7 +170,7 @@ export default function ResumoScreen() {
         <Text style={styles.cardTitulo}>{titulo}</Text>
         <IconSymbol size={24} name={icone} color={cor} />
       </View>
-      <Text style={[styles.cardValor, { color: cor }]}>R$ {valor.toFixed(2)}</Text>
+      <Text style={[styles.cardValor, { color: cor }]}>{moeda} {valor.toFixed(2)}</Text>
     </View>
   );
 
@@ -154,13 +190,12 @@ export default function ResumoScreen() {
           <View key={index} style={styles.itemHistorico}>
             <View style={{flex: 1, paddingRight: 10}}>
                 <Text style={styles.histCliente}>{item.cliente}</Text>
-                {/* Mostra um resumo do texto (ex: "Recebido..." ou "Renovação...") */}
                 <Text style={styles.histDesc} numberOfLines={1}>
-                    {item.descricao.split(':')[1]?.trim() || item.descricao}
+                    {item.descricao.replace(/^[\d\-\/]+:\s*/, '')}
                 </Text>
                 <Text style={styles.histData}>{item.dataOriginal}</Text>
             </View>
-            <Text style={styles.histValor}>+ R$ {item.valor.toFixed(2)}</Text>
+            <Text style={styles.histValor}>+ {moeda} {item.valor.toFixed(2)}</Text>
           </View>
         ))}
         {historicoRecente.length === 0 && (

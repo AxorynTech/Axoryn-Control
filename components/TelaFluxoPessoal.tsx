@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker'; // <--- IMPORT NOVO
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
   Modal,
-  Platform, // <--- IMPORT NOVO
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +17,7 @@ import {
 import { useFluxoPessoal } from '../hooks/useFluxoPessoal';
 
 export default function TelaFluxoPessoal() {
+  const { t } = useTranslation();
   const { 
     contas, movimentos, saldoGeral, loading, 
     adicionarConta, excluirConta, 
@@ -37,10 +39,13 @@ export default function TelaFluxoPessoal() {
   const [tipo, setTipo] = useState<'ENTRADA' | 'SAIDA'>('ENTRADA');
   const [valor, setValor] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [data, setData] = useState(new Date().toLocaleDateString('pt-BR'));
+  
+  // Pega o formato de data do arquivo de idioma
+  const localeData = t('common.formatoData', { defaultValue: 'pt-BR' });
+  const [data, setData] = useState(new Date().toLocaleDateString(localeData));
   const [contaIdForm, setContaIdForm] = useState<number | null>(null);
 
-  // --- NOVO: ESTADOS PARA O CALENDÁRIO ---
+  // --- CALENDÁRIO ---
   const [dataObjeto, setDataObjeto] = useState(new Date());
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
 
@@ -58,10 +63,20 @@ export default function TelaFluxoPessoal() {
   const [dataInicioRel, setDataInicioRel] = useState('');
   const [dataFimRel, setDataFimRel] = useState('');
 
+  // --- HELPER DE TRADUÇÃO DA CONTA ---
+  // Se o nome for "Carteira", retorna a tradução. Senão, retorna o nome original.
+  const getNomeConta = (nomeOriginal: string | undefined) => {
+      if (!nomeOriginal) return '';
+      if (nomeOriginal === 'Carteira') return t('menuAbas.carteira'); // Traduz para Wallet/Cartera
+      return nomeOriginal;
+  };
+
   // --- SEPARAÇÃO E CÁLCULOS ---
   const contaCarteira = contas.find(c => c.nome === 'Carteira');
   const outrasContas = contas.filter(c => c.nome !== 'Carteira');
   const saldoPessoalTotal = outrasContas.reduce((acc, c) => acc + c.saldo, 0);
+
+  const moeda = t('common.moeda', { defaultValue: 'R$' });
 
   // --- EXIBIÇÃO ---
   const listaExibida = contaSelecionada 
@@ -72,13 +87,14 @@ export default function TelaFluxoPessoal() {
     ? contas.find(c => c.id === contaSelecionada)?.saldo || 0
     : saldoPessoalTotal; 
 
+  // Usa o Helper para exibir o nome no Saldo Principal
   const nomeExibido = contaSelecionada
-    ? contas.find(c => c.id === contaSelecionada)?.nome
-    : "Total Pessoal (S/ Carteira)";
+    ? getNomeConta(contas.find(c => c.id === contaSelecionada)?.nome)
+    : t('fluxo.totalPessoal');
 
   const formatarMoeda = (val: number) => {
     if (!visivel) return '••••'; 
-    return `R$ ${val.toFixed(2).replace('.', ',')}`;
+    return `${moeda} ${val.toFixed(2).replace('.', ',')}`;
   };
 
   // --- LÓGICA DO CALENDÁRIO ---
@@ -89,10 +105,7 @@ export default function TelaFluxoPessoal() {
 
     if (selectedDate) {
         setDataObjeto(selectedDate);
-        const dia = String(selectedDate.getDate()).padStart(2, '0');
-        const mes = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const ano = selectedDate.getFullYear();
-        setData(`${dia}/${mes}/${ano}`);
+        setData(selectedDate.toLocaleDateString(localeData)); 
     }
   };
 
@@ -112,11 +125,11 @@ export default function TelaFluxoPessoal() {
 
   // --- LÓGICA DO RELATÓRIO ---
   const abrirModalRelatorio = () => {
-      if (!contaSelecionada) return Alert.alert("Aviso", "Selecione uma conta primeiro.");
+      if (!contaSelecionada) return Alert.alert(t('fluxo.aviso'), t('fluxo.selecioneContaPrimeiro'));
       
       const hoje = new Date();
       const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      const format = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      const format = (d: Date) => d.toLocaleDateString(localeData);
       
       setDataInicioRel(format(primeiroDia));
       setDataFimRel(format(hoje));
@@ -127,7 +140,8 @@ export default function TelaFluxoPessoal() {
       if (!contaSelecionada) return;
       const conta = contas.find(c => c.id === contaSelecionada);
       if (!conta) return;
-      await gerarRelatorioPDF(conta.id, conta.nome, dataInicioRel, dataFimRel);
+      // Passa o nome traduzido para o PDF
+      await gerarRelatorioPDF(conta.id, getNomeConta(conta.nome), dataInicioRel, dataFimRel);
       setModalRelatorio(false);
   };
 
@@ -140,12 +154,12 @@ export default function TelaFluxoPessoal() {
     const dataBanco = item.data_movimento || ''; 
     if (dataBanco.includes('-')) {
         const [ano, mes, dia] = dataBanco.split('-');
-        setData(`${dia}/${mes}/${ano}`);
-        // Atualiza o objeto Date para o calendário abrir na data certa
-        setDataObjeto(new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia)));
+        const dObj = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+        setData(dObj.toLocaleDateString(localeData));
+        setDataObjeto(dObj);
     } else {
         const hoje = new Date();
-        setData(hoje.toLocaleDateString('pt-BR'));
+        setData(hoje.toLocaleDateString(localeData));
         setDataObjeto(hoje);
     }
     
@@ -154,9 +168,13 @@ export default function TelaFluxoPessoal() {
   };
 
   const handleSalvarMovimento = async () => {
-    if (!valor || !descricao || !contaIdForm) return alert("Preencha tudo!");
-    const [d, m, a] = data.split('/');
-    const dataISO = `${a}-${m}-${d}`;
+    if (!valor || !descricao || !contaIdForm) return alert(t('fluxo.erroPreencha'));
+    
+    const ano = dataObjeto.getFullYear();
+    const mes = String(dataObjeto.getMonth() + 1).padStart(2, '0');
+    const dia = String(dataObjeto.getDate()).padStart(2, '0');
+    const dataISO = `${ano}-${mes}-${dia}`;
+    
     const valorFloat = parseFloat(valor.replace(',', '.'));
 
     let sucesso = false;
@@ -173,18 +191,18 @@ export default function TelaFluxoPessoal() {
   };
 
   const handleRealizarTransferencia = async () => {
-      if (!transfOrigem || !transfDestino || !transfValor) return alert("Preencha tudo!");
-      if (transfOrigem === transfDestino) return alert("Origem e destino iguais!");
+      if (!transfOrigem || !transfDestino || !transfValor) return alert(t('fluxo.erroPreencha'));
+      if (transfOrigem === transfDestino) return alert(t('fluxo.origemDestinoIguais'));
       
       const valorFloat = parseFloat(transfValor.replace(',', '.'));
       const hojeISO = new Date().toISOString().split('T')[0];
       
-      const sucesso = await transferir(transfOrigem, transfDestino, valorFloat, hojeISO, transfDesc || 'Transferência');
+      const sucesso = await transferir(transfOrigem, transfDestino, valorFloat, hojeISO, transfDesc || t('fluxo.transferencia'));
       if (sucesso) setModalTransferencia(false);
   };
 
   const handleSalvarConta = async () => {
-    if(!nomeNovaConta || !instituicaoConta) return alert("Preencha nome e instituição!");
+    if(!nomeNovaConta || !instituicaoConta) return alert(t('fluxo.erroPreenchaConta'));
     await adicionarConta(nomeNovaConta, instituicaoConta);
     setModalNovaConta(false);
     setNomeNovaConta('');
@@ -193,9 +211,9 @@ export default function TelaFluxoPessoal() {
 
   const handleExcluirNoModal = () => {
     if (!idEdicao) return;
-    Alert.alert("Excluir", "Apagar este lançamento?", [
-        { text: "Cancelar" },
-        { text: "Apagar", style: 'destructive', onPress: async () => {
+    Alert.alert(t('fluxo.excluirTitulo'), t('fluxo.excluirMsg'), [
+        { text: t('common.cancelar') },
+        { text: t('fluxo.btnApagar'), style: 'destructive', onPress: async () => {
             await excluirMovimento(idEdicao);
             setModalMovimento(false);
             limparForm();
@@ -208,9 +226,8 @@ export default function TelaFluxoPessoal() {
     setContaIdForm(contaSelecionada || null);
     setTipo('ENTRADA'); 
     
-    // Reseta data para hoje
     const hoje = new Date();
-    setData(hoje.toLocaleDateString('pt-BR'));
+    setData(hoje.toLocaleDateString(localeData));
     setDataObjeto(hoje);
   };
 
@@ -231,16 +248,16 @@ export default function TelaFluxoPessoal() {
             >
               <View style={{flexDirection:'row', alignItems:'center', marginBottom:2}}>
                  <Ionicons name="briefcase" size={14} color={contaSelecionada === contaCarteira.id ? '#FFF' : '#27AE60'} style={{marginRight:4}} />
-                 <Text style={[styles.txtContaNome, contaSelecionada === contaCarteira.id && {color:'#FFF'}]}>Carteira</Text>
+                 <Text style={[styles.txtContaNome, contaSelecionada === contaCarteira.id && {color:'#FFF'}]}>{t('menuAbas.carteira')}</Text>
               </View>
-              <Text style={[styles.txtContaInst, contaSelecionada === contaCarteira.id && {color:'#DDD'}]}>Giro do Negócio</Text>
+              <Text style={[styles.txtContaInst, contaSelecionada === contaCarteira.id && {color:'#DDD'}]}>{t('fluxo.giroNegocio')}</Text>
               <Text style={[styles.txtContaSaldo, contaSelecionada === contaCarteira.id && {color:'#FFF'}]}>{formatarMoeda(contaCarteira.saldo)}</Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity onPress={() => setContaSelecionada(null)} style={[styles.cardConta, !contaSelecionada && styles.cardContaAtivo]}>
-            <Text style={[styles.txtContaNome, !contaSelecionada && {color:'#FFF'}]}>Visão Geral</Text>
-            <Text style={[styles.txtContaInst, !contaSelecionada && {color:'#DDD'}]}>Exceto Carteira</Text>
+            <Text style={[styles.txtContaNome, !contaSelecionada && {color:'#FFF'}]}>{t('fluxo.visaoGeral')}</Text>
+            <Text style={[styles.txtContaInst, !contaSelecionada && {color:'#DDD'}]}>{t('fluxo.excetoCarteira')}</Text>
             <Text style={[styles.txtContaSaldo, !contaSelecionada && {color:'#FFF'}]}>{formatarMoeda(saldoPessoalTotal)}</Text>
           </TouchableOpacity>
 
@@ -254,7 +271,7 @@ export default function TelaFluxoPessoal() {
 
           <TouchableOpacity onPress={() => setModalNovaConta(true)} style={[styles.cardConta, { borderStyle:'dashed', borderWidth:1, borderColor:'#999', backgroundColor:'transparent' }]}>
             <Ionicons name="add" size={24} color="#666" />
-            <Text style={{ fontSize: 10, color: '#666', fontWeight:'bold' }}>Nova Conta</Text>
+            <Text style={{ fontSize: 10, color: '#666', fontWeight:'bold' }}>{t('fluxo.novaConta')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -263,7 +280,7 @@ export default function TelaFluxoPessoal() {
       <View style={styles.cardSaldo}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
             <Text style={styles.tituloSaldo}>
-              {contaSelecionada ? `Saldo: ${nomeExibido}` : "Total Pessoal (S/ Carteira)"}
+              {contaSelecionada ? `${t('fluxo.saldo')}: ${nomeExibido}` : t('fluxo.totalPessoal')}
             </Text>
             <TouchableOpacity onPress={() => setVisivel(!visivel)} style={{ padding: 5 }}>
                 <Ionicons name={visivel ? "eye" : "eye-off"} size={22} color="#95A5A6" />
@@ -287,12 +304,12 @@ export default function TelaFluxoPessoal() {
       <View style={{ flexDirection: 'row', marginHorizontal: 15, gap: 10 }}>
           <TouchableOpacity style={[styles.btnNovo, {flex: 1}]} onPress={abrirNovo}>
             <Ionicons name="add-circle" size={24} color="#FFF" />
-            <Text style={styles.txtBtnNovo}>Lançamento</Text>
+            <Text style={styles.txtBtnNovo}>{t('fluxo.novoLancamento')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.btnNovo, {flex: 0.8, backgroundColor: '#2980B9'}]} onPress={abrirTransferencia}>
             <Ionicons name="swap-horizontal" size={24} color="#FFF" />
-            <Text style={styles.txtBtnNovo}>Transferir</Text>
+            <Text style={styles.txtBtnNovo}>{t('fluxo.transferir')}</Text>
           </TouchableOpacity>
       </View>
 
@@ -302,7 +319,7 @@ export default function TelaFluxoPessoal() {
             <View style={{ alignItems: 'center', marginTop: 40, opacity: 0.5 }}>
                 <Ionicons name="pie-chart-outline" size={50} color="#95A5A6" />
                 <Text style={{ color: '#7F8C8D', marginTop: 10, textAlign:'center', fontSize: 14 }}>
-                    Selecione uma conta específica{'\n'}para ver o extrato.
+                   {t('fluxo.selecioneConta')}
                 </Text>
             </View>
         ) : (
@@ -315,12 +332,16 @@ export default function TelaFluxoPessoal() {
                     </View>
                     <View style={{ marginLeft: 10, flex: 1 }}>
                         <Text style={styles.desc}>{item.descricao}</Text>
-                        <Text style={styles.contaBadge}>{contas.find(c => c.id === item.conta_id)?.nome}</Text>
+                        
+                        {/* AQUI: Usa o helper para traduzir o nome da conta na lista */}
+                        <Text style={styles.contaBadge}>
+                            {getNomeConta(contas.find(c => c.id === item.conta_id)?.nome)}
+                        </Text>
                     </View>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                     <Text style={[styles.valor, { color: item.tipo === 'ENTRADA' ? '#27AE60' : '#E74C3C' }]}>
-                        {item.tipo === 'ENTRADA' ? '+' : '-'} {visivel ? formatarMoeda(item.valor).replace('R$ ', '') : '••••'}
+                        {item.tipo === 'ENTRADA' ? '+' : '-'} {visivel ? formatarMoeda(item.valor).replace(`${moeda} `, '') : '••••'}
                     </Text>
                     
                     <Text style={styles.data}>
@@ -332,7 +353,7 @@ export default function TelaFluxoPessoal() {
                 ))}
                 
                 {listaExibida.length === 0 && (
-                    <Text style={{ textAlign: 'center', marginTop: 20, color: '#999' }}>Nenhum lançamento nesta conta.</Text>
+                    <Text style={{ textAlign: 'center', marginTop: 20, color: '#999' }}>{t('fluxo.nenhumLancamento')}</Text>
                 )}
             </>
         )}
@@ -342,14 +363,14 @@ export default function TelaFluxoPessoal() {
       <Modal visible={modalNovaConta} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.modalPequeno}>
-            <Text style={styles.modalTitle}>Criar Nova Conta</Text>
-            <Text style={styles.labelInput}>Nome (Ex: Investimentos)</Text>
-            <TextInput placeholder="Nome" style={styles.input} value={nomeNovaConta} onChangeText={setNomeNovaConta} autoFocus />
-            <Text style={styles.labelInput}>Instituição (Ex: Banco Inter)</Text>
-            <TextInput placeholder="Instituição" style={styles.input} value={instituicaoConta} onChangeText={setInstituicaoConta} />
+            <Text style={styles.modalTitle}>{t('fluxo.criarConta')}</Text>
+            <Text style={styles.labelInput}>{t('fluxo.placeholderNome')}</Text>
+            <TextInput placeholder={t('fluxo.placeholderNome')} style={styles.input} value={nomeNovaConta} onChangeText={setNomeNovaConta} autoFocus />
+            <Text style={styles.labelInput}>{t('fluxo.placeholderInst')}</Text>
+            <TextInput placeholder={t('fluxo.placeholderInst')} style={styles.input} value={instituicaoConta} onChangeText={setInstituicaoConta} />
             <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalNovaConta(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleSalvarConta} style={styles.btnSave}><Text style={{color:'#FFF'}}>Criar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalNovaConta(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleSalvarConta} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('fluxo.btnCriar')}</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -360,7 +381,7 @@ export default function TelaFluxoPessoal() {
         <View style={styles.overlay}>
           <View style={styles.modal}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                <Text style={styles.modalTitle}>{idEdicao ? "Editar Lançamento" : "Novo Lançamento"}</Text>
+                <Text style={styles.modalTitle}>{idEdicao ? t('fluxo.editarLancamento') : t('fluxo.novoLancamento')}</Text>
                 {idEdicao && (
                     <TouchableOpacity onPress={handleExcluirNoModal} style={{ padding: 5 }}>
                         <Ionicons name="trash-outline" size={24} color="#E74C3C" />
@@ -368,32 +389,33 @@ export default function TelaFluxoPessoal() {
                 )}
             </View>
 
-            <Text style={styles.labelInput}>Conta de Movimentação:</Text>
+            <Text style={styles.labelInput}>{t('fluxo.contaMov')}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
               {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
                 <TouchableOpacity key={c.id} onPress={() => setContaIdForm(c.id)} style={[styles.badgeConta, contaIdForm === c.id && styles.badgeContaAtivo]}>
-                  <Text style={{ color: contaIdForm === c.id ? '#FFF' : '#333' }}>{c.nome}</Text>
+                  {/* AQUI: Traduz no badge de seleção */}
+                  <Text style={{ color: contaIdForm === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <View style={styles.rowTipo}>
               <TouchableOpacity onPress={() => setTipo('ENTRADA')} style={[styles.btnTipo, tipo === 'ENTRADA' && {backgroundColor:'#27AE60', borderColor:'transparent'}]}>
-                <Text style={{color: tipo==='ENTRADA'?'#FFF':'#27AE60'}}>Entrada</Text>
+                <Text style={{color: tipo==='ENTRADA'?'#FFF':'#27AE60'}}>{t('fluxo.entrada')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setTipo('SAIDA')} style={[styles.btnTipo, tipo === 'SAIDA' && {backgroundColor:'#E74C3C', borderColor:'transparent'}]}>
-                <Text style={{color: tipo==='SAIDA'?'#FFF':'#E74C3C'}}>Saída</Text>
+                <Text style={{color: tipo==='SAIDA'?'#FFF':'#E74C3C'}}>{t('fluxo.saida')}</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.labelInput}>Valor (R$)</Text>
+            <Text style={styles.labelInput}>{t('fluxo.valor')} ({moeda})</Text>
             <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={valor} onChangeText={setValor} />
             
-            <Text style={styles.labelInput}>Descrição</Text>
+            <Text style={styles.labelInput}>{t('fluxo.descricao')}</Text>
             <TextInput placeholder="Ex: Salário" style={styles.input} value={descricao} onChangeText={setDescricao} />
             
-            {/* --- SUBSTITUIÇÃO DO INPUT DE TEXTO PELO CALENDÁRIO --- */}
-            <Text style={styles.labelInput}>Data</Text>
+            {/* --- CALENDÁRIO --- */}
+            <Text style={styles.labelInput}>{t('fluxo.data')}</Text>
             <TouchableOpacity onPress={() => setMostrarCalendario(true)} style={[styles.input, {justifyContent:'center'}]}>
                  <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between'}}>
                      <Text style={{fontSize:16, color:'#333'}}>{data}</Text>
@@ -409,11 +431,11 @@ export default function TelaFluxoPessoal() {
                     onChange={aoMudarData}
                 />
             )}
-            {/* -------------------------------------------------------- */}
+            {/* ------------------ */}
 
             <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalMovimento(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleSalvarMovimento} style={styles.btnSave}><Text style={{color:'#FFF'}}>Salvar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalMovimento(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleSalvarMovimento} style={styles.btnSave}><Text style={{color:'#FFF'}}>{t('common.salvar')}</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -423,14 +445,15 @@ export default function TelaFluxoPessoal() {
       <Modal visible={modalTransferencia} transparent animationType="slide">
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Transferir entre Contas</Text>
+            <Text style={styles.modalTitle}>{t('fluxo.transferirEntreContas')}</Text>
             
             {/* DE: ORIGEM */}
-            <Text style={styles.labelInput}>De (Origem):</Text>
+            <Text style={styles.labelInput}>{t('fluxo.deOrigem')}:</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
               {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
                 <TouchableOpacity key={c.id} onPress={() => setTransfOrigem(c.id)} style={[styles.badgeConta, transfOrigem === c.id && {backgroundColor:'#E74C3C'}]}>
-                  <Text style={{ color: transfOrigem === c.id ? '#FFF' : '#333' }}>{c.nome}</Text>
+                  {/* AQUI: Traduz no badge de origem */}
+                  <Text style={{ color: transfOrigem === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -438,21 +461,24 @@ export default function TelaFluxoPessoal() {
             <View style={{alignItems:'center', marginVertical:-5}}><Ionicons name="arrow-down" size={20} color="#999"/></View>
 
             {/* PARA: DESTINO */}
-            <Text style={styles.labelInput}>Para (Destino):</Text>
+            <Text style={styles.labelInput}>{t('fluxo.paraDestino')}:</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
               {[contaCarteira, ...outrasContas].filter(Boolean).map((c: any) => (
                 <TouchableOpacity key={c.id} onPress={() => setTransfDestino(c.id)} style={[styles.badgeConta, transfDestino === c.id && {backgroundColor:'#27AE60'}]}>
-                  <Text style={{ color: transfDestino === c.id ? '#FFF' : '#333' }}>{c.nome}</Text>
+                  {/* AQUI: Traduz no badge de destino */}
+                  <Text style={{ color: transfDestino === c.id ? '#FFF' : '#333' }}>{getNomeConta(c.nome)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <TextInput placeholder="Valor da Transferência (R$)" keyboardType="numeric" style={styles.input} value={transfValor} onChangeText={setTransfValor} />
-            <TextInput placeholder="Descrição (Opcional)" style={styles.input} value={transfDesc} onChangeText={setTransfDesc} />
+            <Text style={styles.labelInput}>{t('fluxo.valorTransferencia')} ({moeda})</Text>
+            <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={transfValor} onChangeText={setTransfValor} />
+            <Text style={styles.labelInput}>{t('fluxo.descricao')}</Text>
+            <TextInput placeholder={t('cadastro.placeholderIndicacao')} style={styles.input} value={transfDesc} onChangeText={setTransfDesc} />
 
             <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalTransferencia(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleRealizarTransferencia} style={[styles.btnSave, {backgroundColor:'#2980B9'}]}><Text style={{color:'#FFF'}}>Transferir</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalTransferencia(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleRealizarTransferencia} style={[styles.btnSave, {backgroundColor:'#2980B9'}]}><Text style={{color:'#FFF'}}>{t('fluxo.transferir')}</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -462,21 +488,22 @@ export default function TelaFluxoPessoal() {
       <Modal visible={modalRelatorio} transparent animationType="slide">
         <View style={styles.overlay}>
           <View style={styles.modalPequeno}>
-            <Text style={styles.modalTitle}>Gerar Extrato em PDF</Text>
+            <Text style={styles.modalTitle}>{t('fluxo.gerarExtratoPDF')}</Text>
             <Text style={{textAlign:'center', color:'#7F8C8D', marginBottom:15}}>
-                Conta: <Text style={{fontWeight:'bold', color:'#2C3E50'}}>{contas.find(c=>c.id===contaSelecionada)?.nome}</Text>
+                {/* AQUI: Traduz no modal de relatório */}
+                Conta: <Text style={{fontWeight:'bold', color:'#2C3E50'}}>{getNomeConta(contas.find(c=>c.id===contaSelecionada)?.nome)}</Text>
             </Text>
 
-            <Text style={styles.labelInput}>Data Início (DD/MM/AAAA)</Text>
+            <Text style={styles.labelInput}>{t('fluxo.dataInicio')} ({localeData === 'pt-BR' ? 'DD/MM/AAAA' : 'MM/DD/YYYY'})</Text>
             <TextInput style={styles.input} value={dataInicioRel} onChangeText={setDataInicioRel} placeholder="01/01/2024" keyboardType="numeric"/>
 
-            <Text style={styles.labelInput}>Data Fim (DD/MM/AAAA)</Text>
+            <Text style={styles.labelInput}>{t('fluxo.dataFim')} ({localeData === 'pt-BR' ? 'DD/MM/AAAA' : 'MM/DD/YYYY'})</Text>
             <TextInput style={styles.input} value={dataFimRel} onChangeText={setDataFimRel} placeholder="31/01/2024" keyboardType="numeric"/>
 
             <View style={styles.rowBtns}>
-              <TouchableOpacity onPress={() => setModalRelatorio(false)} style={styles.btnCancel}><Text>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalRelatorio(false)} style={styles.btnCancel}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
               <TouchableOpacity onPress={handleGerarPDF} style={[styles.btnSave, {backgroundColor:'#E74C3C'}]}>
-                  <Text style={{color:'#FFF'}}>Gerar PDF</Text>
+                  <Text style={{color:'#FFF'}}>{t('fluxo.gerarPDF')}</Text>
               </TouchableOpacity>
             </View>
           </View>

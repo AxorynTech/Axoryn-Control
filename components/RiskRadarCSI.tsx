@@ -42,11 +42,11 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
   const handleInvestigar = async () => {
       if (consultasRestantes === undefined || consultasRestantes <= 0) {
           Alert.alert(
-              t('radar.limiteTitulo', "Limite Atingido"),
-              t('radar.limiteMsg', "Seus créditos acabaram. Acesse o site para recarregar."),
+              t('radar.limiteTitulo'),
+              t('radar.limiteMsg'),
               [
-                  { text: t('common.cancelar', "Cancelar"), style: "cancel" },
-                  { text: t('radar.irSite', "Ir para o Site"), onPress: abrirSiteRecarga }
+                  { text: t('common.cancelar'), style: "cancel" },
+                  { text: t('radar.irSite'), onPress: abrirSiteRecarga }
               ]
           );
           return;
@@ -91,34 +91,54 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
   const isSaldoBaixo = (consultasRestantes || 0) <= 3;
   const isZerado = (consultasRestantes || 0) <= 0;
   
+  // Texto do botão traduzido dinamicamente
   const textoBotao = isZerado 
-    ? t('radar.btnRecarregar', 'RECARREGAR NO SITE') 
-    : t('radar.btnConsultar', 'CONSULTAR AGORA');
+    ? t('radar.btnRecarregar') 
+    : t('radar.btnConsultar');
 
   const getStatusText = () => {
-      if (resultado.nivel === 'SEGURO') return t('radar.aprovado', 'APROVADO');
-      if (resultado.nivel === 'PERIGO') return t('radar.reprovado', 'REPROVADO');
-      return t('radar.atencao', 'ATENÇÃO');
+      if (resultado.nivel === 'SEGURO') return t('radar.aprovado');
+      if (resultado.nivel === 'PERIGO') return t('radar.reprovado');
+      return t('radar.atencao');
   };
 
-  // --- TRADUTOR INTELIGENTE (CORRIGE O BACKEND) ---
+  // --- CORREÇÃO 1: Tradutor de Mensagens do Backend ---
   const traduzirMensagemBackend = (msg: string) => {
       if (!msg) return "";
       const msgLower = msg.toLowerCase();
       
+      // Captura variações de "Cliente Seguro"
+      if (msgLower.includes('nada consta') || msgLower.includes('liberado') || msgLower.includes('limpo') || msgLower.includes('safe')) {
+          return t('radar.msgLimpo');
+      }
       if (msgLower.includes('dupla') || (msgLower.includes('cpf') && msgLower.includes('celular'))) {
-          return t('radar.msgRestricaoDupla', 'Restrição Dupla');
+          return t('radar.msgRestricaoDupla');
       }
       if (msgLower.includes('cpf') || msgLower.includes('documento')) {
-          return t('radar.msgRestricaoDoc', 'Restrição no Documento');
+          return t('radar.msgRestricaoDoc');
       }
       if (msgLower.includes('celular') || msgLower.includes('telefone') || msgLower.includes('whatsapp')) {
-          return t('radar.msgRestricaoTel', 'Restrição no Telefone');
-      }
-      if (msgLower.includes('limpo') || msgLower.includes('seguro')) {
-          return t('radar.msgLimpo', 'Cliente Seguro');
+          return t('radar.msgRestricaoTel');
       }
       return msg;
+  };
+
+  // --- CORREÇÃO 2: Tradutor de Critérios (Checklist) ---
+  const traduzirCriterio = (criterio: string) => {
+      if (!criterio) return "";
+      
+      // Detecta "Nenhum atraso"
+      if (criterio.toLowerCase().includes('nenhum atraso') || criterio.includes('No delays')) {
+          const icone = criterio.includes('✅') ? '✅ ' : '';
+          return icone + t('radar.criterioSemAtraso');
+      }
+
+      // Substituições genéricas
+      return criterio
+        .replace('Pendência', t('radar.atencao'))
+        .replace('Limpo', t('radar.aprovado'))
+        .replace('Attention', t('radar.atencao'))
+        .replace('Clean', t('radar.aprovado'));
   };
 
   return (
@@ -138,7 +158,9 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
         >
             <Ionicons name={!isZerado ? "flash" : "alert-circle"} size={14} color={!isZerado && !isSaldoBaixo ? "#F1C40F" : "#E74C3C"} />
             <Text style={[styles.txtCreditos, isSaldoBaixo ? {color:'#C0392B'} : {color:'#B7950B'}]}>
-                {consultasRestantes === undefined || consultasRestantes === null ? '...' : (isZerado ? t('radar.acabou', 'Acabou') : `${t('radar.restam', 'Restam')}: ${consultasRestantes}`)}
+                {consultasRestantes === undefined || consultasRestantes === null 
+                    ? '...' 
+                    : (isZerado ? t('radar.acabou') : `${t('radar.restam')}: ${consultasRestantes}`)}
             </Text>
             {isZerado && <Ionicons name="add-circle" size={14} color="#E74C3C" style={{marginLeft: 4}}/>}
         </TouchableOpacity>
@@ -146,11 +168,11 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
 
       {!resultado ? (
           <View>
-              {!compacto && <Text style={styles.help}>{t('radar.ajuda', 'Análise de Risco.')}</Text>}
+              {!compacto && <Text style={styles.help}>{t('radar.ajuda')}</Text>}
               <View style={styles.formArea}>
                   <View style={{flexDirection:'row', gap: 5}}>
-                      <TextInput style={[styles.input, {flex: 1, color: '#7F8C8D', textAlign: 'center'}]} placeholder={t('radar.documentoPlaceholder', 'ID')} value={maskCpfPrivacy(cpf)} editable={false} />
-                      <TextInput style={[styles.input, {flex: 1, color: '#7F8C8D', textAlign: 'center'}]} placeholder={t('radar.telefoneLabel', 'Phone')} value={maskPhonePrivacy(telefone)} editable={false} />
+                      <TextInput style={[styles.input, {flex: 1, color: '#7F8C8D', textAlign: 'center'}]} placeholder={t('radar.documentoLabel')} value={maskCpfPrivacy(cpf)} editable={false} />
+                      <TextInput style={[styles.input, {flex: 1, color: '#7F8C8D', textAlign: 'center'}]} placeholder={t('radar.telefoneLabel')} value={maskPhonePrivacy(telefone)} editable={false} />
                   </View>
               </View>
               <TouchableOpacity 
@@ -171,7 +193,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
               <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 10}}>
                   <View>
                       <Text style={[styles.statusTxt, { color: getCor(resultado.nivel) }]}>{getStatusText()}</Text>
-                      <Text style={{fontSize:10, color:'#7F8C8D'}}>{t('radar.scoreLabel', 'Score')}</Text>
+                      <Text style={{fontSize:10, color:'#7F8C8D'}}>{t('radar.scoreLabel')}</Text>
                   </View>
                   <View style={[styles.scoreCircle, {borderColor: getCor(resultado.nivel)}]}>
                       <Text style={[styles.scoreNum, {color: getCor(resultado.nivel)}]}>{resultado.score}</Text>
@@ -184,18 +206,17 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
               {resultado.financeiro && (resultado.financeiro.qtd_atrasos > 0) && (
                   <View style={styles.financeBox}>
                       <View style={styles.financeItem}>
-                          <Text style={styles.finLabel}>{t('radar.divida', 'Dívida')}</Text>
+                          <Text style={styles.finLabel}>{t('radar.divida')}</Text>
                           <Text style={styles.finValueRed}>
                              {/* MOEDA DINÂMICA (R$ ou $) */}
-                             {isBrasil ? 'R$' : '$'} {resultado.financeiro.divida_total?.toFixed(2)}
+                             {t('common.moeda')} {resultado.financeiro.divida_total?.toFixed(2)}
                           </Text>
                       </View>
                       <View style={styles.divisorVertical}/>
                       <View style={styles.financeItem}>
-                          <Text style={styles.finLabel}>{t('radar.maiorAtraso', 'Atraso')}</Text>
+                          <Text style={styles.finLabel}>{t('radar.maiorAtraso')}</Text>
                           <Text style={styles.finValueRed}>
-                              {/* PALAVRA 'DIAS' TRADUZIDA */}
-                              {resultado.financeiro.maior_atraso} {t('radar.dias', 'dias')}
+                              {resultado.financeiro.maior_atraso} {t('radar.dias')}
                           </Text>
                       </View>
                   </View>
@@ -203,7 +224,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
 
               <TouchableOpacity onPress={() => setDetalhesVisiveis(!detalhesVisiveis)} style={{marginTop:10}}>
                   <Text style={{color:'#2980B9', fontSize:11, fontWeight:'bold', textAlign:'center'}}>
-                      {detalhesVisiveis ? t('radar.ocultar', 'Ocultar') : t('radar.verDetalhes', 'Ver Detalhes')}
+                      {detalhesVisiveis ? t('radar.ocultar') : t('radar.verDetalhes')}
                   </Text>
               </TouchableOpacity>
 
@@ -211,8 +232,8 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
                   <View style={styles.criteriaBox}>
                       {resultado.criterios.map((c: string, i: number) => (
                           <Text key={i} style={[styles.criteriaTxt, c.includes('✅') ? {color:'#27AE60'} : {color:'#C0392B'}]}>
-                              {/* Tradução básica de critérios */}
-                              {c.replace('Pendência', t('radar.atencao', 'Attention')).replace('Limpo', t('radar.aprovado', 'Clean'))}
+                              {/* APLICA A TRADUÇÃO NOS CRITÉRIOS */}
+                              {traduzirCriterio(c)}
                           </Text>
                       ))}
                   </View>

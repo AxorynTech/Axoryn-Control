@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação
 import { Alert } from 'react-native';
 import { supabase } from '../services/supabase';
 
 export function useRiskRadar() {
+  const { t } = useTranslation(); // <--- Hook de tradução
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
   const [consultasRestantes, setConsultasRestantes] = useState(0); 
@@ -54,7 +56,11 @@ export function useRiskRadar() {
           }).eq('user_id', userId);
           
           setConsultasRestantes(novoSaldo);
-          Alert.alert("Renovação", "Seus créditos mensais foram renovados! +10 consultas.");
+          // TRADUZIDO: Mensagem de renovação
+          Alert.alert(
+              t('radar.renovacaoTitulo', 'Renovação'), 
+              t('radar.msgRenovacao', 'Seus créditos mensais foram renovados! +10 consultas.')
+          );
       } else {
           setConsultasRestantes(dadosBanco.consultas_restantes);
       }
@@ -72,19 +78,26 @@ export function useRiskRadar() {
 
           if (!error) {
               setConsultasRestantes(10);
-              Alert.alert("Recarga", "Pacote de 10 consultas liberado para VOCÊ! 🚀");
+              // TRADUZIDO: Mensagem de recarga
+              Alert.alert(
+                  t('radar.recargaTitulo', 'Recarga'), 
+                  t('radar.msgRecargaSucesso', 'Pacote de 10 consultas liberado para VOCÊ! 🚀')
+              );
           }
-      } catch (e) { Alert.alert("Erro", "Falha ao recarregar."); }
+      } catch (e) { 
+          Alert.alert(t('common.erro'), t('radar.erroRecarga', 'Falha ao recarregar.')); 
+      }
   };
 
   const investigar = async (cpf: string, telefone: string, nome: string) => {
     if (consultasRestantes <= 0) {
+        // TRADUZIDO: Alerta de limite
         Alert.alert(
-            "Seu Limite Atingiu 0", 
-            "Você usou todas as suas consultas gratuitas.\nFaça uma recarga para continuar.",
+            t('radar.limiteTitulo'), 
+            t('radar.limiteMsg'),
             [
-                { text: "Cancelar", style: "cancel" },
-                { text: "Recarregar", onPress: recarregarCreditos }
+                { text: t('common.cancelar'), style: "cancel" },
+                { text: t('radar.btnRecarregar'), onPress: recarregarCreditos }
             ]
         );
         return;
@@ -108,14 +121,13 @@ export function useRiskRadar() {
       if (error) throw error;
       setResultado(data);
 
-      // --- CORREÇÃO AQUI: REGISTRAR O LOG PARA O RANKING ---
-      // Isso cria o registro que a tela de Perfil conta
+      // --- REGISTRO DE LOG (Mantido) ---
       await supabase.from('risk_logs').insert([{
           user_id: user.id,
           data_consulta: new Date().toISOString(),
           termo_pesquisado: nome || cpf || telefone || 'Consulta Rápida'
       }]);
-      // -----------------------------------------------------
+      // --------------------------------
 
       // 2. Desconta 1 crédito
       const novoSaldo = consultasRestantes - 1;
@@ -127,7 +139,8 @@ export function useRiskRadar() {
         .eq('user_id', user.id);
 
     } catch (error: any) {
-      Alert.alert('Erro', 'Falha na conexão ou consulta.');
+      // TRADUZIDO: Mensagem de erro genérica
+      Alert.alert(t('common.erro'), t('radar.erroConsulta', 'Falha na conexão ou consulta.'));
       console.error(error);
     } finally {
       setLoading(false);

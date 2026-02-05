@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
 };
 
 export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, salvar }: Props) {
+  const { t } = useTranslation(); // <--- Hook de tradução
   const [nome, setNome] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [endereco, setEndereco] = useState('');
@@ -30,7 +32,7 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
   }, [clienteOriginal, visivel]);
 
   const handleSalvar = () => {
-    if (!nome.trim()) return Alert.alert("Erro", "Nome obrigatório");
+    if (!nome.trim()) return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
     salvar({ nome: nome.trim().toUpperCase(), whatsapp, endereco, indicacao, reputacao, segmento });
   };
 
@@ -46,34 +48,67 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.mT}>{clienteOriginal ? "Editar Cliente" : "Novo Cliente"}</Text>
+            <Text style={styles.mT}>
+                {clienteOriginal ? t('modalEditarCliente.tituloEditar') : t('cadastro.titulo')}
+            </Text>
             
-            <TextInput placeholder="Nome Completo" placeholderTextColor="#999" style={styles.input} value={nome} onChangeText={setNome} />
+            <TextInput 
+                placeholder={t('cadastro.nome')} 
+                placeholderTextColor="#999" 
+                style={styles.input} 
+                value={nome} 
+                onChangeText={setNome} 
+            />
             
-            <Text style={{fontWeight:'bold', marginBottom:5, color:'#555'}}>Segmento:</Text>
+            <Text style={{fontWeight:'bold', marginBottom:5, color:'#555'}}>{t('cadastro.segmento')}:</Text>
             <View style={styles.rowSeg}>
                <TouchableOpacity onPress={() => setSegmento('EMPRESTIMO')} style={[styles.btnSeg, segmento === 'EMPRESTIMO' && styles.btnSegAtivo]}>
-                 <Text style={[styles.txtSeg, segmento === 'EMPRESTIMO' && styles.txtSegAtivo]}>Empréstimo</Text>
+                 <Text style={[styles.txtSeg, segmento === 'EMPRESTIMO' && styles.txtSegAtivo]}>{t('cadastro.segEmprestimo')}</Text>
                </TouchableOpacity>
                <TouchableOpacity onPress={() => setSegmento('VENDA')} style={[styles.btnSeg, segmento === 'VENDA' && styles.btnSegAtivo]}>
-                 <Text style={[styles.txtSeg, segmento === 'VENDA' && styles.txtSegAtivo]}>Venda</Text>
+                 <Text style={[styles.txtSeg, segmento === 'VENDA' && styles.txtSegAtivo]}>{t('cadastro.segVenda')}</Text>
                </TouchableOpacity>
                <TouchableOpacity onPress={() => setSegmento('AMBOS')} style={[styles.btnSeg, segmento === 'AMBOS' && styles.btnSegAtivo]}>
-                 <Text style={[styles.txtSeg, segmento === 'AMBOS' && styles.txtSegAtivo]}>Ambos</Text>
+                 <Text style={[styles.txtSeg, segmento === 'AMBOS' && styles.txtSegAtivo]}>{t('cadastro.segAmbos')}</Text>
                </TouchableOpacity>
             </View>
 
-            <TextInput placeholder="WhatsApp (Só números)" placeholderTextColor="#999" style={styles.input} value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" />
-            <TextInput placeholder="Endereço" placeholderTextColor="#999" style={styles.input} value={endereco} onChangeText={setEndereco} />
-            <TextInput placeholder="Indicação (Opcional)" placeholderTextColor="#999" style={styles.input} value={indicacao} onChangeText={setIndicacao} />
-            <TextInput placeholder="Reputação" placeholderTextColor="#999" style={styles.input} value={reputacao} onChangeText={setReputacao} />
+            <TextInput 
+                placeholder={t('cadastro.whatsapp')} 
+                placeholderTextColor="#999" 
+                style={styles.input} 
+                value={whatsapp} 
+                onChangeText={setWhatsapp} 
+                keyboardType="phone-pad" 
+            />
+            <TextInput 
+                placeholder={t('cadastro.endereco')} 
+                placeholderTextColor="#999" 
+                style={styles.input} 
+                value={endereco} 
+                onChangeText={setEndereco} 
+            />
+            <TextInput 
+                placeholder={t('cadastro.indicacao')} 
+                placeholderTextColor="#999" 
+                style={styles.input} 
+                value={indicacao} 
+                onChangeText={setIndicacao} 
+            />
+            <TextInput 
+                placeholder={t('cadastro.reputacao')} 
+                placeholderTextColor="#999" 
+                style={styles.input} 
+                value={reputacao} 
+                onChangeText={setReputacao} 
+            />
             
             <TouchableOpacity style={styles.btnP} onPress={handleSalvar}>
-              <Text style={styles.btnTxt}>SALVAR MUDANÇAS</Text>
+              <Text style={styles.btnTxt}>{t('modalEditarCliente.btnSalvarMudancas')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity onPress={fechar} style={styles.btnCancel}>
-              <Text style={{color:'#999'}}>Cancelar</Text>
+              <Text style={{color:'#999'}}>{t('common.cancelar')}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>

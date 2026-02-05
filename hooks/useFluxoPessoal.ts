@@ -1,16 +1,45 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert } from 'react-native';
 import { supabase } from '../services/supabase';
 
 export function useFluxoPessoal() {
+  const { t } = useTranslation();
   const [contas, setContas] = useState<any[]>([]);
   const [movimentos, setMovimentos] = useState<any[]>([]);
   const [saldoGeral, setSaldoGeral] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchData(); }, []);
+
+  // --- ATUALIZAÇÃO EM TEMPO REAL ---
+  useEffect(() => {
+    const canalFluxo = supabase
+      .channel('atualizacao-fluxo')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'fluxo_pessoal' },
+        (payload) => {
+          console.log('🔄 Mudança no Fluxo detectada! Atualizando...');
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'contas_pessoais' },
+        (payload) => {
+          console.log('🔄 Mudança nas Contas detectada! Atualizando...');
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalFluxo);
+    };
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -25,13 +54,11 @@ export function useFluxoPessoal() {
       }
 
       // --- AUTO-CORREÇÃO: Se não tiver Carteira, cria agora! ---
-      // Isso garante que NENHUM usuário fique sem a conta principal.
       const temCarteira = contasComSaldo?.some((c: any) => c.nome === 'Carteira');
       
       if (!temCarteira) {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-              // Cria a conta Carteira silenciosamente
               const { error: errCriar } = await supabase.from('contas_pessoais').insert([{
                   nome: 'Carteira',
                   instituicao: 'Dinheiro em Mãos',
@@ -39,14 +66,12 @@ export function useFluxoPessoal() {
               }]);
               
               if (!errCriar) {
-                  // Busca de novo para atualizar a lista com a Carteira criada
                   const retry = await supabase.rpc('buscar_saldos_contas');
                   contasComSaldo = retry.data;
               }
           }
       }
-      // -----------------------------------------------------------
-
+      
       // 2. Busca Movimentos (últimos 100)
       const { data: dataMov, error: errMov } = await supabase
         .from('fluxo_pessoal')
@@ -75,7 +100,6 @@ export function useFluxoPessoal() {
     }
   };
 
-  // Auxiliar para pegar ID
   const getUserId = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     return user?.id;
@@ -89,7 +113,7 @@ export function useFluxoPessoal() {
       user_id: userId 
     }]);
     if (!error) await fetchData();
-    else Alert.alert("Erro", "Falha ao criar conta.");
+    else Alert.alert(t('common.erro'), t('fluxo.falhaCriarConta'));
   };
 
   const excluirConta = async (id: number) => {
@@ -111,7 +135,7 @@ export function useFluxoPessoal() {
     }]);
     
     if (error) {
-        Alert.alert("Erro", "Falha ao salvar lançamento.");
+        Alert.alert(t('common.erro'), t('fluxo.falhaSalvar'));
         return false;
     } 
 
@@ -124,7 +148,7 @@ export function useFluxoPessoal() {
         conta_id: dados.conta_id, 
         valor: dados.valor, 
         descricao: dados.descricao, 
-        data_movimento: dados.data,
+        data_movimento: dados.data, 
         tipo: dados.tipo
     }).eq('id', id);
     
@@ -140,16 +164,16 @@ export function useFluxoPessoal() {
 
   const transferir = async (origemId: number, destinoId: number, valor: number, data: string, descricao: string) => {
     try {
-        if (origemId === destinoId) { Alert.alert("Erro", "Origem e destino iguais."); return false; }
+        if (origemId === destinoId) { Alert.alert(t('common.erro'), t('fluxo.origemDestinoIguais')); return false; }
         const userId = await getUserId();
 
         const [res1, res2] = await Promise.all([
           supabase.from('fluxo_pessoal').insert([{ 
-              conta_id: origemId, tipo: 'SAIDA', valor, data_movimento: data, descricao: `Transf. Enviada: ${descricao}`,
+              conta_id: origemId, tipo: 'SAIDA', valor, data_movimento: data, descricao: `Transf. Env: ${descricao}`,
               user_id: userId 
           }]),
           supabase.from('fluxo_pessoal').insert([{ 
-              conta_id: destinoId, tipo: 'ENTRADA', valor, data_movimento: data, descricao: `Transf. Recebida: ${descricao}`,
+              conta_id: destinoId, tipo: 'ENTRADA', valor, data_movimento: data, descricao: `Transf. Rec: ${descricao}`,
               user_id: userId 
           }])
         ]);
@@ -157,9 +181,9 @@ export function useFluxoPessoal() {
         if(res1.error || res2.error) throw new Error("Erro no banco");
 
         await fetchData();
-        Alert.alert("Sucesso", "Transferência realizada!");
+        Alert.alert(t('common.sucesso'), t('fluxo.sucessoTransferencia'));
         return true;
-    } catch (e) { Alert.alert("Erro", "Falha na transferência."); return false; }
+    } catch (e) { Alert.alert(t('common.erro'), t('fluxo.falhaTransferencia')); return false; }
   };
 
   const gerarRelatorioPDF = async (contaId: number, nomeConta: string, dataInicio: string, dataFim: string) => {
@@ -179,7 +203,7 @@ export function useFluxoPessoal() {
 
         if (error) throw error;
         if (!extrato || extrato.length === 0) {
-            Alert.alert("Aviso", "Nenhuma movimentação encontrada neste período.");
+            Alert.alert(t('fluxo.aviso'), t('fluxo.nenhumaMovimentacao'));
             return;
         }
 
@@ -214,21 +238,30 @@ export function useFluxoPessoal() {
             <body>
               <div class="header">
                 <h1>Axoryn Control</h1>
-                <p><strong>Extrato de Conta:</strong> ${nomeConta}</p>
-                <p><strong>Período:</strong> ${dataInicio} até ${dataFim}</p>
+                <p><strong>${t('fluxo.extratoConta')}:</strong> ${nomeConta}</p>
+                <p><strong>${t('fluxo.periodo')}:</strong> ${dataInicio} ${t('relatorio.ate')} ${dataFim}</p>
               </div>
-              <table><thead><tr><th>Data</th><th>Descrição</th><th style="text-align:right">Valor</th></tr></thead><tbody>${linhasHTML}</tbody></table>
+              <table>
+                <thead>
+                    <tr>
+                        <th>${t('fluxo.data')}</th>
+                        <th>${t('fluxo.descricao')}</th>
+                        <th style="text-align:right">${t('fluxo.valor')}</th>
+                    </tr>
+                </thead>
+                <tbody>${linhasHTML}</tbody>
+              </table>
               <div class="totais">
-                <p>Total Entradas: <span style="color:green">R$ ${totalEntradas.toFixed(2).replace('.', ',')}</span></p>
-                <p>Total Saídas: <span style="color:red">R$ ${totalSaidas.toFixed(2).replace('.', ',')}</span></p>
-                <p class="saldo-final">Resultado do Período: R$ ${saldoPeriodo.toFixed(2).replace('.', ',')}</p>
+                <p>${t('fluxo.totalEntradas')}: <span style="color:green">R$ ${totalEntradas.toFixed(2).replace('.', ',')}</span></p>
+                <p>${t('fluxo.totalSaidas')}: <span style="color:red">R$ ${totalSaidas.toFixed(2).replace('.', ',')}</span></p>
+                <p class="saldo-final">${t('fluxo.resultadoPeriodo')}: R$ ${saldoPeriodo.toFixed(2).replace('.', ',')}</p>
               </div>
             </body>
           </html>`;
 
         const { uri } = await Print.printToFileAsync({ html });
         await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-    } catch (e) { Alert.alert("Erro", "Falha ao gerar PDF."); }
+    } catch (e) { Alert.alert(t('common.erro'), t('fluxo.falhaPDF')); }
   };
 
   return { contas, movimentos, saldoGeral, loading, adicionarConta, excluirConta, adicionarMovimento, editarMovimento, excluirMovimento, transferir, gerarRelatorioPDF };

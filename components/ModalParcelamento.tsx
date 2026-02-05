@@ -1,5 +1,6 @@
-import DateTimePicker from '@react-native-community/datetimepicker'; // <--- IMPORT NOVO
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
 import { Alert, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Props = {
@@ -10,6 +11,8 @@ type Props = {
 };
 
 export default function ModalParcelamento({ visivel, fechar, confirmar }: Props) {
+  const { t } = useTranslation(); // <--- Hook de tradução
+  
   const [valorTotal, setValorTotal] = useState('');
   const [qtdParcelas, setQtdParcelas] = useState('');
   const [multa, setMulta] = useState('');
@@ -17,6 +20,10 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
   // ESTADO NOVO: Data para o calendário
   const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
+
+  // Pega formatação de data e moeda do JSON
+  const localeData = t('common.formatoData', { defaultValue: 'pt-BR' });
+  const moeda = t('common.moeda', { defaultValue: 'R$' });
 
   // Reseta a data para hoje sempre que abrir o modal
   useEffect(() => {
@@ -41,13 +48,13 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
   };
 
   const handleConfirmar = () => {
-    if (!valorTotal || !qtdParcelas) return Alert.alert("Erro", "Preencha tudo");
+    if (!valorTotal || !qtdParcelas) return Alert.alert(t('common.erro'), t('common.preenchaCampos'));
     
     // Envia os dados, incluindo a multa (se estiver vazio, vai 0)
     confirmar(
       parseFloat(valorTotal), 
       parseInt(qtdParcelas), 
-      date.toLocaleDateString('pt-BR'), // <--- Envia a data formatada
+      date.toLocaleDateString(localeData), // <--- Envia a data formatada
       multa ? parseFloat(multa) : 0
     );
     
@@ -59,23 +66,22 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
       <View style={styles.fundo}>
         <View style={styles.card}>
           <View style={styles.cabecalho}>
-            {/* \u00C7 = Ç, \u00C3 = Ã */}
-            <Text style={styles.titulo}>NEGOCIA{'\u00C7'}{'\u00C3'}O / ACORDO</Text>
+            <Text style={styles.titulo}>{t('modalParcelamento.titulo')}</Text>
           </View>
 
           <View style={styles.corpo}>
             <Text style={styles.aviso}>
-              Ao confirmar, o empr{'\u00E9'}stimo vira um parcelamento fixo.
+              {t('modalParcelamento.aviso')}
             </Text>
             
-            <Text style={styles.label}>Valor TOTAL do Acordo (R$)</Text>
+            <Text style={styles.label}>{t('modalParcelamento.valorTotal')} ({moeda})</Text>
             <TextInput style={styles.input} value={valorTotal} onChangeText={setValorTotal} placeholder="Ex: 1000.00" keyboardType="numeric" />
             
-            <Text style={styles.label}>Quantidade de Parcelas</Text>
+            <Text style={styles.label}>{t('modalParcelamento.qtdParcelas')}</Text>
             <TextInput style={styles.input} value={qtdParcelas} onChangeText={setQtdParcelas} placeholder="Ex: 5" keyboardType="numeric" />
 
             {/* CAMPO NOVO: MULTA */}
-            <Text style={styles.label}>Multa por Dia de Atraso (R$)</Text>
+            <Text style={styles.label}>{t('modalParcelamento.multaDiaria')} ({moeda})</Text>
             <TextInput 
               style={[styles.input, {borderColor: '#E74C3C', borderWidth: 1}]} 
               value={multa} 
@@ -84,7 +90,7 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
               keyboardType="numeric" 
             />
 
-            <Text style={styles.label}>Data da 1{'\u00AA'} Parcela</Text>
+            <Text style={styles.label}>{t('modalParcelamento.dataPrimeira')}</Text>
             
             {/* SUBSTITUIÇÃO: Botão que abre o calendário */}
             <TouchableOpacity 
@@ -92,7 +98,7 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
               onPress={() => setShowPicker(true)}
             >
               <Text style={styles.textoData}>
-                {date.toLocaleDateString('pt-BR')}
+                {date.toLocaleDateString(localeData)}
               </Text>
             </TouchableOpacity>
 
@@ -108,16 +114,16 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
 
             <View style={styles.resumo}>
               <Text style={styles.resumoTexto}>
-                Ser{'\u00E3'}o {qtdParcelas || '0'}x de <Text style={{fontWeight:'bold', color:'#8E44AD'}}>R$ {calcularParcela()}</Text>
+                {t('modalParcelamento.serao')} {qtdParcelas || '0'}x {t('modalParcelamento.de')} <Text style={{fontWeight:'bold', color:'#8E44AD'}}>{moeda} {calcularParcela()}</Text>
               </Text>
             </View>
             
             <TouchableOpacity style={styles.botaoConfirmar} onPress={handleConfirmar}>
-              <Text style={styles.textoBotao}>CRIAR PARCELAMENTO</Text>
+              <Text style={styles.textoBotao}>{t('modalParcelamento.btnCriar')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity onPress={fechar} style={styles.botaoCancelar}>
-              <Text style={styles.textoCancelar}>Cancelar</Text>
+              <Text style={styles.textoCancelar}>{t('common.cancelar')}</Text>
             </TouchableOpacity>
           </View>
         </View>

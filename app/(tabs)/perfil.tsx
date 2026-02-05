@@ -33,19 +33,20 @@ export default function Perfil() {
   const [modalDadosVisivel, setModalDadosVisivel] = useState(false);
   const [consultasCount, setConsultasCount] = useState(0); 
   
-  // --- NOVO: Estado para a Posição no Ranking ---
+  // Estado para a Posição no Ranking
   const [posicao, setPosicao] = useState<number | null>(null);
 
   const corStatus = isPremium ? '#27AE60' : '#7F8C8D'; 
 
-  let textoBadge = "Usuário Registrado";
-  let textoStatus = "CONTA PADRÃO";
-  let textoDescricao = "Acesse o portal para verificar o status da sua licença.";
+  // --- TRADUÇÃO DOS STATUS ---
+  let textoBadge = t('perfil.usuarioRegistrado'); 
+  let textoStatus = t('perfil.contaPadrao');      
+  let textoDescricao = t('perfil.descPadrao');    
 
   if (isPremium) {
-      textoBadge = "Conta Verificada";
-      textoStatus = "LICENÇA ATIVA";
-      textoDescricao = "Sua conta está ativa e operante. Todos os recursos estão liberados.";
+      textoBadge = t('perfil.contaVerificada');   
+      textoStatus = t('perfil.licencaAtiva');     
+      textoDescricao = t('perfil.descPremium');   
   }
 
   useFocusEffect(
@@ -80,20 +81,36 @@ export default function Perfil() {
     }
   };
 
+  // --- NOVA FUNÇÃO: SALVA IDIOMA NO BANCO ---
   const mudarIdioma = async (lang: string) => {
+    // 1. Salva localmente (para o App)
     await AsyncStorage.setItem('user-language', lang);
     i18n.changeLanguage(lang);
+
+    // 2. Salva no Banco (para o Robô de Cobrança)
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase
+                .from('profiles')
+                .update({ language: lang }) // Salva 'pt', 'en' ou 'es'
+                .eq('user_id', user.id);
+        }
+    } catch (e) {
+        console.log("Erro ao salvar idioma no banco:", e);
+    }
   };
 
   const abrirGerenciadorConta = async () => {
     const supported = await Linking.canOpenURL(URL_GERENCIAMENTO);
     if (supported) await Linking.openURL(URL_GERENCIAMENTO);
-    else Alert.alert(t('common.erro') || "Erro", "Não foi possível abrir o navegador.");
+    else Alert.alert(t('common.erro') || "Erro", t('perfil.erroNavegador') || "Não foi possível abrir o navegador.");
   };
 
   const abrirSuporte = () => {
-    const telefone = "5514999999999"; 
-    const mensagem = "Olá, preciso de ajuda com o suporte do App.";
+    const telefone = "5514997083402"; 
+    // Mensagem traduzida para o suporte
+    const mensagem = t('perfil.msgSuporte', "Olá, preciso de ajuda com o suporte do App.");
     Linking.openURL(`whatsapp://send?phone=${telefone}&text=${mensagem}`);
   };
 
@@ -102,11 +119,11 @@ export default function Perfil() {
   const numContratos = clientes.reduce((total, cli) => total + (cli.contratos ? cli.contratos.length : 0), 0);
   const scoreTotal = (numClientes * 10) + (numContratos * 5) + (consultasCount * 2);
   
-  let nivelAtual = { nome: "Iniciante", cor: "#BDC3C7", icone: "leaf", min: 0, max: 200 };
+  let nivelAtual = { nome: t('perfil.nivelIniciante'), cor: "#BDC3C7", icone: "leaf", min: 0, max: 200 };
   if (scoreTotal >= 200 && scoreTotal < 1000) {
-      nivelAtual = { nome: "Profissional", cor: "#F39C12", icone: "medal", min: 200, max: 1000 };
+      nivelAtual = { nome: t('perfil.nivelProfissional'), cor: "#F39C12", icone: "medal", min: 200, max: 1000 };
   } else if (scoreTotal >= 1000) {
-      nivelAtual = { nome: "Magnata", cor: "#8E44AD", icone: "diamond", min: 1000, max: 5000 };
+      nivelAtual = { nome: t('perfil.nivelMagnata'), cor: "#8E44AD", icone: "diamond", min: 1000, max: 5000 };
   }
 
   const progresso = Math.min(Math.max((scoreTotal - nivelAtual.min) / (nivelAtual.max - nivelAtual.min), 0), 1);
@@ -136,7 +153,7 @@ export default function Perfil() {
 
       {/* --- SEÇÃO DE PERFORMANCE & RANKING --- */}
       <View style={styles.section}>
-         <Text style={styles.sectionTitle}>Ranking Global</Text>
+         <Text style={styles.sectionTitle}>{t('perfil.rankingGlobal')}</Text>
          
          <View style={styles.cardRank}>
             {/* LINHA DO TOPO: RANKING */}
@@ -146,15 +163,15 @@ export default function Perfil() {
                 </View>
                 
                 <View style={{flex: 1}}>
-                    <Text style={styles.labelNivel}>Sua Posição</Text>
+                    <Text style={styles.labelNivel}>{t('perfil.suaPosicao')}</Text>
                     <Text style={[styles.txtNivel, { color: '#2C3E50', fontSize: 24 }]}>
-                        {posicao ? `${posicao}º Lugar` : "Calculando..."}
+                        {posicao ? `${posicao}º ${t('perfil.lugar')}` : t('perfil.calculando')}
                     </Text>
                 </View>
 
                 <View style={{alignItems:'flex-end'}}>
                     <Text style={[styles.scoreTotal, {color: nivelAtual.cor}]}>{scoreTotal}</Text>
-                    <Text style={styles.scoreLabel}>Total XP</Text>
+                    <Text style={styles.scoreLabel}>{t('perfil.totalXP')}</Text>
                 </View>
             </View>
 
@@ -162,10 +179,10 @@ export default function Perfil() {
             <View style={{marginTop: 10}}>
                 <View style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 5}}>
                    <Text style={{fontSize:12, color:nivelAtual.cor, fontWeight:'bold'}}>{nivelAtual.nome}</Text>
-                   <Text style={{fontSize:10, color:'#999'}}>Próximo Nível</Text>
+                   <Text style={{fontSize:10, color:'#999'}}>{t('perfil.proximoNivel')}</Text>
                 </View>
                 <View style={styles.barraContainer}>
-                    <View style={[styles.barraFill, { width: `${progresso * 100}%`, backgroundColor: nivelAtual.cor }]} />
+                   <View style={[styles.barraFill, { width: `${progresso * 100}%`, backgroundColor: nivelAtual.cor }]} />
                 </View>
             </View>
 
@@ -173,23 +190,23 @@ export default function Perfil() {
             <View style={styles.gridStats}>
                 <View style={styles.itemStat}>
                     <Text style={styles.valorStat}>{numClientes}</Text>
-                    <Text style={styles.labelStat}>Clientes</Text>
+                    <Text style={styles.labelStat}>{t('perfil.clientes')}</Text>
                 </View>
 
                 <View style={[styles.itemStat, { borderLeftWidth:1, borderRightWidth:1, borderColor:'#EEE' }]}>
                     <Text style={styles.valorStat}>{numContratos}</Text>
-                    <Text style={styles.labelStat}>Contratos</Text>
+                    <Text style={styles.labelStat}>{t('perfil.contratos')}</Text>
                 </View>
 
                 <View style={styles.itemStat}>
                     <Text style={styles.valorStat}>{consultasCount}</Text>
-                    <Text style={styles.labelStat}>Consultas</Text>
+                    <Text style={styles.labelStat}>{t('perfil.consultas')}</Text>
                 </View>
             </View>
          </View>
       </View>
 
-      {/* SEÇÃO DE IDIOMA */}
+      {/* SEÇÃO DE IDIOMA - ATUALIZADA */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('perfil.idioma') || 'Idioma / Language'}</Text>
         <View style={styles.langContainer}>

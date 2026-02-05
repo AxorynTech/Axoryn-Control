@@ -107,7 +107,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     const valMulta = parseFloat(multa.replace(',', '.') || '0');
 
     const textoDescritivo = tipoOperacao === 'VENDA' 
-      ? `PRODUTO: ${produtos || 'Venda Diversa'}` 
+      ? `${t('modalNovoEmprestimo.produtoPrefix')}${produtos || t('modalNovoEmprestimo.vendaDiversa')}` 
       : garantia;
 
     let frequenciaFinal = frequencia;
@@ -252,7 +252,13 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                     {modVenda === 'PRAZO' && (
                         <View style={{flex:1}}>
                            <Text style={styles.miniLabel}>{t('novoContrato.parcelas')}</Text>
-                           <TextInput style={styles.input} value={qtdParcelasVenda} onChangeText={setQtdParcelasVenda} keyboardType="numeric" placeholder="Ex: 3" />
+                           <TextInput 
+                             style={styles.input} 
+                             value={qtdParcelasVenda} 
+                             onChangeText={setQtdParcelasVenda} 
+                             keyboardType="numeric" 
+                             placeholder={t('modalNovoEmprestimo.placeholderParcelas')} 
+                           />
                         </View>
                     )}
                     
@@ -287,7 +293,10 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                 <View style={{marginTop: 10}}>
                       <Text style={styles.label}>{t('novoContrato.modalidade')}</Text>
                       <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'MENSAL' ? 'SEMANAL' : frequencia === 'SEMANAL' ? 'DIARIO' : 'MENSAL')}>
-                        <Text style={{fontWeight:'bold', color:'#333'}}>{frequencia}</Text>
+                        {/* AQUI ESTAVA O PROBLEMA: Usamos agora a chave dinâmica para traduzir */}
+                        <Text style={{fontWeight:'bold', color:'#333'}}>
+                            {t(`novoContrato.freq${frequencia}`)}
+                        </Text>
                       </TouchableOpacity>
                 </View>
                 
