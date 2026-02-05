@@ -212,20 +212,20 @@
                 </div>
             </div>
 
+            <div id="areaSeletor" class="country-selector hidden">
+                <button class="country-btn active" id="btnBR" onclick="mudarRegiao('br')">
+                    <span>🇧🇷 Brasil <small>(Mercado Pago)</small></span>
+                    <i class="fas fa-check-circle text-green"></i>
+                </button>
+                <button class="country-btn" id="btnINTL" onclick="mudarRegiao('intl')">
+                    <span>🌎 International <small>(Stripe)</small></span>
+                    <i class="fas fa-circle" style="color:#ddd"></i>
+                </button>
+            </div>
+
             <div id="areaPagamento" class="hidden">
                 <p style="font-weight:bold; margin-bottom:10px; color:#2C3E50; font-size:14px;" data-i18n="renew_title">Renovar Assinatura:</p>
                 
-                <div class="country-selector">
-                    <button class="country-btn active" id="btnBR" onclick="mudarRegiao('br')">
-                        <span>🇧🇷 Brasil <small>(Mercado Pago)</small></span>
-                        <i class="fas fa-check-circle text-green"></i>
-                    </button>
-                    <button class="country-btn" id="btnINTL" onclick="mudarRegiao('intl')">
-                        <span>🌎 International <small>(Stripe)</small></span>
-                        <i class="fas fa-circle" style="color:#ddd"></i>
-                    </button>
-                </div>
-
                 <div class="plans-grid">
                     <div class="plan-card" onclick="pagar('mensal')">
                         <div class="plan-title" data-i18n="plan_monthly">MENSAL</div>
@@ -512,14 +512,15 @@
             let mostrarQuarentena = false;
 
             // Reseta visualização
-            ['areaPagamento', 'areaQuarentena', 'areaPremium', 'areaRecargas', 'progressContainer'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            // INCLUÍDO 'areaSeletor' no reset
+            ['areaPagamento', 'areaQuarentena', 'areaPremium', 'areaRecargas', 'progressContainer', 'areaSeletor'].forEach(id => document.getElementById(id).classList.add('hidden'));
 
             if (DEVE_CAMUFLAR) {
                 mostrarQuarentena = true;
                 statusBadge = "ATIVO"; statusBadgeClass = "bg-green-light";
                 mensagemKey = "msg_new_account";
                 document.getElementById('areaQuarentena').classList.remove('hidden');
-                // CAMUFLAGEM: Mantém a data oculta
+                // CAMUFLAGEM: Mantém a data oculta e NÃO remove o hidden do areaSeletor
                 document.getElementById('infoDate').innerText = "--/--/----";
 
             } else if (fimAssinatura && fimAssinatura > hoje) {
@@ -528,9 +529,9 @@
                 mensagemKey = "msg_premium";
                 document.getElementById('areaPremium').classList.remove('hidden');
                 document.getElementById('areaRecargas').classList.remove('hidden');
+                // PREMIUM VÊ O SELETOR DE MOEDAS (PARA RECARGAS)
+                document.getElementById('areaSeletor').classList.remove('hidden');
                 
-                // --- AQUI ESTÁ A CORREÇÃO SOLICITADA ---
-                // Se é premium e NÃO está camuflado, mostra a data real
                 document.getElementById('infoDate').innerText = fimAssinatura.toLocaleDateString('pt-BR');
 
             } else {
@@ -547,7 +548,9 @@
                     document.getElementById('areaPagamento').classList.remove('hidden');
                     document.getElementById('areaRecargas').classList.remove('hidden');
                 }
-                // Se não é premium e nem camuflado, mostra a data vazia ou expirada
+                // USUÁRIO GRÁTIS VÊ O SELETOR DE MOEDAS
+                document.getElementById('areaSeletor').classList.remove('hidden');
+                
                 document.getElementById('infoDate').innerText = "--/--/----";
             }
 
