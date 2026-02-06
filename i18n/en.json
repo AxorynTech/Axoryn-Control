@@ -193,7 +193,10 @@
     "proximoNivel": "Next Level",
     "clientes": "Clients",
     "contratos": "Contracts",
-    "consultas": "Queries"
+    "consultas": "Queries",
+    "escolhaAtendimento": "Choose a support option:",
+    "financeiro": "Financial",
+    "tecnico": "Technical"
   },
   "dashboardStats": {
     "visaoGeral": "Overview",

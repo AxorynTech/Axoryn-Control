@@ -107,11 +107,48 @@ export default function Perfil() {
     else Alert.alert(t('common.erro') || "Erro", t('perfil.erroNavegador') || "Não foi possível abrir o navegador.");
   };
 
+  // --- FUNÇÃO DE SUPORTE ATUALIZADA (2 NÚMEROS) ---
   const abrirSuporte = () => {
-    const telefone = "5514997083402"; 
     // Mensagem traduzida para o suporte
     const mensagem = t('perfil.msgSuporte', "Olá, preciso de ajuda com o suporte do App.");
-    Linking.openURL(`whatsapp://send?phone=${telefone}&text=${mensagem}`);
+
+    // Função auxiliar para abrir o WhatsApp de forma compatível (iOS/Android)
+    const abrirWhatsApp = async (numero: string) => {
+        const urlApp = `whatsapp://send?phone=${numero}&text=${mensagem}`;
+        const urlWeb = `https://wa.me/${numero}?text=${mensagem}`;
+
+        try {
+            const supported = await Linking.canOpenURL(urlApp);
+            if (supported) {
+                await Linking.openURL(urlApp);
+            } else {
+                // Se não tiver o app instalado ou falhar, abre no navegador (universal)
+                await Linking.openURL(urlWeb);
+            }
+        } catch (error) {
+             // Fallback de segurança
+             await Linking.openURL(urlWeb);
+        }
+    };
+
+    Alert.alert(
+        t('perfil.suporte') || "Suporte Técnico",
+        t('perfil.escolhaAtendimento') || "Escolha uma opção de atendimento:",
+        [
+            {
+                text: t('perfil.financeiro') || "Financeiro",
+                onPress: () => abrirWhatsApp("5515991189779") 
+            },
+            {
+                text: t('perfil.tecnico') || "Técnico",
+                onPress: () => abrirWhatsApp("5514997083402")
+            },
+            {
+                text: t('common.cancelar') || "Cancelar",
+                style: "cancel"
+            }
+        ]
+    );
   };
 
   // --- CÁLCULO DE PONTOS ---
