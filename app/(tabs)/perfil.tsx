@@ -20,7 +20,7 @@ import { useClientes } from '../../hooks/useClientes';
 import { supabase } from '../../services/supabase';
 
 // URL DO SEU SITE DE GERENCIAMENTO
-const URL_GERENCIAMENTO = 'https://fantastic-clafoutis-45d812.netlify.app/index.html';
+const URL_GERENCIAMENTO = 'https://axoryntech.com.br/index.html';
 
 export default function Perfil() {
   const router = useRouter();

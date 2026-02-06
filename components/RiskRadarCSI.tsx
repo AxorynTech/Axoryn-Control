@@ -36,7 +36,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
   }, [initialCpf, initialTelefone]);
 
   const abrirSiteRecarga = () => {
-    Linking.openURL('https://fantastic-clafoutis-45d812.netlify.app/index.html');
+    Linking.openURL('https://axoryntech.com.br/index.html');
   };
 
   const handleInvestigar = async () => {

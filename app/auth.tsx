@@ -101,7 +101,7 @@ export default function Auth() {
         const { error }: any = await supabase.auth.signUp({ 
             email, 
             password,
-            options: { emailRedirectTo: 'https://fantastic-clafoutis-45d812.netlify.app/confirmar.html' }
+            options: { emailRedirectTo: 'https://axoryntech.com.br/confirmar.html' }
         });
         if (error) throw error;
         Alert.alert(t('common.sucesso', 'Sucesso'), t('auth.cadastroSucesso', 'Verifique seu e-mail.'));
