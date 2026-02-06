@@ -1,0 +1,14 @@
+[[redirects]]
+  from = "/confirmar"
+  to = "/confirmar.html"
+  status = 200
+
+[[redirects]]
+  from = "/recuperar"
+  to = "/recuperar.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
