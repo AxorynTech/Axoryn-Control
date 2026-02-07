@@ -1,2 +1,3 @@
-/confirmar   /confirmar.html   200
-/recuperar   /recuperar.html   200
+/auth/confirmar   /auth/confirmar.html   200
+/auth/recuperar   /auth/recuperar.html   200
+/* /index.html            200

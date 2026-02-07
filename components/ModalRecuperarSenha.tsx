@@ -1,3 +1,4 @@
+import * as Linking from 'expo-linking';
 import React, { useState } from 'react';
 import {
   Alert,
@@ -30,8 +31,22 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
     try {
       setLoading(true);
       
-      // 👇 LINK CORRIGIDO AQUI
-      const siteDeRecuperacao = 'https://axoryntech.com.br/recuperar.html'; 
+      let siteDeRecuperacao;
+
+      // 1. Lógica Inteligente para definir o link
+      if (Platform.OS === 'web') {
+        // Se estiver no SITE, usa o link do seu site HTML fixo ou a rota do app web
+        // Opção A: Usar o arquivo HTML que você criou na pasta public
+        siteDeRecuperacao = 'https://axoryntech.com.br/recuperar.html'; 
+        
+        // Opção B (Alternativa): Usar a rota do app se preferir não usar o HTML estático
+        // siteDeRecuperacao = `${window.location.origin}/reset-password`;
+      } else {
+        // Se estiver no CELULAR, usa o esquema do app (axoryn://) para abrir o app direto
+        siteDeRecuperacao = Linking.createURL('/reset-password');
+      }
+
+      console.log("🔗 Link gerado:", siteDeRecuperacao);
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: siteDeRecuperacao,

@@ -2,8 +2,8 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação
-import { Alert, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { Alert, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Cliente, Contrato } from '../types';
 import RiskRadarCSI from './RiskRadarCSI';
 
@@ -29,18 +29,16 @@ export default function PastaCliente({
   aoAlternarBloqueio 
 }: Props) {
 
-  const { t } = useTranslation(); // <--- Hook
+  const { t } = useTranslation();
   const [historicoVisivel, setHistoricoVisivel] = useState(false);
   const [historicoConteudo, setHistoricoConteudo] = useState<string[]>([]);
 
   // --- HELPERS DE TRADUÇÃO ---
   const traduzirStatus = (status: string) => {
-      // Busca a chave 'status.ATIVO', 'status.QUITADO', etc.
       return t(`status.${status}`, { defaultValue: status });
   };
 
   const traduzirFrequencia = (freq: string) => {
-      // Busca 'novoContrato.freqMENSAL', etc.
       return t(`novoContrato.freq${freq}`, { defaultValue: freq });
   };
 
@@ -65,6 +63,56 @@ export default function PastaCliente({
     aoNovoEmprestimo();
   };
 
+  // --- FUNÇÕES DE EXCLUSÃO BLINDADAS (WEB x MOBILE) ---
+  const handleExcluirCliente = () => {
+      if (Platform.OS === 'web') {
+          // WEB: Usa window.confirm
+          if (window.confirm(`${t('fluxo.excluirTitulo')}\n\n${t('fluxo.excluirMsg')} ${cliente.nome}?`)) {
+              aoExcluirCliente();
+          }
+      } else {
+          // MOBILE: Usa Alert nativo com função anônima para garantir execução
+          Alert.alert(
+              t('fluxo.excluirTitulo'), 
+              `${t('fluxo.excluirMsg')} ${cliente.nome}?`,
+              [
+                  { text: t('common.cancelar'), style: 'cancel' },
+                  { 
+                    text: t('fluxo.btnApagar'), 
+                    style: 'destructive', 
+                    onPress: () => {
+                        // Chama a função passada via props garantindo que seja executada
+                        aoExcluirCliente();
+                    } 
+                  }
+              ]
+          );
+      }
+  };
+
+  const handleExcluirContrato = (id: number) => {
+      if (Platform.OS === 'web') {
+          if (window.confirm(`${t('fluxo.excluirTitulo')}\n\nDeseja realmente excluir este contrato?`)) {
+              aoExcluirContrato(id);
+          }
+      } else {
+          Alert.alert(
+              t('fluxo.excluirTitulo'),
+              "Deseja realmente excluir este contrato?",
+              [
+                  { text: t('common.cancelar'), style: 'cancel' },
+                  { 
+                    text: t('fluxo.btnApagar'), 
+                    style: 'destructive', 
+                    onPress: () => {
+                        aoExcluirContrato(id);
+                    } 
+                  }
+              ]
+          );
+      }
+  };
+
   // --- LÓGICA DO PDF ---
   const gerarPDF = async (con: Contrato) => {
     try {
@@ -73,7 +121,6 @@ export default function PastaCliente({
       const labelGarantia = isVenda ? (t('pdf.produtoServico') || '📦 Produto/Serviço') : (t('pdf.garantia') || '🔐 Garantia');
       const textoGarantia = con.garantia ? con.garantia.replace('PRODUTO:', '').trim() : (t('pdf.naoInformada') || 'Não informada');
 
-      // Traduz status e frequência para o PDF
       const statusPDF = traduzirStatus(con.status);
       const freqPDF = traduzirFrequencia(con.frequencia || 'MENSAL');
 
@@ -168,8 +215,18 @@ export default function PastaCliente({
           </body>
         </html>
       `;
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+
+      // --- CORREÇÃO BLINDADA: WEB x MOBILE ---
+      if (Platform.OS === 'web') {
+          // WEB: Usa a função do Expo que injeta o iframe corretamente
+          // Isso resolve o problema de "imprimir a tela toda"
+          await Print.printAsync({ html });
+      } else {
+          // MOBILE: Gera arquivo temporário e abre o compartilhamento
+          const { uri } = await Print.printToFileAsync({ html });
+          await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      }
+
     } catch (error) { Alert.alert(t('common.erro'), t('pdf.erroGerar') || "Falha ao gerar PDF."); }
   };
   
@@ -250,13 +307,12 @@ export default function PastaCliente({
           {/* =========== RADAR DE RISCO AUTOMÁTICO =========== */}
           {/* ================================================= */}
           <View style={styles.radarContainer}>
-             {/* AQUI ESTÁ A CORREÇÃO PRINCIPAL */}
              <Text style={styles.radarLabel}>{t('radar.tituloSection')}</Text>
              <RiskRadarCSI 
                 compacto={true}
                 initialNome={cliente.nome}
                 initialTelefone={cliente.whatsapp}
-                initialCpf={cliente.cpf} // <--- AQUI O CPF ENTRA AUTOMÁTICO
+                initialCpf={cliente.cpf}
              />
           </View>
           {/* ================================================= */}
@@ -280,7 +336,7 @@ export default function PastaCliente({
                 <Text style={[styles.txtAcaoCli, {color:'#FFF'}]}>{t('pastaCliente.novo')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={aoExcluirCliente} style={[styles.btnAcaoCli, {backgroundColor:'#E74C3C'}]}><Text style={[styles.txtAcaoCli, {color:'#FFF'}]}>{t('pastaCliente.excluir')}</Text></TouchableOpacity>
+            <TouchableOpacity onPress={handleExcluirCliente} style={[styles.btnAcaoCli, {backgroundColor:'#E74C3C'}]}><Text style={[styles.txtAcaoCli, {color:'#FFF'}]}>{t('pastaCliente.excluir')}</Text></TouchableOpacity>
           </View>
 
           {cliente.contratos && cliente.contratos.map((con) => {
@@ -294,7 +350,6 @@ export default function PastaCliente({
                   <Text style={styles.conValor}>R$ {con.capital?.toFixed(2)}</Text>
                 </View>
                 <View style={{flexDirection:'row', alignItems:'center', gap: 10}}>
-                  {/* --- MUDANÇA AQUI: Tradução do STATUS --- */}
                   <View style={[styles.badge, con.status === 'QUITADO' ? {backgroundColor:'#CCC'} : con.status === 'PARCELADO' ? {backgroundColor:'#8E44AD'} : {backgroundColor:'#E67E22'}]}>
                     <Text style={styles.badgeTxt}>{traduzirStatus(con.status)}</Text>
                   </View>
@@ -328,7 +383,6 @@ export default function PastaCliente({
                    </Text>
                  </View>
               ) : (
-                 // --- MUDANÇA AQUI: Tradução da FREQUÊNCIA ---
                  <Text style={styles.info}>{t('pastaCliente.juros')}: {con.taxa}% ({traduzirFrequencia(con.frequencia || 'MENSAL')})</Text>
               )}
 
@@ -342,7 +396,7 @@ export default function PastaCliente({
                   ) : (
                     <TouchableOpacity onPress={() => aoPagarParcela(con)} style={styles.btnParcela}><Text style={styles.txtBtn}>{t('pastaCliente.pagarParcela')} {((con.parcelasPagas||0)+1)}/{con.totalParcelas}</Text></TouchableOpacity>
                   )}
-                  <TouchableOpacity onPress={() => aoExcluirContrato(con.id)} style={styles.btnLixo}><Text>🗑</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleExcluirContrato(con.id)} style={styles.btnLixo}><Text>🗑</Text></TouchableOpacity>
                 </View>
               )}
 
@@ -370,11 +424,8 @@ const styles = StyleSheet.create({
   seta: { fontSize: 18, color: '#BDC3C7' },
   corpo: { padding: 15, borderTopWidth: 1, borderTopColor: '#F0F2F5' },
   fichaCadastral: { backgroundColor: '#F8F9FA', padding: 10, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: '#EEE' },
-  
-  // ESTILOS DO RADAR
   radarContainer: { marginBottom: 20, backgroundColor: '#EBF5FB', padding: 5, borderRadius: 8, borderWidth: 1, borderColor: '#AED6F1' },
   radarLabel: { fontSize: 10, color: '#2980B9', fontWeight: 'bold', marginBottom: 5, textAlign: 'center' },
-
   btnZap: { backgroundColor: '#25D366', paddingVertical: 8, borderRadius: 20, alignItems: 'center', marginBottom: 10, flexDirection: 'row', justifyContent: 'center' },
   txtZap: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
   linhaFicha: { fontSize: 13, color: '#444', marginBottom: 3 },

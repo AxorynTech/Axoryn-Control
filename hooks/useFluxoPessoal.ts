@@ -2,7 +2,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native'; // <--- Importações essenciais
 import { supabase } from '../services/supabase';
 
 export function useFluxoPessoal() {
@@ -188,10 +188,25 @@ export function useFluxoPessoal() {
 
   const gerarRelatorioPDF = async (contaId: number, nomeConta: string, dataInicio: string, dataFim: string) => {
     try {
-        const [dI, mI, aI] = dataInicio.split('/');
-        const isoInicio = `${aI}-${mI}-${dI}`;
-        const [dF, mF, aF] = dataFim.split('/');
-        const isoFim = `${aF}-${mF}-${dF}`;
+        // --- PARSER DE DATAS BLINDADO ---
+        // Garante que converte DD/MM/AAAA para YYYY-MM-DD corretamente
+        let isoInicio = '';
+        let isoFim = '';
+        
+        try {
+            if (dataInicio.includes('/')) {
+                const [dI, mI, aI] = dataInicio.split('/');
+                isoInicio = `${aI}-${mI}-${dI}`;
+            } else { isoInicio = dataInicio; }
+
+            if (dataFim.includes('/')) {
+                const [dF, mF, aF] = dataFim.split('/');
+                isoFim = `${aF}-${mF}-${dF}`;
+            } else { isoFim = dataFim; }
+        } catch (e) {
+            Alert.alert(t('common.erro'), "Formato de data inválido. Use DD/MM/AAAA.");
+            return;
+        }
 
         const { data: extrato, error } = await supabase
             .from('fluxo_pessoal')
@@ -210,11 +225,15 @@ export function useFluxoPessoal() {
         let totalEntradas = 0, totalSaidas = 0;
         
         const linhasHTML = extrato.map(item => {
-            const dataFmt = item.data_movimento.split('-').reverse().join('/');
+            // Formata a data para exibição (DD/MM/AAAA)
+            const dataFmt = item.data_movimento ? item.data_movimento.split('-').reverse().join('/') : '-';
             const valorFmt = item.valor.toFixed(2).replace('.', ',');
             const cor = item.tipo === 'ENTRADA' ? 'green' : 'red';
             const sinal = item.tipo === 'ENTRADA' ? '+' : '-';
-            if (item.tipo === 'ENTRADA') totalEntradas += item.valor; else totalSaidas += item.valor;
+            
+            if (item.tipo === 'ENTRADA') totalEntradas += item.valor; 
+            else totalSaidas += item.valor;
+            
             return `<tr><td>${dataFmt}</td><td>${item.descricao}</td><td style="color:${cor}; text-align:right; font-weight:bold;">${sinal} R$ ${valorFmt}</td></tr>`;
         }).join('');
 
@@ -224,15 +243,20 @@ export function useFluxoPessoal() {
         const html = `
           <html>
             <head>
+              <title>Extrato - ${nomeConta}</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
               <style>
-                body { font-family: 'Helvetica', sans-serif; padding: 20px; }
-                h1 { color: #2C3E50; text-align: center; }
-                .header { margin-bottom: 20px; border-bottom: 2px solid #EEE; padding-bottom: 10px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th { background-color: #F2F2F2; text-align: left; padding: 10px; border-bottom: 1px solid #DDD; }
+                body { font-family: 'Helvetica', sans-serif; padding: 20px; color: #333; }
+                h1 { color: #2C3E50; text-align: center; margin-bottom: 5px; }
+                .header { margin-bottom: 20px; border-bottom: 2px solid #EEE; padding-bottom: 10px; text-align: center; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+                th { background-color: #F2F2F2; text-align: left; padding: 10px; border-bottom: 1px solid #DDD; font-weight: bold; }
                 td { padding: 10px; border-bottom: 1px solid #EEE; }
-                .totais { margin-top: 30px; text-align: right; font-size: 16px; }
+                .totais { margin-top: 30px; text-align: right; font-size: 16px; padding-top: 10px; border-top: 1px solid #EEE; }
                 .saldo-final { font-size: 20px; font-weight: bold; margin-top: 10px; color: ${corSaldo}; }
+                @media print {
+                    .no-print { display: none; }
+                }
               </style>
             </head>
             <body>
@@ -244,9 +268,9 @@ export function useFluxoPessoal() {
               <table>
                 <thead>
                     <tr>
-                        <th>${t('fluxo.data')}</th>
-                        <th>${t('fluxo.descricao')}</th>
-                        <th style="text-align:right">${t('fluxo.valor')}</th>
+                        <th width="20%">${t('fluxo.data')}</th>
+                        <th width="50%">${t('fluxo.descricao')}</th>
+                        <th width="30%" style="text-align:right">${t('fluxo.valor')}</th>
                     </tr>
                 </thead>
                 <tbody>${linhasHTML}</tbody>
@@ -259,9 +283,31 @@ export function useFluxoPessoal() {
             </body>
           </html>`;
 
-        const { uri } = await Print.printToFileAsync({ html });
-        await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-    } catch (e) { Alert.alert(t('common.erro'), t('fluxo.falhaPDF')); }
+        // --- SOLUÇÃO HÍBRIDA (Web vs Mobile) ---
+        if (Platform.OS === 'web') {
+            // WEB: Abre uma nova janela e imprime
+            const pdfWindow = window.open('', '_blank');
+            if (pdfWindow) {
+                pdfWindow.document.write(html);
+                pdfWindow.document.close();
+                // Pequeno delay para garantir que o CSS carregue
+                setTimeout(() => {
+                    pdfWindow.focus();
+                    pdfWindow.print();
+                }, 500);
+            } else {
+                Alert.alert(t('common.erro'), "Por favor, permita pop-ups para gerar o relatório.");
+            }
+        } else {
+            // MOBILE: Gera PDF e Compartilha
+            const { uri } = await Print.printToFileAsync({ html });
+            await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+        }
+
+    } catch (e) { 
+        Alert.alert(t('common.erro'), t('fluxo.falhaPDF')); 
+        console.error(e);
+    }
   };
 
   return { contas, movimentos, saldoGeral, loading, adicionarConta, excluirConta, adicionarMovimento, editarMovimento, excluirMovimento, transferir, gerarRelatorioPDF };

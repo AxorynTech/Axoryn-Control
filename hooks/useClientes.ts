@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'; // Adicionado useMemo e useCallback
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert } from 'react-native';
 import { supabase } from '../services/supabase';
@@ -204,16 +204,20 @@ export function useClientes() {
     } catch(e) { Alert.alert(t('common.erro'), "Falha ao editar"); }
   }, [clientes, fetchData, t]);
 
-  const excluirCliente = useCallback((nomeCliente: string) => {
+  // ✅ CORRIGIDO: Removemos o Alert duplicado daqui. Agora ele só exclui.
+  // A confirmação já foi feita na tela anterior (PastaCliente).
+  const excluirCliente = useCallback(async (nomeCliente: string) => {
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return;
-    Alert.alert(t('fluxo.excluirTitulo'), `${t('fluxo.excluirMsg')} ${nomeCliente}?`, [
-      { text: t('common.cancelar') },
-      { text: t('fluxo.btnApagar'), style: 'destructive', onPress: async () => {
-          const { error } = await supabase.from('clientes').delete().eq('id', cliente.id);
-          if (!error) await fetchData();
-        }}
-    ]);
+    
+    try {
+        const { error } = await supabase.from('clientes').delete().eq('id', cliente.id);
+        if (error) throw error;
+        await fetchData();
+    } catch (e) {
+        // Alerta de erro genérico caso falhe no banco
+        Alert.alert(t('common.erro'), "Falha ao excluir cliente. Tente novamente.");
+    }
   }, [clientes, fetchData, t]);
 
   const alternarBloqueio = useCallback(async (cliente: Cliente) => {

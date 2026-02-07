@@ -2,17 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useFluxoPessoal } from '../hooks/useFluxoPessoal';
 
@@ -200,14 +200,30 @@ export default function TelaFluxoPessoal() {
 
   const handleExcluirNoModal = () => {
     if (!idEdicao) return;
-    Alert.alert(t('fluxo.excluirTitulo'), t('fluxo.excluirMsg'), [
-        { text: t('common.cancelar') },
-        { text: t('fluxo.btnApagar'), style: 'destructive', onPress: async () => {
-            await excluirMovimento(idEdicao);
-            setModalMovimento(false);
-            limparForm();
-        }}
-    ]);
+
+    const titulo = t('fluxo.excluirTitulo');
+    const msg = t('fluxo.excluirMsg');
+
+    // --- CORREÇÃO AQUI: BLINDADO PARA WEB E MOBILE ---
+    if (Platform.OS === 'web') {
+        // WEB: Usa window.confirm nativo do navegador
+        if (window.confirm(`${titulo}\n\n${msg}`)) {
+            excluirMovimento(idEdicao).then(() => {
+                setModalMovimento(false);
+                limparForm();
+            });
+        }
+    } else {
+        // MOBILE: Usa Alert.alert nativo
+        Alert.alert(titulo, msg, [
+            { text: t('common.cancelar') },
+            { text: t('fluxo.btnApagar'), style: 'destructive', onPress: async () => {
+                await excluirMovimento(idEdicao);
+                setModalMovimento(false);
+                limparForm();
+            }}
+        ]);
+    }
   };
 
   const limparForm = () => {

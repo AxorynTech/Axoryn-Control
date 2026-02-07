@@ -1,13 +1,19 @@
+[build]
+  publish = "."
+
+# Redirecionamento da Recuperação
 [[redirects]]
-  from = "/confirmar"
-  to = "/confirmar.html"
+  from = "/auth/recuperar"
+  to = "/auth/recuperar.html"
   status = 200
 
+# Redirecionamento da Confirmação
 [[redirects]]
-  from = "/recuperar"
-  to = "/recuperar.html"
+  from = "/auth/confirmar"
+  to = "/auth/confirmar.html"
   status = 200
 
+# Qualquer outra coisa vai para o Index (SPA)
 [[redirects]]
   from = "/*"
   to = "/index.html"

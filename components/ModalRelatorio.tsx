@@ -1,8 +1,8 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da Tradução
-import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { ActivityIndicator, Alert, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Cliente, Contrato } from '../types';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation();
   const hoje = new Date();
   const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
@@ -362,8 +362,27 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
         </html>
       `;
 
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      // --- CORREÇÃO FINAL: BLINDAGEM COMPLETA WEB x MOBILE ---
+      if (Platform.OS === 'web') {
+          // WEB: Abre nova janela e força a impressão apenas do HTML gerado.
+          // Isso resolve o problema de imprimir a tela do app junto.
+          const pdfWindow = window.open('', '_blank');
+          if (pdfWindow) {
+              pdfWindow.document.write(html);
+              pdfWindow.document.close();
+              setTimeout(() => {
+                  pdfWindow.focus();
+                  pdfWindow.print();
+              }, 500);
+          } else {
+              Alert.alert(t('common.erro'), "Permita pop-ups para imprimir.");
+          }
+      } else {
+          // MOBILE: Gera o arquivo e abre o menu de compartilhamento
+          const { uri } = await Print.printToFileAsync({ html });
+          await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      }
+      
       setLoading(false);
       fechar();
     } catch (error) { Alert.alert(t('common.erro'), t('relatorio.erroPDF') || 'Falha ao gerar PDF'); setLoading(false); }

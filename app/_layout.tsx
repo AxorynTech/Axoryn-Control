@@ -1,8 +1,8 @@
 import { Session } from '@supabase/supabase-js';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import '../i18n'; // <--- AQUI: Inicializa as traduções antes de tudo
+import { ActivityIndicator, Platform, View } from 'react-native'; // <--- Importei Platform e View
+import '../i18n';
 import { supabase } from '../services/supabase';
 
 export default function RootLayout() {
@@ -12,13 +12,20 @@ export default function RootLayout() {
   const segments = useSegments();
 
   useEffect(() => {
+    // Busca sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsMounted(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Escuta mudanças de auth (Login, Logout e RECUPERAÇÃO DE SENHA)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+
+      // ✅ FIX 1: Redirecionamento correto ao clicar no link do e-mail
+      if (event === 'PASSWORD_RECOVERY') {
+        router.push('/reset-password');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -31,7 +38,7 @@ export default function RootLayout() {
     const inTabsGroup = segments[0] === '(tabs)';
     const inAuthGroup = segments[0] === 'auth';
     const inResetPassword = segments[0] === 'reset-password';
-    const inPaywall = segments[0] === 'paywall'; // ✅ NOVO: Reconhece o Paywall
+    const inPaywall = segments[0] === 'paywall';
 
     if (session) {
       // --- USUÁRIO LOGADO ---
@@ -41,8 +48,8 @@ export default function RootLayout() {
         router.replace('/(tabs)');
       } 
       // 2. Se estiver perdido (fora das abas, fora do reset e FORA DO PAYWALL), joga pra Home.
-      // AQUI ESTAVA O ERRO: Adicionamos '!inPaywall' para ele não tirar a pessoa de lá.
-      else if (!inTabsGroup && !inResetPassword && !inPaywall) {
+      else if (!inTabsGroup && !inResetPassword && !inPaywall && segments[0] !== 'modal') {
+        // (Adicionei verificação de 'modal' para garantir que não feche modais acidentalmente)
         router.replace('/(tabs)');
       }
 
@@ -50,10 +57,10 @@ export default function RootLayout() {
       // --- USUÁRIO DESLOGADO ---
       
       // Se tentar acessar Abas ou Paywall sem conta, manda pro Login
+      // Permitimos 'reset-password' e 'auth'
       if (inTabsGroup || inPaywall) {
         router.replace('/auth');
       }
-      // Nota: Não bloqueamos o 'reset-password' para permitir recuperar senha
     }
   }, [session, isMounted, segments]);
 
@@ -65,15 +72,30 @@ export default function RootLayout() {
     );
   }
 
+  // ✅ FIX 2: Layout Web (Container para centralizar no PC)
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="paywall" /> 
-      {/* Adicionei o paywall na stack para a transição ser suave */}
-      
-      <Stack.Screen name="reset-password" /> 
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-    </Stack>
+    <View style={{ 
+      flex: 1, 
+      backgroundColor: '#f0f0f0' // Fundo cinza fora da área do app (só aparece no PC)
+    }}>
+      <View style={{
+        flex: 1,
+        width: '100%',
+        maxWidth: Platform.OS === 'web' ? 500 : '100%', // Limita largura no PC, 100% no celular
+        alignSelf: 'center', // Centraliza a "tira" do app
+        backgroundColor: '#fff', // Garante fundo branco no app
+        boxShadow: Platform.OS === 'web' ? '0px 0px 20px rgba(0,0,0,0.1)' : undefined, // Sombra suave no PC
+      }}>
+        
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="paywall" />
+          <Stack.Screen name="reset-password" />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+
+      </View>
+    </View>
   );
 }
