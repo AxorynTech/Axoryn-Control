@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { Platform } from 'react-native';
 
 import en from './en.json';
 import es from './es.json';
@@ -14,17 +15,31 @@ const RESOURCES = {
 };
 
 const initI18n = async () => {
-  let savedLanguage = await AsyncStorage.getItem('user-language');
+  let savedLanguage = 'pt'; // Valor padrão seguro para o build
 
-  if (!savedLanguage) {
-    const deviceLanguage = Localization.getLocales()[0].languageCode;
-    savedLanguage = deviceLanguage;
+  // Só executa a busca de idioma se NÃO estiver no servidor de build (proteção)
+  if (Platform.OS !== 'web' || typeof window !== 'undefined') {
+    try {
+      const languageFromStorage = await AsyncStorage.getItem('user-language');
+      
+      if (languageFromStorage) {
+        savedLanguage = languageFromStorage;
+      } else {
+        // Se não achou no storage, pega do dispositivo
+        const deviceLanguage = Localization.getLocales()[0]?.languageCode;
+        if (deviceLanguage) {
+          savedLanguage = deviceLanguage;
+        }
+      }
+    } catch (error) {
+      console.log('Erro ao recuperar idioma:', error);
+    }
   }
 
   i18n.use(initReactI18next).init({
-    compatibilityJSON: 'v4', // <--- ALTERADO AQUI DE 'v3' PARA 'v4'
+    compatibilityJSON: 'v4', // Mantido v4 como você pediu
     resources: RESOURCES,
-    lng: savedLanguage || 'pt',
+    lng: savedLanguage,
     fallbackLng: 'pt',
     interpolation: {
       escapeValue: false,
