@@ -216,7 +216,7 @@ export default function Perfil() {
 
   const abrirSuporte = () => {
 
-    const telefone = "5514997083402";
+    const telefone = "5515996292295";
 
     // Mensagem traduzida para o suporte
 
