@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conheça o Axoryn Control</title>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- ESTILOS DE PROPAGANDA (MODERNO E ATRATIVO) --- */
+        :root {
+            --azul-forte: #2980B9;
+            --azul-escuro: #2C3E50;
+            --verde-whats: #25D366;
+            --branco: #ffffff;
+            --cinza-fundo: #f8f9fa;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--branco);
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* BARRA DE NAVEGAÇÃO */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 5%;
+            background: var(--branco);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: fixed;
+            width: 90%;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--azul-forte);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-entrar {
+            text-decoration: none;
+            color: var(--azul-escuro);
+            font-weight: 600;
+            border: 2px solid var(--azul-escuro);
+            padding: 8px 20px;
+            border-radius: 30px;
+            transition: 0.3s;
+        }
+
+        .btn-entrar:hover {
+            background: var(--azul-escuro);
+            color: var(--branco);
+        }
+
+        /* SESSÃO PRINCIPAL (HERO) */
+        .hero {
+            padding: 120px 5% 60px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+        }
+
+        .hero-text {
+            flex: 1;
+            min-width: 300px;
+            padding-right: 40px;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            line-height: 1.2;
+            color: var(--azul-escuro);
+            margin-bottom: 20px;
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .hero-img {
+            flex: 1;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        .hero-img img {
+            max-width: 100%;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            /* Tamanho máximo para não ficar gigante */
+            max-height: 500px; 
+        }
+
+        /* BOTÕES DE AÇÃO */
+        .cta-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn-loja {
+            background: var(--azul-escuro);
+            color: var(--branco);
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: 0.3s;
+        }
+
+        .btn-loja:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            background: var(--azul-forte);
+        }
+
+        /* RECURSOS */
+        .features {
+            padding: 80px 5%;
+            background: var(--branco);
+            text-align: center;
+        }
+
+        .features h2 {
+            font-size: 2.5rem;
+            color: var(--azul-escuro);
+            margin-bottom: 50px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+
+        .card {
+            padding: 30px;
+            border-radius: 15px;
+            background: var(--cinza-fundo);
+            transition: 0.3s;
+        }
+
+        .card:hover {
+            background: var(--azul-forte);
+            color: var(--branco);
+        }
+
+        .card i {
+            font-size: 40px;
+            margin-bottom: 20px;
+            color: var(--azul-forte);
+        }
+        
+        .card:hover i { color: var(--branco); }
+
+        /* RODAPÉ E REDES SOCIAIS */
+        footer {
+            background: var(--azul-escuro);
+            color: var(--branco);
+            padding: 60px 5% 20px;
+            text-align: center;
+        }
+
+        .social {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .social a {
+            color: var(--branco);
+            font-size: 30px;
+            transition: 0.3s;
+        }
+
+        .social a:hover {
+            color: var(--azul-forte);
+            transform: scale(1.2);
+        }
+
+        /* WHATSAPP FLUTUANTE */
+        .whats-float {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--verde-whats);
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+            text-decoration: none;
+            z-index: 2000;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(37, 211, 102, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+        }
+
+        /* Responsivo */
+        @media(max-width: 768px) {
+            .hero { text-align: center; }
+            .hero-text { padding-right: 0; }
+            .cta-buttons { justify-content: center; }
+            .hero h1 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">
+            <i class="fas fa-chart-line"></i> Axoryn Control
+        </div>
+        <a href="index.html" class="btn-entrar">
+            <i class="fas fa-user"></i> Já sou Cliente
+        </a>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-text">
+            <h1>Controle seus Empréstimos e Clientes em um só lugar.</h1>
+            <p>O Axoryn Control é a ferramenta que faltava para profissionalizar o seu negócio. Gestão financeira, cobranças automáticas e muito mais.</p>
+            
+            <div class="cta-buttons">
+                <a href="#" class="btn-loja">
+                    <i class="fab fa-google-play"></i> Baixar Android
+                </a>
+                <a href="#" class="btn-loja">
+                    <i class="fab fa-apple"></i> Baixar iOS
+                </a>
+            </div>
+            <p style="margin-top: 15px; font-size: 0.9rem; color: #888;">
+                <i class="fas fa-check-circle" style="color: green;"></i> Teste Grátis de 30 dias
+            </p>
+        </div>
+
+        <div class="hero-img">
+            <img src="https://placehold.co/350x700/2980B9/FFFFFF?text=Print+do+App" alt="Tela do App Axoryn">
+        </div>
+    </section>
+
+    <section class="features">
+        <h2>Tudo o que você precisa</h2>
+        <div class="grid">
+            <div class="card">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Segurança Total</h3>
+                <p>Seus dados protegidos 24 horas por dia com nossa tecnologia exclusiva.</p>
+            </div>
+            <div class="card">
+                <i class="fab fa-whatsapp"></i>
+                <h3>Cobrança Automática</h3>
+                <p>Envie lembretes de pagamento direto no WhatsApp dos seus clientes.</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-chart-pie"></i>
+                <h3>Relatórios</h3>
+                <p>Saiba exatamente quanto você lucrou no mês e quem está devendo.</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-headset"></i>
+                <h3>Suporte 24/7</h3>
+                <p>Atendimento especializado a qualquer hora do dia ou da noite.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <h2>Fale Conosco</h2>
+        <p>Acompanhe nossas redes sociais e tire suas dúvidas.</p>
+        
+        <div class="social">
+            <a href="https://www.instagram.com/axoryncontrol/" target="_blank"><i class="fab fa-instagram"></i></a>
+            <a href="https://facebook.com/SEU_FACEBOOK" target="_blank"><i class="fab fa-facebook"></i></a>
+            <a href="https://wa.me/5515996292295" target="_blank"><i class="fab fa-whatsapp"></i></a>
+        </div>
+
+        <p style="margin-top: 40px; font-size: 14px; opacity: 0.7;">
+            &copy; 2026 Axoryn Tech. Todos os direitos reservados.
+        </p>
+    </footer>
+
+    <a href="https://wa.me/5515996292295" class="whats-float" target="_blank">
+        <i class="fab fa-whatsapp"></i>
+    </a>
+
+</body>
+</html>
