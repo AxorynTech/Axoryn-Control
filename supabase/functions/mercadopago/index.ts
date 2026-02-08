@@ -118,6 +118,23 @@ Deno.serve(async (req: Request) => {
         const pData = await res.json()
         if (pData.status === 'approved') {
           
+          // 🛡️ NOVO: PROTEÇÃO CONTRA DUPLICIDADE 🛡️
+          // Verifica se esse paymentId já foi processado antes
+          const { data: transacaoJaExiste } = await supabase
+            .from('historico_transacoes')
+            .select('id')
+            .eq('payment_id_externo', String(paymentId))
+            .single();
+
+          if (transacaoJaExiste) {
+            console.log(`Pagamento ${paymentId} já processado anteriormente. Ignorando.`);
+            // Retorna sucesso para o Mercado Pago parar de enviar
+            return new Response(JSON.stringify({ success: true, status: 'already_processed' }), { 
+              status: 200, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            });
+          }
+          
           // Recupera os dados salvos nos metadados da preferência
           const meta = pData.metadata || {};
           // Fallback: se não tiver metadata, usa external_reference e assume mensal
@@ -128,6 +145,15 @@ Deno.serve(async (req: Request) => {
           console.log(`Pagamento MP Aprovado (${type}) para: ${userId}`);
 
           if (userId) {
+
+            // 🛡️ NOVO: REGISTRA A TRANSAÇÃO PARA NÃO PROCESSAR DE NOVO 🛡️
+            await supabase.from('historico_transacoes').insert({
+                user_id: userId,
+                payment_id_externo: String(paymentId),
+                valor: pData.transaction_amount,
+                tipo: type
+            });
+
             if (type === 'recarga' && creditsToAdd > 0) {
               // --- LÓGICA DE RECARGA ---
               const { data: currentData } = await supabase

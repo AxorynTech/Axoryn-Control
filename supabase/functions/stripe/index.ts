@@ -96,6 +96,18 @@ serve(async (req: Request) => {
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         
+        // 🛡️ NOVO: PROTEÇÃO CONTRA DUPLICIDADE (Stripe envia eventos repetidos as vezes) 🛡️
+        const { data: transacaoJaExiste } = await supabase
+            .from('historico_transacoes')
+            .select('id')
+            .eq('payment_id_externo', session.id)
+            .single();
+
+        if (transacaoJaExiste) {
+             console.log("Evento Stripe duplicado ignorado (Já processado).");
+             return new Response(JSON.stringify({ received: true }), { headers: corsHeaders });
+        }
+
         // Recupera dados dos Metadados (Fallback para client_reference_id se necessário)
         const userId = session.metadata?.user_id || session.client_reference_id;
         const type = session.metadata?.type || 'mensal';
@@ -104,6 +116,14 @@ serve(async (req: Request) => {
         console.log(`Pagamento Stripe Aprovado (${type}) para UserID: ${userId}`);
 
         if (userId) {
+
+          // 🛡️ NOVO: REGISTRA A TRANSAÇÃO ANTES DE DAR OS CRÉDITOS 🛡️
+          await supabase.from('historico_transacoes').insert({
+              user_id: userId,
+              payment_id_externo: session.id,
+              valor: session.amount_total / 100,
+              tipo: type
+          });
           
           if (type === 'recarga' && creditsToAdd > 0) {
             // --- LÓGICA DE RECARGA (RiskRadar) ---

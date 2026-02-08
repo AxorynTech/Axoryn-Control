@@ -37,7 +37,9 @@
             font-size: 16px; 
             transition: background 0.2s; 
             box-sizing: border-box;
+            cursor: pointer;
         }
+        .btn:hover { background-color: #219150; }
         .btn:active { transform: scale(0.98); }
         .loader { margin-top: 25px; font-size: 13px; color: #999; }
     </style>
@@ -45,40 +47,41 @@
 <body>
     <div class="card">
         <h2>Cadastro Confirmado! 🎉</h2>
-        <p>Sua conta foi ativada com sucesso. Toque no botão abaixo para acessar o Axoryn Control.</p>
-        <a id="btnLink" href="#" class="btn">ABRIR APP AGORA</a>
-        <div class="loader">Redirecionando para o app...</div>
+        <p>Sua conta foi ativada com sucesso. Você será redirecionado para o sistema.</p>
+        <a id="btnLink" href="#" class="btn">ACESSAR AXORYN CONTROL</a>
+        <div class="loader">Entrando no sistema...</div>
     </div>
 
     <script>
         try {
+            // Pega os parâmetros da URL (tokens de acesso do Supabase)
             const hash = window.location.hash;
             const search = window.location.search;
             
-            let deepLink = "axoryn://";
+            // --- MUDANÇA: Redireciona para o domínio principal ---
+            let webUrl = "https://axoryntech.com.br"; 
 
-            // Pega os parâmetros
-            let params = hash;
-            if (!params && search) params = "#" + search.substring(1);
-
-            if (params) {
-                deepLink += params;
-                // Garante que o app saiba que é cadastro
-                if (!deepLink.includes('type=')) {
-                    deepLink += "&type=signup";
-                }
+            // Preserva os tokens de autenticação (hash) para o login automático no domínio principal
+            if (hash) {
+                // Ex: https://axoryntech.com.br#access_token=...
+                webUrl += "/" + hash; // Adiciona a barra para garantir que não cole no .br
+            } else if (search) {
+                webUrl += "/" + search;
             }
 
-            // Atualiza o botão e redireciona
+            // Atualiza o botão e faz o redirecionamento automático
             const btn = document.getElementById('btnLink');
-            btn.href = deepLink;
+            btn.href = webUrl;
 
+            // Redireciona após 1.5 segundos
             setTimeout(() => {
-                window.location.href = deepLink;
-            }, 1000);
+                window.location.href = webUrl;
+            }, 1500);
 
         } catch (err) {
             console.error("Erro no redirecionamento:", err);
+            // Fallback para o domínio principal em caso de erro
+            document.getElementById('btnLink').href = "https://axoryntech.com.br";
         }
     </script>
 </body>
