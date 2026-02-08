@@ -536,12 +536,14 @@
 
             } else {
                 const diasUso = (hoje - dataCriacao) / (1000 * 3600 * 24);
-                if ((7 - diasUso) > 0) {
+                // ALTERADO AQUI PARA 30 DIAS
+                if ((30 - diasUso) > 0) {
                     statusBadge = "TESTE"; statusBadgeClass = "bg-green-light";
                     mensagemKey = "msg_trial";
                     mostrarBarra = true;
                     document.getElementById('progressContainer').classList.remove('hidden');
-                    document.getElementById('progressBar').style.width = ((diasUso / 7) * 100) + "%";
+                    // ALTERADO AQUI PARA 30 DIAS
+                    document.getElementById('progressBar').style.width = ((diasUso / 30) * 100) + "%";
                     document.getElementById('areaRecargas').classList.remove('hidden'); 
                     document.getElementById('areaPagamento').classList.remove('hidden');
                 } else {

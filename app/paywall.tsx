@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react'; // Adicionado useEffect
-import { ActivityIndicator, Alert, AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Adicionado AppState
-import { useAssinatura } from '../hooks/useAssinatura'; // ⚠️ Garanta que o caminho está certo
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAssinatura } from '../hooks/useAssinatura';
 
-// URL DO SEU SITE CAMUFLADO
-const URL_GERENCIAMENTO = 'https://axoryntech.com.br/index.html';
+// ✅ CORRIGIDO: Aponta para o arquivo de pagamento correto
+const URL_GERENCIAMENTO = 'https://axoryntech.com.br/pay.html';
 
 export default function PaywallScreen() {
   const router = useRouter();
-  const { refresh, isPremium } = useAssinatura(); // Puxa a função de atualizar
+  const { refresh, isPremium } = useAssinatura(); 
   const [verificando, setVerificando] = useState(false);
 
   // 1. Abre o Site
@@ -18,55 +18,49 @@ export default function PaywallScreen() {
     if (supported) {
       await Linking.openURL(URL_GERENCIAMENTO);
     } else {
-      Alert.alert("Erro", "Não foi possível abrir o portal.");
+      // Fallback: Se der erro, tenta abrir direto sem verificar
+      await Linking.openURL(URL_GERENCIAMENTO).catch(() => {
+        Alert.alert("Erro", "Não foi possível abrir o portal de pagamento.");
+      });
     }
   };
 
   // 2. Verifica se o usuário já pagou/validou e volta
   const verificarEVoltar = async () => {
-    if (verificando) return; // Evita chamadas duplas
+    if (verificando) return;
     setVerificando(true);
     
     // Força uma atualização dos dados no Supabase
     await refresh(); 
     
-    // Pequeno delay para dar feedback visual (sensação de "checando")
     setTimeout(() => {
       setVerificando(false);
-      
-      // Se agora ele é Premium (ou o Avaliador liberado), manda pra Home
-      // O hook useAssinatura já deve ter atualizado o estado isPremium
-      // Nota: Como o refresh atualiza o contexto, o ideal seria observar isPremium, 
-      // mas aqui forçamos a navegação se der tudo certo na lógica do hook.
+      // Se a assinatura foi detectada, o redirecionamento acontece
+      // (O ideal é que o hook useAssinatura gerencie isso, mas aqui forçamos o refresh)
       router.replace('/(tabs)'); 
     }, 1500);
   };
 
-  // 3. NOVO: Monitoramento Automático (Deep Link e Foco)
+  // 3. Monitoramento Automático
   useEffect(() => {
-    // A. Detecta se o app foi aberto via Link de Sucesso (axoryn://payment-success)
+    // Detecta link de sucesso
     const handleDeepLink = (event: { url: string }) => {
       if (event.url && event.url.includes('payment-success')) {
-        console.log("Pagamento detectado via Deep Link!");
         verificarEVoltar();
       }
     };
 
-    // Pega o link inicial se o app estava fechado
     Linking.getInitialURL().then((url) => {
       if (url && url.includes('payment-success')) {
         verificarEVoltar();
       }
     });
 
-    // Ouve links enquanto o app está aberto
     const linkingSubscription = Linking.addEventListener('url', handleDeepLink);
 
-    // B. Detecta se o usuário apenas trocou de app e voltou (sem clicar no link)
+    // Detecta volta ao app
     const appStateSubscription = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
-        // App voltou para o primeiro plano: tenta atualizar silenciosamente
-        console.log("App voltou ao foco. Verificando status...");
         refresh(); 
       }
     });
@@ -87,7 +81,7 @@ export default function PaywallScreen() {
       <Text style={styles.title}>Acesso Restrito</Text>
       
       <Text style={styles.description}>
-        Para continuar utilizando todos os recursos, é necessário validar o status da sua conta em nosso painel web seguro.
+        Para continuar utilizando todos os recursos, é necessário validar o status da sua conta em nosso portal.
       </Text>
 
       {/* Card Informativo */}
@@ -109,7 +103,7 @@ export default function PaywallScreen() {
         <Ionicons name="open-outline" size={20} color="#FFF" style={{ marginLeft: 10 }} />
       </TouchableOpacity>
 
-      {/* BOTÃO SECUNDÁRIO: JÁ PAGUEI / ATUALIZAR */}
+      {/* BOTÃO SECUNDÁRIO: ATUALIZAR */}
       <TouchableOpacity 
         style={[styles.backButton, verificando && { opacity: 0.7 }]} 
         onPress={verificarEVoltar}
@@ -201,7 +195,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  // Estilo do botão de voltar/atualizar
   backButton: {
     marginTop: 20,
     padding: 15,
@@ -212,7 +205,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   backText: {
-    color: '#2980B9', // Azul para indicar que é clicável
+    color: '#2980B9',
     fontSize: 14,
     fontWeight: '600',
   },
