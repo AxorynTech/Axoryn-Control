@@ -135,10 +135,33 @@
         .store-btn.disabled { opacity: 0.5; cursor: not-allowed; }
         .store-btn:hover:not(.disabled) { background: rgba(255,255,255,0.1); border-color: white; }
 
-        /* Responsivo */
+        /* Responsivo - CORRIGIDO */
         @media (max-width: 768px) {
+            /* Ajusta o tamanho do título */
             h1 { font-size: 32px; }
-            .nav-links { display: none; }
+
+            /* Muda a barra para coluna (Logo em cima, botões embaixo) */
+            nav {
+                flex-direction: column;
+                padding: 15px;
+                gap: 15px;
+            }
+
+            /* Faz os links aparecerem novamente, um embaixo do outro */
+            .nav-links { 
+                display: flex; /* Tira o 'none' e coloca flex */
+                flex-direction: column;
+                width: 100%;
+                gap: 15px;
+                text-align: center;
+            }
+
+            /* Ajusta o botão de login para ocupar a largura toda no celular (fica mais fácil de clicar) */
+            .btn-login {
+                display: block;
+                width: 100%;
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -149,7 +172,7 @@
             <i class="fas fa-shield-alt"></i> Axoryn Control
         </div>
         <div class="nav-links">
-            <a href="pay.html" class="nav-item">Planos & Pagamentos</a>
+            <a href="https://axoryntech.com.br/pay.html" class="nav-item">Planos & Pagamentos</a>
             <a href="https://axoryntech.com.br" class="btn-login">ACESSAR SISTEMA</a>
         </div>
     </nav>
@@ -250,7 +273,7 @@
             <a href="https://instagram.com/axoryncontrol" target="_blank" title="Instagram"><i class="fab fa-instagram"></i></a>
             <a href="https://facebook.com/axoryncontrol" target="_blank" title="Facebook"><i class="fab fa-facebook"></i></a>
             <a href="https://wa.me/5515996292295" target="_blank" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
-            <a href="mailto:axoryncontrol@gmail.com" target="_blank" title="E-mail"><i class="fas fa-envelope"></i></a>
+            <a href="mailto:axoryncontrol@gmail.com" title="E-mail"><i class="fas fa-envelope"></i></a>
         </div>
 
         <div style="margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
