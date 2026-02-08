@@ -82,11 +82,11 @@ export function useAssinatura() {
         }
       } else {
         // ============================================================
-        // 3. Lógica de Teste Grátis (7 dias após cadastro)
+        // 3. Lógica de Teste Grátis (30 dias após cadastro)
         // ============================================================
         const dataCadastro = new Date(user.created_at);
         dataVencimento = new Date(dataCadastro);
-        dataVencimento.setDate(dataCadastro.getDate() + 7);
+        dataVencimento.setDate(dataCadastro.getDate() + 30);
 
         if (hoje < dataVencimento) {
           setTipoPlano('teste_gratis');

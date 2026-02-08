@@ -36,7 +36,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
   }, [initialCpf, initialTelefone]);
 
   const abrirSiteRecarga = () => {
-    Linking.openURL('https://axoryntech.com.br/index.html');
+    Linking.openURL('https://axoryntech.com.br/pay.html');
   };
 
   const handleInvestigar = async () => {
