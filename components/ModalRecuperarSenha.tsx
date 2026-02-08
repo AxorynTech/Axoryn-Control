@@ -36,14 +36,15 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
       if (Platform.OS === 'web') {
         // --- WEB ---
         if (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1')) {
-             // Teste local
-             siteDeRecuperacao = `${window.location.origin}/auth/recuperar.html`;
+             // Teste local: Pega a url do navegador + a rota
+             siteDeRecuperacao = `${window.location.origin}/reset-password`;
         } else {
-             // PRODUÇÃO: Aponta para a pasta /auth/
-             siteDeRecuperacao = 'https://axoryntech.com.br/auth/recuperar.html';
+             // PRODUÇÃO: Aponta para a rota do App (e não mais para o arquivo .html)
+             siteDeRecuperacao = 'https://axoryntech.com.br/reset-password';
         }
       } else {
         // --- MOBILE ---
+        // Cria o deep link para abrir o app
         siteDeRecuperacao = Linking.createURL('/reset-password');
       }
 
@@ -57,7 +58,7 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
 
       Alert.alert(
         "E-mail Enviado",
-        "Acesse seu e-mail e clique no link.",
+        "Acesse seu e-mail e clique no link para redefinir a senha.",
         [{ text: "OK", onPress: () => { setEmail(''); fechar(); } }]
       );
     } catch (error: any) {

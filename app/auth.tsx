@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Importante para salvar a escolha
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -23,7 +23,7 @@ import ModalTermos from '../components/ModalTermos';
 import { supabase } from '../services/supabase';
 
 export default function Auth() {
-  const { t, i18n } = useTranslation(); // Hook de tradução
+  const { t, i18n } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,8 +41,8 @@ export default function Auth() {
   // --- FUNÇÃO DE TROCA DE IDIOMA ---
   const mudarIdioma = async (lang: string) => {
     try {
-      await AsyncStorage.setItem('user-language', lang); // Salva para a próxima vez
-      i18n.changeLanguage(lang); // Aplica instantaneamente
+      await AsyncStorage.setItem('user-language', lang);
+      i18n.changeLanguage(lang);
     } catch (e) {
       console.error("Erro ao salvar idioma", e);
     }
@@ -55,6 +55,7 @@ export default function Auth() {
       setTimeout(() => { processandoLink.current = false; }, 2000);
 
       let url = event.url;
+      // Correção para links que chegam com encoding errado
       if (url.includes('%23')) url = url.replace('%23', '#');
 
       if (url.includes('access_token') && url.includes('refresh_token')) {
@@ -93,18 +94,28 @@ export default function Auth() {
 
   async function handleAuth() {
     if (!email || !password) return Alert.alert(t('common.erro', 'Erro'), t('common.preenchaCampos', 'Preencha todos os campos.'));
-    if (isSignUp && !termosAceitos) return Alert.alert(t('common.erro', 'Erro'), t('auth.aceiteTermos', 'Aceite os termos.'));
+    
+    // Validação dos termos no cadastro
+    if (isSignUp && !termosAceitos) return Alert.alert(t('common.erro', 'Erro'), t('auth.aceiteTermos', 'É necessário ler e aceitar os Termos de Uso.'));
 
     setLoading(true);
     try {
       if (isSignUp) {
+        // --- AQUI ESTÁ A CORREÇÃO MÁGICA ---
+        const redirectUrl = Platform.OS === 'web' 
+          ? 'https://axoryntech.com.br/auth/confirmar' // Web: Vai para a home do site
+          : Linking.createURL('/');     // Mobile: Abre o app
+
         const { error }: any = await supabase.auth.signUp({ 
             email, 
             password,
-            options: { emailRedirectTo: 'https://axoryntech.com.br/confirmar.html' }
+            options: { 
+              emailRedirectTo: redirectUrl
+            }
         });
+        
         if (error) throw error;
-        Alert.alert(t('common.sucesso', 'Sucesso'), t('auth.cadastroSucesso', 'Verifique seu e-mail.'));
+        Alert.alert(t('common.sucesso', 'Sucesso'), t('auth.cadastroSucesso', 'Verifique seu e-mail para confirmar o cadastro.'));
       } else {
         const { error, data }: any = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -117,8 +128,6 @@ export default function Auth() {
     }
   }
 
-  // Pega o idioma atual para saber qual bandeira destacar
-  // (Usa startsWith para pegar 'pt-BR' como 'pt')
   const langAtual = i18n.language || 'pt';
 
   return (
@@ -128,33 +137,18 @@ export default function Auth() {
         <View style={styles.header}>
           <Image source={require('../assets/images/app-icon.png')} style={styles.logo} resizeMode="contain" />
           
-          {/* --- ÁREA DAS BANDEIRAS (SELETOR) --- */}
+          {/* --- SELETOR DE IDIOMAS --- */}
           <View style={styles.langContainer}>
-            {/* PORTUGUÊS */}
-            <TouchableOpacity 
-              onPress={() => mudarIdioma('pt')} 
-              style={[styles.langBtn, langAtual.startsWith('pt') && styles.langBtnActive]}
-            >
+            <TouchableOpacity onPress={() => mudarIdioma('pt')} style={[styles.langBtn, langAtual.startsWith('pt') && styles.langBtnActive]}>
               <Text style={styles.flag}>🇧🇷</Text>
             </TouchableOpacity>
-            
-            {/* INGLÊS */}
-            <TouchableOpacity 
-              onPress={() => mudarIdioma('en')} 
-              style={[styles.langBtn, langAtual.startsWith('en') && styles.langBtnActive]}
-            >
+            <TouchableOpacity onPress={() => mudarIdioma('en')} style={[styles.langBtn, langAtual.startsWith('en') && styles.langBtnActive]}>
               <Text style={styles.flag}>🇺🇸</Text>
             </TouchableOpacity>
-            
-            {/* ESPANHOL */}
-            <TouchableOpacity 
-              onPress={() => mudarIdioma('es')} 
-              style={[styles.langBtn, langAtual.startsWith('es') && styles.langBtnActive]}
-            >
+            <TouchableOpacity onPress={() => mudarIdioma('es')} style={[styles.langBtn, langAtual.startsWith('es') && styles.langBtnActive]}>
               <Text style={styles.flag}>🇪🇸</Text>
             </TouchableOpacity>
           </View>
-          {/* ------------------------------------ */}
 
           <Text style={styles.title}>Axoryn Control</Text>
           <Text style={styles.subtitle}>{isSignUp ? t('auth.criarContaTitulo', 'Criar Conta') : t('auth.entrarTitulo', 'Acessar Conta')}</Text>
@@ -202,6 +196,7 @@ export default function Auth() {
 
         <ModalRecuperarSenha visivel={modalRecuperar} fechar={() => setModalRecuperar(false)} />
         <ModalNovaSenha visivel={modalNovaSenha} fechar={() => setModalNovaSenha(false)} />
+        {/* Passamos a função de aceitar para o modal */}
         <ModalTermos visivel={modalTermosVisivel} fechar={() => setModalTermosVisivel(false)} aceitar={() => { setTermosAceitos(true); setModalTermosVisivel(false); }} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -213,31 +208,10 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
   header: { alignItems: 'center', marginBottom: 20 },
   logo: { width: 100, height: 100, marginBottom: 15, borderRadius: 20 },
-  
-  // --- ESTILO DAS BANDEIRAS ---
-  langContainer: { 
-    flexDirection: 'row', 
-    gap: 15, 
-    marginBottom: 10,
-    backgroundColor: '#EAECEE',
-    padding: 8,
-    borderRadius: 30
-  },
-  langBtn: { 
-    padding: 6, 
-    borderRadius: 20, 
-    opacity: 0.3, // Bandeira inativa fica apagada
-    transform: [{ scale: 0.9 }]
-  },
-  langBtnActive: { 
-    opacity: 1, // Bandeira ativa fica 100% visível
-    backgroundColor: '#FFF', 
-    elevation: 3, // Sombra
-    transform: [{ scale: 1.1 }] // Fica um pouco maior
-  },
+  langContainer: { flexDirection: 'row', gap: 15, marginBottom: 10, backgroundColor: '#EAECEE', padding: 8, borderRadius: 30 },
+  langBtn: { padding: 6, borderRadius: 20, opacity: 0.3, transform: [{ scale: 0.9 }] },
+  langBtnActive: { opacity: 1, backgroundColor: '#FFF', elevation: 3, transform: [{ scale: 1.1 }] },
   flag: { fontSize: 24 },
-  // ---------------------------
-
   title: { fontSize: 28, fontWeight: 'bold', color: '#2C3E50' },
   subtitle: { fontSize: 16, color: '#7F8C8D', marginTop: 5 },
   form: { backgroundColor: '#FFF', padding: 25, borderRadius: 15, elevation: 3 },

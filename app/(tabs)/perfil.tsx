@@ -20,7 +20,7 @@ import { useClientes } from '../../hooks/useClientes';
 import { supabase } from '../../services/supabase';
 
 // URL DO SEU SITE DE GERENCIAMENTO
-const URL_GERENCIAMENTO = 'https://axoryntech.com.br/index.html';
+const URL_GERENCIAMENTO = 'https://axoryntech.com.br/pay.html';
 
 export default function Perfil() {
   const router = useRouter();
