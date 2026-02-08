@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação
+import { useTranslation } from 'react-i18next';
 import { Alert } from 'react-native';
 import { supabase } from '../services/supabase';
+import { useAssinatura } from './useAssinatura';
 
 export function useRiskRadar() {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation();
+  
+  // Trazemos o tipo do plano para diferenciar Free de Pago
+  const { isPremium, tipoPlano } = useAssinatura();
+
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
   const [consultasRestantes, setConsultasRestantes] = useState(0); 
   
-  // --- NOVO: Estado para controlar o período grátis ---
   const [periodoGratis, setPeriodoGratis] = useState(false);
 
+  // Adicionei tipoPlano nas dependências para recalcular se a assinatura mudar
   useEffect(() => {
     carregarUsuarioECreditos();
-  }, []);
+  }, [tipoPlano]);
 
   const carregarUsuarioECreditos = async () => {
     try {
@@ -27,11 +32,17 @@ export function useRiskRadar() {
       const diferencaTempo = hoje.getTime() - dataCriacao.getTime();
       const diasDeVida = diferencaTempo / (1000 * 3600 * 24);
 
-      // Se tiver menos de 30 dias, ativa o modo ilimitado
-      const isGratis = diasDeVida <= 30;
+      // --- CORREÇÃO AQUI ---
+      // É Grátis/Ilimitado SE:
+      // 1. Tiver menos de 30 dias DE VIDA
+      // 2. E NÃO tiver um plano pago ('mensal' ou 'anual')
+      // Se a pessoa pagou 'mensal', o tipoPlano será 'mensal', então isGratis vira FALSE (mostra saldo real)
+      const isPlanoPago = tipoPlano === 'mensal' || tipoPlano === 'anual' || tipoPlano === 'recarga';
+      const isGratis = (diasDeVida <= 30) && !isPlanoPago;
+      
       setPeriodoGratis(isGratis);
 
-      // Busca os créditos (mesmo sendo grátis, carregamos para quando acabar)
+      // Busca os créditos
       const { data, error } = await supabase
         .from('user_credits')
         .select('*')
@@ -49,9 +60,7 @@ export function useRiskRadar() {
   };
 
   const criarContaDeCreditos = async (userId: string) => {
-      // <--- AQUI VOCÊ ALTERA A QUANTIDADE INICIAL (PADRÃO 10)
       const QTD_INICIAL = 10; 
-
       const { error } = await supabase.from('user_credits').insert([
           { user_id: userId, consultas_restantes: QTD_INICIAL, ultima_renovacao: new Date().toISOString() }
       ]);
@@ -64,9 +73,7 @@ export function useRiskRadar() {
       const diferencaDias = (hoje.getTime() - ultimaData.getTime()) / (1000 * 3600 * 24);
 
       if (diferencaDias >= 30) {
-          console.log("Renovação Mensal Pessoal!");
-          
-          // <--- AQUI VOCÊ ALTERA A QUANTIDADE DA RENOVAÇÃO MENSAL (PADRÃO 10)
+          console.log("Renovação Mensal de Créditos!");
           const QTD_RENOVACAO = 10;
 
           await supabase.from('user_credits').update({ 
@@ -75,7 +82,7 @@ export function useRiskRadar() {
           }).eq('user_id', userId);
           
           setConsultasRestantes(QTD_RENOVACAO);
-          // TRADUZIDO: Mensagem de renovação
+          
           Alert.alert(
               t('radar.renovacaoTitulo', 'Renovação'), 
               t('radar.msgRenovacao', 'Seus créditos mensais foram renovados! +10 consultas.')
@@ -90,7 +97,6 @@ export function useRiskRadar() {
       if (!user) return;
 
       try {
-          // <--- AQUI VOCÊ ALTERA A QUANTIDADE DA RECARGA PAGA (PADRÃO 10)
           const QTD_RECARGA = 10;
 
           const { error } = await supabase
@@ -100,7 +106,6 @@ export function useRiskRadar() {
 
           if (!error) {
               setConsultasRestantes(QTD_RECARGA);
-              // TRADUZIDO: Mensagem de recarga
               Alert.alert(
                   t('radar.recargaTitulo', 'Recarga'), 
                   t('radar.msgRecargaSucesso', 'Pacote de 10 consultas liberado para VOCÊ! 🚀')
@@ -112,10 +117,10 @@ export function useRiskRadar() {
   };
 
   const investigar = async (cpf: string, telefone: string, nome: string) => {
-    // --- LÓGICA DE BLOQUEIO ATUALIZADA ---
-    // Só bloqueia se NÃO for período grátis E não tiver saldo
-    if (!periodoGratis && consultasRestantes <= 0) {
-        // TRADUZIDO: Alerta de limite
+    // --- LÓGICA DE BLOQUEIO ---
+    // Bloqueia se: NÃO for período grátis E NÃO for vitalício E saldo for zero
+    // (Quem paga Mensal entra aqui se acabar o saldo)
+    if (!periodoGratis && tipoPlano !== 'vitalicio' && consultasRestantes <= 0) {
         Alert.alert(
             t('radar.limiteTitulo'), 
             t('radar.limiteMsg'),
@@ -134,7 +139,6 @@ export function useRiskRadar() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não logado");
 
-      // 1. Chama a inteligência (RPC)
       const { data, error } = await supabase
         .rpc('consultar_risco_triangulado', {
           cpf_input: cpf || '',
@@ -145,16 +149,17 @@ export function useRiskRadar() {
       if (error) throw error;
       setResultado(data);
 
-      // --- REGISTRO DE LOG (Mantido) ---
+      // --- LOG ---
       await supabase.from('risk_logs').insert([{
           user_id: user.id,
           data_consulta: new Date().toISOString(),
           termo_pesquisado: nome || cpf || telefone || 'Consulta Rápida'
       }]);
-      // --------------------------------
 
-      // 2. Desconta 1 crédito (APENAS SE NÃO FOR GRÁTIS)
-      if (!periodoGratis) {
+      // --- DESCONTO DE CRÉDITO ---
+      // Desconta se NÃO for grátis E NÃO for vitalício
+      // (Ou seja, desconta de quem paga Mensal/Anual)
+      if (!periodoGratis && tipoPlano !== 'vitalicio') {
           const novoSaldo = consultasRestantes - 1;
           setConsultasRestantes(novoSaldo);
           
@@ -165,7 +170,6 @@ export function useRiskRadar() {
       }
 
     } catch (error: any) {
-      // TRADUZIDO: Mensagem de erro genérica
       Alert.alert(t('common.erro'), t('radar.erroConsulta', 'Falha na conexão ou consulta.'));
       console.error(error);
     } finally {
@@ -177,8 +181,9 @@ export function useRiskRadar() {
     investigar,
     resultado,
     loading,
-    // Se for grátis, mostra 999 para dar sensação de ilimitado, senão mostra o real
-    consultasRestantes: periodoGratis ? 999 : consultasRestantes,
+    // VISUAL: Mostra 999 se for Grátis (Trial) ou Vitalício
+    // Mostra o saldo REAL se for Pago (Mensal/Anual) ou Expirado
+    consultasRestantes: (periodoGratis || tipoPlano === 'vitalicio') ? 999 : consultasRestantes,
     recarregarCreditos
   };
 }
