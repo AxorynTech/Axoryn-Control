@@ -35,18 +35,15 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
 
       if (Platform.OS === 'web') {
         // --- WEB ---
-        // Se estiver em localhost (teste), usa a rota interna
         if (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1')) {
-             siteDeRecuperacao = `${window.location.origin}/reset-password`;
+             // Teste local
+             siteDeRecuperacao = `${window.location.origin}/auth/recuperar.html`;
         } else {
-             // PRODUÇÃO: Aponta para o arquivo HTML que movemos para public/auth
-             // Ajuste o domínio aqui se for diferente
-             const dominio = "https://axoryntech.com.br"; 
-             siteDeRecuperacao = `${dominio}/auth/recuperar.html`;
+             // PRODUÇÃO: Aponta para a pasta /auth/
+             siteDeRecuperacao = 'https://axoryntech.com.br/auth/recuperar.html';
         }
       } else {
         // --- MOBILE ---
-        // Usa o esquema do app (axoryn://)
         siteDeRecuperacao = Linking.createURL('/reset-password');
       }
 

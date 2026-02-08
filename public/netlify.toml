@@ -2,14 +2,13 @@
   command = "npx expo export -p web"
   publish = "dist"
 
-# --- REGRA NOVA (Adicione isto antes da outra regra) ---
-# Isso diz: "Se o link tiver /auth/, abra o arquivo real, não redirecione para o app"
+# REGRA 1: Permite acessar os arquivos da pasta auth (recuperar senha)
 [[redirects]]
   from = "/auth/*"
   to = "/auth/:splat"
   status = 200
 
-# --- REGRA PADRÃO (Mantém o App funcionando) ---
+# REGRA 2: Todo o resto vai para o App (React Native Web)
 [[redirects]]
   from = "/*"
   to = "/index.html"
