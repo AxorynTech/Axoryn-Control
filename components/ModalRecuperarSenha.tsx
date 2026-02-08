@@ -33,20 +33,24 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
       
       let siteDeRecuperacao;
 
-      // 1. Lógica Inteligente para definir o link
       if (Platform.OS === 'web') {
-        // Se estiver no SITE, usa o link do seu site HTML fixo ou a rota do app web
-        // Opção A: Usar o arquivo HTML que você criou na pasta public
-        siteDeRecuperacao = 'https://axoryntech.com.br/recuperar.html'; 
-        
-        // Opção B (Alternativa): Usar a rota do app se preferir não usar o HTML estático
-        // siteDeRecuperacao = `${window.location.origin}/reset-password`;
+        // --- WEB ---
+        // Se estiver em localhost (teste), usa a rota interna
+        if (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1')) {
+             siteDeRecuperacao = `${window.location.origin}/reset-password`;
+        } else {
+             // PRODUÇÃO: Aponta para o arquivo HTML que movemos para public/auth
+             // Ajuste o domínio aqui se for diferente
+             const dominio = "https://axoryntech.com.br"; 
+             siteDeRecuperacao = `${dominio}/auth/recuperar.html`;
+        }
       } else {
-        // Se estiver no CELULAR, usa o esquema do app (axoryn://) para abrir o app direto
+        // --- MOBILE ---
+        // Usa o esquema do app (axoryn://)
         siteDeRecuperacao = Linking.createURL('/reset-password');
       }
 
-      console.log("🔗 Link gerado:", siteDeRecuperacao);
+      console.log("🔗 Enviando link para:", siteDeRecuperacao);
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: siteDeRecuperacao,
@@ -56,7 +60,7 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
 
       Alert.alert(
         "E-mail Enviado",
-        "Acesse sua caixa de entrada e clique no link para redefinir sua senha.",
+        "Acesse seu e-mail e clique no link.",
         [{ text: "OK", onPress: () => { setEmail(''); fechar(); } }]
       );
     } catch (error: any) {
@@ -71,7 +75,7 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
       <KeyboardAvoidingView style={styles.fundo} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.janela}>
           <Text style={styles.titulo}>Recuperar Senha 🔒</Text>
-          <Text style={styles.descricao}>Digite seu e-mail. Enviaremos um link para criar uma nova senha.</Text>
+          <Text style={styles.descricao}>Digite seu e-mail para receber o link.</Text>
           <Text style={styles.label}>E-mail</Text>
           <TextInput 
             style={styles.input} 
@@ -79,7 +83,7 @@ export default function ModalRecuperarSenha({ visivel, fechar }: Props) {
             onChangeText={setEmail} 
             keyboardType="email-address" 
             autoCapitalize="none" 
-            placeholder="exemplo@email.com" 
+            placeholder="seu@email.com" 
           />
           <TouchableOpacity style={[styles.btnEnviar, loading && { opacity: 0.7 }]} onPress={handleRecuperar} disabled={loading}>
             <Text style={styles.txtBtn}>{loading ? "ENVIANDO..." : "ENVIAR LINK"}</Text>

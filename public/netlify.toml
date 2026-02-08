@@ -1,0 +1,16 @@
+[build]
+  command = "npx expo export -p web"
+  publish = "dist"
+
+# --- REGRA NOVA (Adicione isto antes da outra regra) ---
+# Isso diz: "Se o link tiver /auth/, abra o arquivo real, não redirecione para o app"
+[[redirects]]
+  from = "/auth/*"
+  to = "/auth/:splat"
+  status = 200
+
+# --- REGRA PADRÃO (Mantém o App funcionando) ---
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
