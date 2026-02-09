@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { supabase } from '../services/supabase';
 import { Cliente, Contrato } from '../types';
 
@@ -249,13 +249,22 @@ export function useClientes() {
                 const valorEmprestimo = Number(novoContrato.capital);
 
                 if (saldoAtual < valorEmprestimo) {
-                      const confirmacao = await new Promise<boolean>((resolve) => {
-                          Alert.alert(t('fluxo.aviso'), `Saldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`, [
-                                { text: t('common.cancelar'), onPress: () => resolve(false), style: 'cancel' },
-                                { text: "Continuar", onPress: () => resolve(true), style: 'destructive' }
-                            ]);
-                      });
-                      if (!confirmacao) return; 
+                    if (Platform.OS === 'web') {
+                        // Lógica para WEB (window.confirm bloqueia a execução até a resposta)
+                        const confirmacao = window.confirm(
+                            `${t('fluxo.aviso')}\nSaldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`
+                        );
+                        if (!confirmacao) return;
+                    } else {
+                        // Lógica para MOBILE (Alert.alert com Promise)
+                        const confirmacao = await new Promise<boolean>((resolve) => {
+                            Alert.alert(t('fluxo.aviso'), `Saldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`, [
+                                    { text: t('common.cancelar'), onPress: () => resolve(false), style: 'cancel' },
+                                    { text: "Continuar", onPress: () => resolve(true), style: 'destructive' }
+                                ]);
+                        });
+                        if (!confirmacao) return; 
+                    }
                 }
             }
         }

@@ -66,12 +66,10 @@ export default function PastaCliente({
   // --- FUNÇÕES DE EXCLUSÃO BLINDADAS (WEB x MOBILE) ---
   const handleExcluirCliente = () => {
       if (Platform.OS === 'web') {
-          // WEB: Usa window.confirm
           if (window.confirm(`${t('fluxo.excluirTitulo')}\n\n${t('fluxo.excluirMsg')} ${cliente.nome}?`)) {
               aoExcluirCliente();
           }
       } else {
-          // MOBILE: Usa Alert nativo com função anônima para garantir execução
           Alert.alert(
               t('fluxo.excluirTitulo'), 
               `${t('fluxo.excluirMsg')} ${cliente.nome}?`,
@@ -80,10 +78,7 @@ export default function PastaCliente({
                   { 
                     text: t('fluxo.btnApagar'), 
                     style: 'destructive', 
-                    onPress: () => {
-                        // Chama a função passada via props garantindo que seja executada
-                        aoExcluirCliente();
-                    } 
+                    onPress: () => aoExcluirCliente() 
                   }
               ]
           );
@@ -104,16 +99,14 @@ export default function PastaCliente({
                   { 
                     text: t('fluxo.btnApagar'), 
                     style: 'destructive', 
-                    onPress: () => {
-                        aoExcluirContrato(id);
-                    } 
+                    onPress: () => aoExcluirContrato(id) 
                   }
               ]
           );
       }
   };
 
-  // --- LÓGICA DO PDF ---
+  // --- LÓGICA DO PDF (WEB + MOBILE) ---
   const gerarPDF = async (con: Contrato) => {
     try {
       const dataEmissao = new Date().toLocaleDateString('pt-BR');
@@ -143,13 +136,14 @@ export default function PastaCliente({
         `;
       }
 
+      // HTML DO RELATÓRIO
       const html = `
         <html>
           <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <style>
-              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; -webkit-print-color-adjust: exact; }
               .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2980B9; padding-bottom: 10px; margin-bottom: 20px; }
               .brand { font-size: 24px; font-weight: bold; color: #2C3E50; }
               .meta { text-align: right; font-size: 10px; color: #7F8C8D; }
@@ -165,6 +159,10 @@ export default function PastaCliente({
               table { width: 100%; border-collapse: collapse; margin-top: 10px; }
               th { text-align: left; background-color: #EEE; padding: 8px; font-size: 12px; }
               .footer { margin-top: 50px; text-align: center; font-size: 9px; color: #BDC3C7; border-top: 1px solid #EEE; padding-top: 10px; }
+              @media print {
+                body { padding: 20px; }
+                .box { background-color: #f4f6f7 !important; -webkit-print-color-adjust: exact; }
+              }
             </style>
           </head>
           <body>
@@ -216,18 +214,42 @@ export default function PastaCliente({
         </html>
       `;
 
-      // --- CORREÇÃO BLINDADA: WEB x MOBILE ---
+      // --- CORREÇÃO BLINDADA: WEB (IFRAME) x MOBILE (NATIVO) ---
       if (Platform.OS === 'web') {
-          // WEB: Usa a função do Expo que injeta o iframe corretamente
-          // Isso resolve o problema de "imprimir a tela toda"
-          await Print.printAsync({ html });
+          // WEB: Cria um iframe invisível para imprimir APENAS o conteúdo do relatório
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'absolute';
+          iframe.style.width = '0px';
+          iframe.style.height = '0px';
+          iframe.style.border = 'none';
+          document.body.appendChild(iframe);
+
+          const doc = iframe.contentWindow?.document;
+          if (doc) {
+              doc.open();
+              doc.write(html);
+              doc.close();
+              
+              // Foca no iframe e imprime
+              iframe.contentWindow?.focus();
+              iframe.contentWindow?.print();
+          }
+
+          // Remove o iframe do DOM após um tempo para limpar
+          setTimeout(() => {
+              document.body.removeChild(iframe);
+          }, 1000);
+
       } else {
           // MOBILE: Gera arquivo temporário e abre o compartilhamento
           const { uri } = await Print.printToFileAsync({ html });
           await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
       }
 
-    } catch (error) { Alert.alert(t('common.erro'), t('pdf.erroGerar') || "Falha ao gerar PDF."); }
+    } catch (error) { 
+      console.log(error);
+      Alert.alert(t('common.erro'), t('pdf.erroGerar') || "Falha ao gerar PDF."); 
+    }
   };
   
   const getDetalhesContrato = (garantiaTexto: string = '') => {
@@ -309,10 +331,10 @@ export default function PastaCliente({
           <View style={styles.radarContainer}>
              <Text style={styles.radarLabel}>{t('radar.tituloSection')}</Text>
              <RiskRadarCSI 
-                compacto={true}
-                initialNome={cliente.nome}
-                initialTelefone={cliente.whatsapp}
-                initialCpf={cliente.cpf}
+               compacto={true}
+               initialNome={cliente.nome}
+               initialTelefone={cliente.whatsapp}
+               initialCpf={cliente.cpf}
              />
           </View>
           {/* ================================================= */}
@@ -371,8 +393,8 @@ export default function PastaCliente({
               <View style={{flexDirection:'row', alignItems:'flex-start', marginBottom: 5}}>
                  <Ionicons name={detalhes.icone} size={16} color={detalhes.corIcone} style={{marginTop:2, marginRight:5}} />
                  <Text style={{fontSize:13, color:'#444', flex:1}}>
-                    <Text style={{fontWeight:'bold'}}>{detalhes.label} </Text>
-                    {detalhes.texto}
+                   <Text style={{fontWeight:'bold'}}>{detalhes.label} </Text>
+                   {detalhes.texto}
                  </Text>
               </View>
 

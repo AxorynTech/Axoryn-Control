@@ -70,9 +70,15 @@ export default function Auth() {
           if (type === 'signup') {
             const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
             if (!error) {
-              Alert.alert("🎉 " + t('common.sucesso', 'Sucesso'), t('auth.cadastroConfirmado', 'Cadastro confirmado!'), [
-                { text: t('auth.comecarAgora', 'COMEÇAR'), onPress: () => router.replace('/(tabs)') }
-              ]);
+              // --- CORREÇÃO ALERT WEB/MOBILE ---
+              if (Platform.OS === 'web') {
+                  window.alert(`🎉 ${t('common.sucesso', 'Sucesso')}\n\n${t('auth.cadastroConfirmado', 'Cadastro confirmado!')}`);
+                  router.replace('/(tabs)');
+              } else {
+                  Alert.alert("🎉 " + t('common.sucesso', 'Sucesso'), t('auth.cadastroConfirmado', 'Cadastro confirmado!'), [
+                    { text: t('auth.comecarAgora', 'COMEÇAR'), onPress: () => router.replace('/(tabs)') }
+                  ]);
+              }
             }
           } 
           else if (type === 'recovery') {
@@ -93,15 +99,27 @@ export default function Auth() {
   }, []);
 
   async function handleAuth() {
-    if (!email || !password) return Alert.alert(t('common.erro', 'Erro'), t('common.preenchaCampos', 'Preencha todos os campos.'));
+    if (!email || !password) {
+        // --- CORREÇÃO ALERT WEB/MOBILE ---
+        if (Platform.OS === 'web') {
+            return window.alert(`${t('common.erro', 'Erro')}\n\n${t('common.preenchaCampos', 'Preencha todos os campos.')}`);
+        }
+        return Alert.alert(t('common.erro', 'Erro'), t('common.preenchaCampos', 'Preencha todos os campos.'));
+    }
     
     // Validação dos termos no cadastro
-    if (isSignUp && !termosAceitos) return Alert.alert(t('common.erro', 'Erro'), t('auth.aceiteTermos', 'É necessário ler e aceitar os Termos de Uso.'));
+    if (isSignUp && !termosAceitos) {
+        // --- CORREÇÃO ALERT WEB/MOBILE ---
+        if (Platform.OS === 'web') {
+            return window.alert(`${t('common.erro', 'Erro')}\n\n${t('auth.aceiteTermos', 'É necessário ler e aceitar os Termos de Uso.')}`);
+        }
+        return Alert.alert(t('common.erro', 'Erro'), t('auth.aceiteTermos', 'É necessário ler e aceitar os Termos de Uso.'));
+    }
 
     setLoading(true);
     try {
       if (isSignUp) {
-        // --- AQUI ESTÁ A CORREÇÃO MÁGICA ---
+        // --- CORREÇÃO URL REDIRECT WEB/MOBILE ---
         const redirectUrl = Platform.OS === 'web' 
           ? 'https://axoryntech.com.br/auth/confirmar' // Web: Vai para a home do site
           : Linking.createURL('/');     // Mobile: Abre o app
@@ -115,14 +133,26 @@ export default function Auth() {
         });
         
         if (error) throw error;
-        Alert.alert(t('common.sucesso', 'Sucesso'), t('auth.cadastroSucesso', 'Verifique seu e-mail para confirmar o cadastro.'));
+        
+        // --- CORREÇÃO ALERT WEB/MOBILE ---
+        if (Platform.OS === 'web') {
+            window.alert(`${t('common.sucesso', 'Sucesso')}\n\n${t('auth.cadastroSucesso', 'Verifique seu e-mail para confirmar o cadastro.')}`);
+        } else {
+            Alert.alert(t('common.sucesso', 'Sucesso'), t('auth.cadastroSucesso', 'Verifique seu e-mail para confirmar o cadastro.'));
+        }
+
       } else {
         const { error, data }: any = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (data.session) router.replace('/(tabs)'); 
       }
     } catch (error: any) {
-      Alert.alert(t('common.erro', 'Erro'), error.message);
+      // --- CORREÇÃO ALERT WEB/MOBILE ---
+      if (Platform.OS === 'web') {
+          window.alert(`${t('common.erro', 'Erro')}\n\n${error.message}`);
+      } else {
+          Alert.alert(t('common.erro', 'Erro'), error.message);
+      }
     } finally {
       setLoading(false);
     }
