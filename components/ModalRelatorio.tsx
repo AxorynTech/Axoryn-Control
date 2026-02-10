@@ -148,7 +148,8 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                 const dataMov = parseData(mov);
                 if (!isNaN(dataMov.getTime()) && dataMov >= dtInicio && dataMov <= dtFim) {
                     const desc = mov.toLowerCase();
-                    if (desc.includes('iniciado') || desc.includes('acordo')) return;
+                    // --- CORREÇÃO: Ignora também strings de empréstimo para não somar como entrada ---
+                    if (desc.includes('iniciado') || desc.includes('acordo') || desc.includes('emprestimo') || desc.includes('empréstimo')) return;
 
                     let valTotal = extrairTotal(mov);
                     let valLucro = 0;
