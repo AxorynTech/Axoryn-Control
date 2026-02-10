@@ -236,7 +236,12 @@
     "freqDIARIO": "DAILY",
     "erroCliente": "Select a client.",
     "erroValor": "Enter value.",
-    "erroData": "Select date."
+    "erroData": "Select date.",
+    "tipoJuros": "Interest Type",
+    "tipoPorcentagem": "Percentage (%)",
+    "tipoFixo": "Fixed Amount ($)",
+    "labelLucro": "Profit Amount ($)",
+    "placeholderFixo": "Ex: 50.00"
   },
   "pastaCliente": {
     "erroZap": "Client has no number.",

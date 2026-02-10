@@ -204,8 +204,6 @@ export function useClientes() {
     } catch(e) { Alert.alert(t('common.erro'), "Falha ao editar"); }
   }, [clientes, fetchData, t]);
 
-  // ✅ CORRIGIDO: Removemos o Alert duplicado daqui. Agora ele só exclui.
-  // A confirmação já foi feita na tela anterior (PastaCliente).
   const excluirCliente = useCallback(async (nomeCliente: string) => {
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return;
@@ -215,7 +213,6 @@ export function useClientes() {
         if (error) throw error;
         await fetchData();
     } catch (e) {
-        // Alerta de erro genérico caso falhe no banco
         Alert.alert(t('common.erro'), "Falha ao excluir cliente. Tente novamente.");
     }
   }, [clientes, fetchData, t]);
@@ -242,7 +239,6 @@ export function useClientes() {
         if (tipoReal === 'EMPRESTIMO') {
             const idCarteira = await garantirCarteira();
             if (idCarteira) {
-                // RPC Otimizada para saldo
                 const { data: contasSaldo } = await supabase.rpc('buscar_saldos_contas');
                 const carteira = contasSaldo?.find((c: any) => c.nome === 'Carteira');
                 const saldoAtual = carteira ? parseFloat(carteira.saldo) : 0;
@@ -250,13 +246,11 @@ export function useClientes() {
 
                 if (saldoAtual < valorEmprestimo) {
                     if (Platform.OS === 'web') {
-                        // Lógica para WEB (window.confirm bloqueia a execução até a resposta)
                         const confirmacao = window.confirm(
                             `${t('fluxo.aviso')}\nSaldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`
                         );
                         if (!confirmacao) return;
                     } else {
-                        // Lógica para MOBILE (Alert.alert com Promise)
                         const confirmacao = await new Promise<boolean>((resolve) => {
                             Alert.alert(t('fluxo.aviso'), `Saldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`, [
                                     { text: t('common.cancelar'), onPress: () => resolve(false), style: 'cancel' },
@@ -269,7 +263,6 @@ export function useClientes() {
             }
         }
 
-        // Usa data local
         const dataBaseStr = novoContrato.dataInicio || new Date().toLocaleDateString(i18n.language);
         
         const addDias = (dStr: string, dias: number) => { 
@@ -282,6 +275,18 @@ export function useClientes() {
             d.setMonth(d.getMonth() + meses); 
             return paraBancoISO(d.toLocaleDateString(i18n.language)); 
         };
+
+        // --- CÁLCULO BLINDADO DO JUROS ---
+        let valorJurosExato = 0;
+
+        if (novoContrato.valorJuros && Number(novoContrato.valorJuros) > 0) {
+            valorJurosExato = Number(novoContrato.valorJuros);
+            if (novoContrato.capital > 0) {
+               novoContrato.taxa = (valorJurosExato / novoContrato.capital) * 100;
+            }
+        } else {
+            valorJurosExato = novoContrato.capital * (novoContrato.taxa / 100);
+        }
 
         let contratoDB: any = {
             cliente_id: cliente.id,
@@ -300,38 +305,43 @@ export function useClientes() {
 
         if (freq === 'PARCELADO') {
             const parc = parseInt(novoContrato.totalParcelas || '1');
-            const juros = novoContrato.capital * (novoContrato.taxa / 100);
-            const total = novoContrato.capital + juros;
+            const total = novoContrato.capital + valorJurosExato;
             const valorParc = total / parc;
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = parc;
             contratoDB.valor_parcela = valorParc;
-            contratoDB.lucro_juros_por_parcela = juros / parc;
+            contratoDB.lucro_juros_por_parcela = valorJurosExato / parc;
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
             contratoDB.movimentacoes = [t('historico.criadoParcelado', { data: dataBaseStr, tipo: descHist, qtd: parc, valor: valorParc.toFixed(2) })];
+        
         } else if (freq === 'SEMANAL') {
-            const juros = novoContrato.capital * (novoContrato.taxa / 100);
-            const total = novoContrato.capital + juros;
+            const total = novoContrato.capital + valorJurosExato;
             const parc = total / 4;
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = 4;
             contratoDB.valor_parcela = parc;
-            contratoDB.lucro_juros_por_parcela = juros / 4;
+            contratoDB.lucro_juros_por_parcela = valorJurosExato / 4;
             contratoDB.proximo_vencimento = addDias(dataBaseStr, 7);
             contratoDB.movimentacoes = [t('historico.criadoSemanal', { data: dataBaseStr, tipo: descHist, valor: parc.toFixed(2) })];
+        
         } else if (freq === 'DIARIO' && novoContrato.diasDiario) {
             const dias = parseInt(novoContrato.diasDiario);
-            const juros = novoContrato.capital * (novoContrato.taxa / 100);
-            const total = novoContrato.capital + juros;
+            const total = novoContrato.capital + valorJurosExato;
             const parc = total / dias;
             contratoDB.status = 'PARCELADO';
             contratoDB.dias_diario = dias;
             contratoDB.total_parcelas = dias;
             contratoDB.valor_parcela = parc;
-            contratoDB.lucro_juros_por_parcela = juros / dias;
+            contratoDB.lucro_juros_por_parcela = valorJurosExato / dias;
             contratoDB.proximo_vencimento = addDias(dataBaseStr, 1);
             contratoDB.movimentacoes = [t('historico.criadoDiario', { data: dataBaseStr, tipo: descHist, dias: dias, valor: parc.toFixed(2) })];
+        
         } else {
+            // MENSAL
+            // --- AQUI ESTÁ A CORREÇÃO PRINCIPAL ---
+            // Salvamos o valor exato no campo de juros por parcela
+            contratoDB.lucro_juros_por_parcela = valorJurosExato; 
+            
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
             contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: novoContrato.capital.toFixed(2) })];
         }
@@ -339,7 +349,6 @@ export function useClientes() {
         const { error } = await supabase.from('contratos').insert([contratoDB]);
         if (error) throw error;
 
-        // Fluxo de Caixa (Saída Empréstimo)
         if (tipoReal === 'EMPRESTIMO') {
             const idCarteira = await garantirCarteira();
             const userId = await getUserId();
@@ -367,7 +376,13 @@ export function useClientes() {
 
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
     try {
-      const vJuro = contrato.capital * (contrato.taxa / 100);
+      // --- CÁLCULO DE RENOVAÇÃO BLINDADO ---
+      // Se tiver lucroJurosPorParcela (que salvamos acima), usa ele.
+      // Caso contrário (contratos antigos), usa a conta de %
+      const vJuro = (contrato.lucroJurosPorParcela && contrato.lucroJurosPorParcela > 0)
+         ? contrato.lucroJurosPorParcela
+         : (contrato.capital * (contrato.taxa / 100));
+
       let vMulta = 0;
       if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
         const dtPag = lerDataLocal(dataInformada);
@@ -403,7 +418,6 @@ export function useClientes() {
              movimentacoes: h
           };
 
-          // Fluxo de Caixa (Entrada Renovação)
           const idCarteira = await garantirCarteira();
           const userId = await getUserId();
           if (idCarteira && userId) {

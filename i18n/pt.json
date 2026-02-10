@@ -236,7 +236,12 @@
     "freqDIARIO": "DIÁRIO",
     "erroCliente": "Selecione um cliente.",
     "erroValor": "Informe o valor.",
-    "erroData": "Selecione a data."
+    "erroData": "Selecione a data.",
+    "tipoJuros": "Tipo de Juros",
+    "tipoPorcentagem": "Porcentagem (%)",
+    "tipoFixo": "Valor Fixo ($)",
+    "labelLucro": "Valor do Lucro (R$)",
+    "placeholderFixo": "Ex: 50.00"
   },
   "pastaCliente": {
     "erroZap": "Cliente sem número.",

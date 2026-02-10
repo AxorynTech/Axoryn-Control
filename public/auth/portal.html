@@ -17,6 +17,7 @@
             --bg-light: #F4F6F7;
             --text-dark: #1a1a1a;
             --white: #ffffff;
+            --warning: #F39C12;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -95,6 +96,61 @@
         .card h3 { font-size: 20px; margin-bottom: 10px; color: var(--primary); }
         .card p { font-size: 14px; color: #666; line-height: 1.6; }
 
+        /* --- PREÇOS (NOVO CSS) --- */
+        .pricing-section { padding: 80px 5%; background: #F8F9FA; border-top: 1px solid #EEE; }
+        
+        .toggle-container {
+            display: flex; justify-content: center; gap: 15px; margin-bottom: 50px;
+        }
+        .toggle-btn {
+            background: white; border: 2px solid #DDD; color: #777;
+            padding: 12px 30px; border-radius: 30px; font-weight: bold; cursor: pointer;
+            transition: 0.3s; display: flex; align-items: center; gap: 8px; font-size: 15px;
+        }
+        .toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .toggle-btn.active { background: var(--accent); border-color: var(--accent); color: white; box-shadow: 0 5px 15px rgba(41, 128, 185, 0.3); }
+
+        .price-grid {
+            display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; max-width: 1100px; margin: 0 auto;
+        }
+        .price-card {
+            flex: 1; min-width: 300px; max-width: 350px;
+            background: white; padding: 40px 30px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center;
+            border: 1px solid #EEE; position: relative; transition: 0.3s;
+        }
+        .price-card:hover { transform: translateY(-10px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        
+        /* Destaque (Card do meio) */
+        .price-card.featured { border: 2px solid var(--accent); z-index: 2; transform: scale(1.05); }
+        .price-card.featured:hover { transform: scale(1.08); }
+        
+        .badge-popular {
+            position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: white; padding: 5px 15px;
+            border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase;
+        }
+
+        .price-header h3 { font-size: 18px; color: var(--primary); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .price-amount { font-size: 42px; font-weight: 800; color: var(--text-dark); margin-bottom: 5px; }
+        .price-amount span { font-size: 16px; color: #888; font-weight: 400; }
+        .price-desc { color: #666; font-size: 14px; margin-bottom: 30px; }
+
+        .price-features { list-style: none; text-align: left; margin-bottom: 30px; padding: 0 10px; }
+        .price-features li { margin-bottom: 12px; font-size: 14px; color: #555; display: flex; align-items: center; gap: 10px; }
+        .price-features li i { color: var(--success); font-size: 16px; }
+
+        .btn-price {
+            display: block; width: 100%; padding: 15px; border-radius: 10px;
+            background: var(--primary); color: white; font-weight: bold; text-decoration: none;
+            transition: 0.3s;
+        }
+        .btn-price:hover { background: var(--accent); }
+        .btn-outline-price { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-outline-price:hover { background: var(--primary); color: white; }
+
+        .hidden { display: none; }
+
         /* --- BADGE PLATAFORMAS --- */
         .platforms { display: flex; gap: 15px; justify-content: center; margin-top: 40px; flex-wrap: wrap; }
         .badge {
@@ -103,7 +159,6 @@
             font-size: 14px; font-weight: 600; color: #555; text-decoration: none;
             transition: 0.2s;
         }
-        /* Botão Clicável */
         .badge.active { 
             border-color: var(--success); color: var(--success); background: #f0fdf4; cursor: pointer;
         }
@@ -112,7 +167,7 @@
         .badge i { font-size: 18px; }
 
         /* --- FOOTER --- */
-        footer { background: var(--primary); color: white; padding: 40px 5%; text-align: center; margin-top: 60px; }
+        footer { background: var(--primary); color: white; padding: 40px 5%; text-align: center; margin-top: 0; }
         
         /* Ícones Sociais */
         .social-icons {
@@ -131,37 +186,16 @@
             color: white; text-decoration: none; font-size: 13px;
             transition: 0.3s;
         }
-        /* Quando ativar, remova a opacidade e o cursor not-allowed */
         .store-btn.disabled { opacity: 0.5; cursor: not-allowed; }
         .store-btn:hover:not(.disabled) { background: rgba(255,255,255,0.1); border-color: white; }
 
         /* Responsivo - CORRIGIDO */
         @media (max-width: 768px) {
-            /* Ajusta o tamanho do título */
             h1 { font-size: 32px; }
-
-            /* Muda a barra para coluna (Logo em cima, botões embaixo) */
-            nav {
-                flex-direction: column;
-                padding: 15px;
-                gap: 15px;
-            }
-
-            /* Faz os links aparecerem novamente, um embaixo do outro */
-            .nav-links { 
-                display: flex; /* Tira o 'none' e coloca flex */
-                flex-direction: column;
-                width: 100%;
-                gap: 15px;
-                text-align: center;
-            }
-
-            /* Ajusta o botão de login para ocupar a largura toda no celular (fica mais fácil de clicar) */
-            .btn-login {
-                display: block;
-                width: 100%;
-                text-align: center;
-            }
+            nav { flex-direction: column; padding: 15px; gap: 15px; }
+            .nav-links { display: flex; flex-direction: column; width: 100%; gap: 15px; text-align: center; }
+            .btn-login { display: block; width: 100%; text-align: center; }
+            .price-card.featured { transform: scale(1); } /* Remove zoom no mobile */
         }
     </style>
 </head>
@@ -172,7 +206,7 @@
             <i class="fas fa-shield-alt"></i> Axoryn Control
         </div>
         <div class="nav-links">
-            <a href="https://axoryntech.com.br/pay.html" class="nav-item">Planos & Pagamentos</a>
+            <a href="#planos" class="nav-item">Ver Planos</a>
             <a href="https://axoryntech.com.br" class="btn-login">ACESSAR SISTEMA</a>
         </div>
     </nav>
@@ -263,6 +297,115 @@
         </div>
     </section>
 
+    <section class="pricing-section" id="planos">
+        <h2 class="section-title">Escolha o plano ideal para você</h2>
+        
+        <div class="toggle-container">
+            <button class="toggle-btn active" onclick="mostrarPrecos('br', this)">
+                <i class="fas fa-flag"></i> 🇧🇷 Brasil (R$)
+            </button>
+            <button class="toggle-btn" onclick="mostrarPrecos('intl', this)">
+                <i class="fas fa-globe-americas"></i> 🌎 Internacional ($)
+            </button>
+        </div>
+
+        <div id="pricing-br" class="price-grid">
+            <div class="price-card">
+                <div class="price-header">
+                    <h3>Plano Mensal</h3>
+                    <div class="price-amount">R$ 14,99<span>/mês</span></div>
+                    <p class="price-desc">Cobrado mensalmente. Sem fidelidade.</p>
+                </div>
+                <ul class="price-features">
+                    <li><i class="fas fa-check"></i> Acesso total ao sistema</li>
+                    <li><i class="fas fa-check"></i> Gestão ilimitada de clientes</li>
+                    <li><i class="fas fa-check"></i> Relatórios PDF profissionais</li>
+                    <li><i class="fas fa-check"></i> Suporte via WhatsApp</li>
+                </ul>
+                <a href="https://axoryntech.com.br/pay.html" class="btn-price btn-outline-price">Começar Agora</a>
+            </div>
+
+            <div class="price-card featured">
+                <div class="badge-popular">MAIS POPULAR</div>
+                <div class="price-header">
+                    <h3>Plano Anual</h3>
+                    <div class="price-amount">R$ 149,90<span>/ano</span></div>
+                    <p class="price-desc" style="color: var(--success); font-weight: bold;">Economize 15% (2 meses grátis)</p>
+                </div>
+                <ul class="price-features">
+                    <li><i class="fas fa-check"></i> <strong>Todos os benefícios do Mensal</strong></li>
+                    <li><i class="fas fa-check"></i> Cobrança única anual</li>
+                    <li><i class="fas fa-star" style="color:orange"></i> Badge de Cliente VIP</li>
+                    <li><i class="fas fa-check"></i> Prioridade no suporte</li>
+                </ul>
+                <a href="https://axoryntech.com.br/pay.html" class="btn-price">Garantir Desconto</a>
+            </div>
+
+            <div class="price-card" style="border-color: #FDEBD0;">
+                <div class="price-header">
+                    <h3 style="color: var(--warning);">Pacote Risk Radar</h3>
+                    <div class="price-amount" style="color: var(--warning);">R$ 20,00<span>/único</span></div>
+                    <p class="price-desc">Pacote de 10 Consultas CSI</p>
+                </div>
+                <ul class="price-features">
+                    <li><i class="fas fa-bolt" style="color: var(--warning);"></i> <strong>10 Consultas de Risco</strong></li>
+                    <li><i class="fas fa-check"></i> Sai a R$ 2,00 por consulta</li>
+                    <li><i class="fas fa-check"></i> Créditos nunca expiram</li>
+                    <li><i class="fas fa-check"></i> Não precisa de assinatura</li>
+                </ul>
+                <a href="https://axoryntech.com.br/pay.html" class="btn-price" style="background: var(--warning);">Comprar Créditos</a>
+            </div>
+        </div>
+
+        <div id="pricing-intl" class="price-grid hidden">
+            <div class="price-card">
+                <div class="price-header">
+                    <h3>Monthly Plan</h3>
+                    <div class="price-amount">$ 9.90<span>/mo</span></div>
+                    <p class="price-desc">Billed monthly. Cancel anytime.</p>
+                </div>
+                <ul class="price-features">
+                    <li><i class="fas fa-check"></i> Full system access</li>
+                    <li><i class="fas fa-check"></i> Unlimited clients</li>
+                    <li><i class="fas fa-check"></i> Pro PDF Reports</li>
+                    <li><i class="fas fa-check"></i> Basic Support</li>
+                </ul>
+                <a href="https://axoryntech.com.br/pay.html" class="btn-price btn-outline-price">Start Now</a>
+            </div>
+
+            <div class="price-card featured">
+                <div class="badge-popular">BEST VALUE</div>
+                <div class="price-header">
+                    <h3>Annual Plan</h3>
+                    <div class="price-amount">$ 99.00<span>/yr</span></div>
+                    <p class="price-desc" style="color: var(--success); font-weight: bold;">Save ~15% (2 months free)</p>
+                </div>
+                <ul class="price-features">
+                    <li><i class="fas fa-check"></i> <strong>All Monthly features</strong></li>
+                    <li><i class="fas fa-check"></i> One-time payment</li>
+                    <li><i class="fas fa-star" style="color:orange"></i> VIP Badge</li>
+                    <li><i class="fas fa-check"></i> Priority Support</li>
+                </ul>
+                <a href="https://axoryntech.com.br/pay.html" class="btn-price">Get Deal</a>
+            </div>
+
+            <div class="price-card" style="border-color: #FDEBD0;">
+                <div class="price-header">
+                    <h3 style="color: var(--warning);">Risk Radar Pack</h3>
+                    <div class="price-amount" style="color: var(--warning);">$ 10.00<span>/one-time</span></div>
+                    <p class="price-desc">Pack of 10 CSI Lookups</p>
+                </div>
+                <ul class="price-features">
+                    <li><i class="fas fa-bolt" style="color: var(--warning);"></i> <strong>10 Risk Checks</strong></li>
+                    <li><i class="fas fa-check"></i> Just $ 1.00 per lookup</li>
+                    <li><i class="fas fa-check"></i> Credits never expire</li>
+                    <li><i class="fas fa-check"></i> No subscription needed</li>
+                </ul>
+                <a href="https://axoryntech.com.br/pay.html" class="btn-price" style="background: var(--warning);">Buy Credits</a>
+            </div>
+        </div>
+    </section>
+
     <footer>
         <div class="logo" style="justify-content: center; margin-bottom: 10px; color: white;">
             <i class="fas fa-shield-alt" style="color: white;"></i> Axoryn Control
@@ -310,6 +453,25 @@
                 });
             }
         });
+
+        // --- SCRIPT PARA TROCAR PREÇOS ---
+        function mostrarPrecos(regiao, btn) {
+            // Remove classe ativa de todos os botões
+            document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+            // Adiciona classe ativa no botão clicado
+            btn.classList.add('active');
+
+            // Esconde todas as tabelas
+            document.getElementById('pricing-br').classList.add('hidden');
+            document.getElementById('pricing-intl').classList.add('hidden');
+
+            // Mostra a tabela selecionada
+            if(regiao === 'br') {
+                document.getElementById('pricing-br').classList.remove('hidden');
+            } else {
+                document.getElementById('pricing-intl').classList.remove('hidden');
+            }
+        }
     </script>
 </body>
 </html>

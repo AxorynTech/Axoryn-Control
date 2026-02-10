@@ -31,7 +31,12 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
   // Agora a data é apenas texto simples
   const [dataInicio, setDataInicio] = useState('');
   
+  // Usaremos este mesmo estado para o input, seja ele Taxa(%) ou Valor Fixo($)
   const [taxa, setTaxa] = useState('20');
+  
+  // Controle do tipo de cálculo
+  const [tipoJuros, setTipoJuros] = useState<'PORCENTAGEM' | 'FIXO'>('PORCENTAGEM');
+
   const [frequencia, setFrequencia] = useState('MENSAL'); 
   const [garantia, setGarantia] = useState('');
   const [multa, setMulta] = useState('');
@@ -65,6 +70,10 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       setFrequencia('MENSAL');
       setQtdParcelasVenda('1');
       setModVenda('PRAZO'); 
+      
+      // Reseta para o padrão (Porcentagem) ao abrir
+      setTipoJuros('PORCENTAGEM');
+      setTaxa('20');
     }
   }, [visivel, clientePreSelecionado]);
 
@@ -93,7 +102,10 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     }
 
     const valCapital = parseFloat(capital.replace(',', '.') || '0');
-    const valTaxa = parseFloat(taxa.replace(',', '.') || '0');
+    
+    // O valor digitado no campo de juros (pode ser % ou $)
+    const valInputJuros = parseFloat(taxa.replace(',', '.') || '0');
+    
     const valMulta = parseFloat(multa.replace(',', '.') || '0');
 
     const textoDescritivo = tipoOperacao === 'VENDA' 
@@ -117,15 +129,48 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
         parcelasFinal = null;
     }
 
+    // --- LÓGICA DO JUROS FIXO vs PORCENTAGEM ---
+    let taxaParaEnviar = 0;
+    let valorJurosFixo = 0;
+
+    if (tipoOperacao === 'EMPRESTIMO') {
+        if (tipoJuros === 'FIXO') {
+            // Se escolheu Fixo (Ex: 50 reais em 1000 capital)
+            // Convertemos para porcentagem para o sistema aceitar e calcular o total certo.
+            // (50 / 1000) * 100 = 5%. O sistema calculará 1000 + 5% = 1050.
+            if (valCapital > 0) {
+                taxaParaEnviar = (valInputJuros / valCapital) * 100;
+            } else {
+                taxaParaEnviar = 0;
+            }
+            
+            // Enviamos também o valor fixo original caso precise no futuro
+            valorJurosFixo = valInputJuros;
+        } else {
+            // Se escolheu Porcentagem (Ex: 20%)
+            // Envia a taxa direta.
+            taxaParaEnviar = valInputJuros;
+            valorJurosFixo = 0;
+        }
+    } else {
+        // Venda
+        taxaParaEnviar = valInputJuros;
+    }
+
     salvar(clienteId, {
       tipo: tipoOperacao,
       capital: valCapital,
-      taxa: valTaxa,
+      
+      // Enviamos a taxa convertida (ou original) para garantir o cálculo correto
+      taxa: taxaParaEnviar,
+      valorJuros: valorJurosFixo,
+      tipoJuros: tipoOperacao === 'EMPRESTIMO' ? tipoJuros : null, 
+
       frequencia: frequenciaFinal,
       garantia: textoDescritivo,
       diasDiario: frequencia === 'DIARIO' ? parseInt(diasDiario) : null,
       totalParcelas: parcelasFinal,
-      dataInicio, // Envia a string da data diretamente
+      dataInicio, 
       valorMultaDiaria: valMulta
     });
   };
@@ -173,7 +218,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
               </ScrollView>
             )}
 
-            {/* LINHA: VALOR e DATA (Agora manual) */}
+            {/* LINHA: VALOR e DATA */}
             <View style={{flexDirection:'row', gap:10}}>
                 <View style={{flex:1.5}}>
                     <Text style={styles.label}>{tipoOperacao === 'VENDA' ? t('novoContrato.valorVenda') : t('novoContrato.valorEmprestimo')}</Text>
@@ -182,8 +227,6 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                 
                 <View style={{flex:1}}>
                     <Text style={styles.label}>{t('novoContrato.data')}</Text>
-                    
-                    {/* INPUT MANUAL SUBSTITUINDO O CALENDÁRIO */}
                     <TextInput 
                         style={styles.input} 
                         value={dataInicio} 
@@ -261,10 +304,52 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                 <Text style={styles.label}>{t('novoContrato.garantia')}</Text>
                 <TextInput style={styles.input} value={garantia} onChangeText={setGarantia} placeholder={t('novoContrato.placeholderGarantia') || "Ex: Celular..."} />
 
+                {/* --- SELETOR DE TIPO DE JUROS --- */}
+                {/* 1. Tradução do Título */}
+                <Text style={styles.label}>{t('novoContrato.tipoJuros')}</Text> 
+                
+                <View style={styles.rowRadio}>
+                    <TouchableOpacity 
+                        style={[styles.radioBtn, tipoJuros === 'PORCENTAGEM' && styles.radioBtnAtivo]} 
+                        onPress={() => {
+                            setTipoJuros('PORCENTAGEM');
+                            setTaxa('20');
+                        }}
+                    >
+                        {/* 2. Tradução da Opção % */}
+                        <Text style={[styles.radioTxt, tipoJuros === 'PORCENTAGEM' && {color:'#FFF'}]}>
+                            {t('novoContrato.tipoPorcentagem')}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                        style={[styles.radioBtn, tipoJuros === 'FIXO' && styles.radioBtnAtivo]} 
+                        onPress={() => {
+                            setTipoJuros('FIXO');
+                            setTaxa(''); 
+                        }}
+                    >
+                        {/* 3. Tradução da Opção Fixo */}
+                        <Text style={[styles.radioTxt, tipoJuros === 'FIXO' && {color:'#FFF'}]}>
+                            {t('novoContrato.tipoFixo')}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
                 <View style={{flexDirection:'row', gap:10}}>
                   <View style={{flex:1}}>
-                      <Text style={styles.label}>{t('novoContrato.taxa')}</Text>
-                      <TextInput style={styles.input} value={taxa} onChangeText={setTaxa} keyboardType="numeric" />
+                      {/* 4. Label dinâmico traduzido */}
+                      <Text style={styles.label}>
+                          {tipoJuros === 'FIXO' ? t('novoContrato.labelLucro') : t('novoContrato.taxa') + ' (%)'}
+                      </Text>
+                      <TextInput 
+                          style={styles.input} 
+                          value={taxa} 
+                          onChangeText={setTaxa} 
+                          keyboardType="numeric"
+                          // 5. Placeholder traduzido
+                          placeholder={tipoJuros === 'FIXO' ? t('novoContrato.placeholderFixo') : "20"}
+                      />
                   </View>
                   <View style={{flex:1}}>
                       <Text style={styles.label}>{t('novoContrato.multaDiaria')}</Text>
