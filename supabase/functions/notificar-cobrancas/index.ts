@@ -24,6 +24,13 @@ const TRADUCOES: any = {
     corpo: (qtd: number, valor: string) => `Tienes ${qtd} cobros para hoy (Total: ${valor})`,
     locale: 'es-ES',
     moeda: 'USD'
+  },
+  // ✅ NOVO: Idioma Hindi (Indiano) adicionado aqui
+  hi: {
+    titulo: 'बॉस, काम आ गया है! 🎩', // Tradução: Boss, o trabalho chegou!
+    corpo: (qtd: number, valor: string) => `आज आपके पास ${qtd} कलेक्शन बकाया हैं (कुल: ${valor})`, // Tradução: Hoje você tem X cobranças pendentes (Total: Y)
+    locale: 'hi-IN', // Formato de data/número da Índia
+    moeda: 'INR'     // Rúpia Indiana (₹)
   }
 };
 
@@ -65,6 +72,7 @@ Deno.serve(async (req: Request) => {
         if (mensagensMap.has(usuario.expo_token)) continue;
 
         // Define o idioma (padrão 'pt' se não existir ou for nulo)
+        // Se o usuário tiver 'hi' no banco, vai cair no bloco novo do Hindi
         const langCode = usuario.language && TRADUCOES[usuario.language] ? usuario.language : 'pt';
         const textos = TRADUCOES[langCode];
 
@@ -117,6 +125,7 @@ Deno.serve(async (req: Request) => {
 
         if (totalClientes > 0) {
             // Formatação de moeda baseada no idioma do usuário
+            // Para 'hi', vai usar INR (₹) e formatação indiana
             const valorFormatado = valorTotalGeral.toLocaleString(textos.locale, { 
                 style: 'currency', 
                 currency: textos.moeda 
