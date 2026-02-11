@@ -16,7 +16,13 @@ export default function Dashboard({ capital, lucro, multas, vendas }: Props) {
 
   const formatarValor = (valor: number, cor: string) => {
     if (!visivel) return <View style={styles.escondido} />;
-    return <Text style={[styles.valor, { color: cor }]}>R$ {valor.toFixed(2)}</Text>;
+    
+    // ✅ ATUALIZADO: Agora busca a moeda do arquivo de tradução (R$, $, ₹, etc)
+    return (
+      <Text style={[styles.valor, { color: cor }]}>
+        {t('common.moeda')} {valor.toFixed(2)}
+      </Text>
+    );
   };
 
   return (
