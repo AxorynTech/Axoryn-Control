@@ -6,12 +6,14 @@ import { Platform } from 'react-native';
 
 import en from './en.json';
 import es from './es.json';
+import hi from './hi.json'; // <--- Importação do Hindi adicionada
 import pt from './pt.json';
 
 const RESOURCES = {
   pt: { translation: pt },
   en: { translation: en },
   es: { translation: es },
+  hi: { translation: hi }, // <--- Adicionado aos recursos
 };
 
 const initI18n = async () => {

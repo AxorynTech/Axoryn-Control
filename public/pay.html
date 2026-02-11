@@ -161,6 +161,7 @@
         <button class="lang-btn active" onclick="setLanguage('pt')" title="Português">🇧🇷</button>
         <button class="lang-btn" onclick="setLanguage('en')" title="English">🇺🇸</button>
         <button class="lang-btn" onclick="setLanguage('es')" title="Español">🇪🇸</button>
+        <button class="lang-btn" onclick="setLanguage('hi')" title="Hindi">🇮🇳</button>
     </div>
 
     <div class="container">
@@ -179,7 +180,7 @@
                 <i class="fas fa-eye password-toggle" onclick="toggleSenha()"></i>
             </div>
             
-            <a href="auth/recuperar.html" class="link-recuperar" data-i18n="forgot_password">Esqueceu a senha?</a>
+            <a href="https://axoryntech.com.br" class="link-recuperar" data-i18n="forgot_password">Esqueceu a senha?</a>
 
             <button onclick="fazerLogin()" id="btnLogin" data-i18n="btn_login">Acessar Conta</button>
         </div>
@@ -278,7 +279,7 @@
 
             <button onclick="sair()" class="btn-outline" data-i18n="btn_logout">Sair da conta</button>
             
-            <div id="debugInfo" class="debug-info"></div>
+            <div id="debugInfo" class="debug-info" style="display:none;"></div>
         </div>
     </div>
 
@@ -312,7 +313,7 @@
     </div>
 
     <script>
-        // --- TRADUÇÕES COMPLETAS (COM MODAL E ALERTAS) ---
+        // --- TRADUÇÕES COMPLETAS (COM MODAL E ALERTAS E HINDI) ---
         const translations = {
             pt: {
                 portal_subtitle: "Portal do Cliente", label_email: "E-MAIL", label_password: "SENHA", forgot_password: "Esqueceu a senha?", btn_login: "Acessar Conta",
@@ -364,6 +365,23 @@
                 alert_error_pay: "Error al crear pago: ",
                 alert_conn_error: "Error de conexión.",
                 txt_per_query: "por consulta"
+            },
+            hi: {
+                portal_subtitle: "ग्राहक पोर्टल", label_email: "ईमेल", label_password: "पासवर्ड", forgot_password: "पासवर्ड भूल गए?", btn_login: "लॉग इन करें",
+                hello: "नमस्ते", current_plan: "वर्तमान योजना", expiration: "समाप्ति", status_title: "स्थिति", renew_title: "सदस्यता नवीनीकरण:",
+                plan_monthly: "मासिक", period_monthly: "हर महीने बिल किया जाता है", plan_annual: "वार्षिक", period_annual: "एक बार बिल किया जाता है",
+                refills_title: "Axoryn Shield रिचार्ज:", tag_pack: "पैक", pack_10: "10 परामर्श", btn_logout: "लॉग आउट",
+                camouf_title: "खाता सक्रिय", camouf_msg: "Axoryn Control का आनंद लें!", premium_active: "प्रीमियम सक्रिय", resources_unlocked: "सभी सुविधाएं अनलॉक।",
+                msg_new_account: "आपका खाता सक्रिय और सत्यापित है।", msg_premium: "आपकी सदस्यता वैध है।", msg_trial: "नि:शुल्क परीक्षण सक्रिय।", msg_expired: "आपका परीक्षण समाप्त हो गया है।",
+                secure_payment: "सुरक्षित भुगतान",
+                // Modal e Alertas
+                modal_title: "चालान डेटा", modal_desc: "ब्राजील (CPF) में भुगतान जारी करने के लिए आवश्यक है।",
+                label_name: "नाम", label_surname: "उपनाम", btn_pay: "भुगतान पर जाएं 🔒",
+                alert_fill_all: "कृपया सभी क्षेत्र भरें।",
+                alert_processing: "प्रक्रिया चल रही है...",
+                alert_error_pay: "भुगतान बनाने में त्रुटि: ",
+                alert_conn_error: "कनेक्शन त्रुटि।",
+                txt_per_query: "प्रति परामर्श"
             }
         };
 
@@ -402,6 +420,9 @@
             } else if(lang === 'es') {
                 document.getElementById('mp-nome').placeholder = "Nombre";
                 document.getElementById('mp-sobrenome').placeholder = "Apellido";
+            } else if(lang === 'hi') {
+                document.getElementById('mp-nome').placeholder = "प्रथम नाम";
+                document.getElementById('mp-sobrenome').placeholder = "अंतिम नाम";
             } else {
                 document.getElementById('mp-nome').placeholder = "Seu primeiro nome";
                 document.getElementById('mp-sobrenome').placeholder = "Seu sobrenome";
@@ -562,7 +583,8 @@
             document.getElementById('badgeStatus').className = "status-badge " + statusBadgeClass;
             document.getElementById('statusMessage').innerText = translations[currentLang][mensagemKey];
             
-            document.getElementById('debugInfo').innerText = "ID: " + user.id.slice(0,8) + " | Camuflagem: " + DEVE_CAMUFLAR;
+            // ALTERAÇÃO: Comentado para não exibir na tela, mas mantendo a lógica se precisar reverter
+            // document.getElementById('debugInfo').innerText = "ID: " + user.id.slice(0,8) + " | Camuflagem: " + DEVE_CAMUFLAR;
         }
 
         // --- FUNÇÕES DO MODAL ---

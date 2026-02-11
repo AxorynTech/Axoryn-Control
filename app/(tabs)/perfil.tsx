@@ -7,6 +7,7 @@ import {
   Alert,
   Image,
   Linking,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -25,14 +26,15 @@ const URL_GERENCIAMENTO = 'https://axoryntech.com.br/pay.html';
 export default function Perfil() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
- 
+  
   const { loading: loadingAssinatura, isPremium, refresh: refreshAssinatura } = useAssinatura();
   const { clientes, fetchData: recarregarClientes, loading: loadingClientes } = useClientes();
 
   const [email, setEmail] = useState('');
   const [modalDadosVisivel, setModalDadosVisivel] = useState(false);
+  const [modalIdiomaVisivel, setModalIdiomaVisivel] = useState(false); // Novo estado para o modal de idioma
   const [consultasCount, setConsultasCount] = useState(0);
- 
+  
   // Estado para a Posição no Ranking
   const [posicao, setPosicao] = useState<number | null>(null);
 
@@ -44,9 +46,9 @@ export default function Perfil() {
   let textoDescricao = t('perfil.descPadrao');    
 
   if (isPremium) {
-      textoBadge = t('perfil.contaVerificada');  
-      textoStatus = t('perfil.licencaAtiva');    
-      textoDescricao = t('perfil.descPremium');  
+      textoBadge = t('perfil.contaVerificada');   
+      textoStatus = t('perfil.licencaAtiva');     
+      textoDescricao = t('perfil.descPremium');   
   }
 
   useFocusEffect(
@@ -85,7 +87,7 @@ export default function Perfil() {
   const mudarIdioma = async (lang: string) => {
     // 1. Salva localmente (para o App)
     await AsyncStorage.setItem('user-language', lang);
-    i18n.changeLanguage(lang);
+    await i18n.changeLanguage(lang);
 
     // 2. Salva no Banco (para o Robô de Cobrança)
     try {
@@ -93,12 +95,13 @@ export default function Perfil() {
         if (user) {
             await supabase
                 .from('profiles')
-                .update({ language: lang }) // Salva 'pt', 'en' ou 'es'
+                .update({ language: lang }) // Salva 'pt', 'en', 'es' ou 'hi'
                 .eq('user_id', user.id);
         }
     } catch (e) {
         console.log("Erro ao salvar idioma no banco:", e);
     }
+    setModalIdiomaVisivel(false); // Fecha o modal após selecionar
   };
 
   const abrirGerenciadorConta = async () => {
@@ -125,7 +128,7 @@ export default function Perfil() {
   const numClientes = clientes.length;
   const numContratos = clientes.reduce((total, cli) => total + (cli.contratos ? cli.contratos.length : 0), 0);
   const scoreTotal = (numClientes * 10) + (numContratos * 5) + (consultasCount * 2);
- 
+  
   let nivelAtual = { nome: t('perfil.nivelIniciante'), cor: "#BDC3C7", icone: "leaf", min: 0, max: 200 };
   if (scoreTotal >= 200 && scoreTotal < 1000) {
       nivelAtual = { nome: t('perfil.nivelProfissional'), cor: "#F39C12", icone: "medal", min: 200, max: 1000 };
@@ -134,6 +137,23 @@ export default function Perfil() {
   }
 
   const progresso = Math.min(Math.max((scoreTotal - nivelAtual.min) / (nivelAtual.max - nivelAtual.min), 0), 1);
+
+  // Helper para renderizar opção de idioma no modal
+  const renderLanguageOption = (langCode: string, label: string, flag: string) => (
+    <TouchableOpacity 
+      style={[
+        styles.languageOption, 
+        i18n.language === langCode && styles.selectedOption
+      ]} 
+      onPress={() => mudarIdioma(langCode)}
+    >
+      <Text style={styles.flag}>{flag}</Text>
+      <Text style={styles.languageText}>{label}</Text>
+      {i18n.language === langCode && (
+        <Ionicons name="checkmark-circle" size={24} color="#2980B9" />
+      )}
+    </TouchableOpacity>
+  );
 
   return (
     <ScrollView
@@ -213,25 +233,39 @@ export default function Perfil() {
          </View>
       </View>
 
-      {/* SEÇÃO DE IDIOMA - ATUALIZADA */}
+      {/* SEÇÃO DE OPÇÕES (AGORA INCLUINDO O IDIOMA COMO BOTÃO) */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('perfil.idioma') || 'Idioma / Language'}</Text>
-        <View style={styles.langContainer}>
-            <TouchableOpacity style={[styles.langBtn, i18n.language === 'pt' && styles.langBtnActive]} onPress={() => mudarIdioma('pt')}>
-              <Text style={{fontSize: 20}}>🇧🇷</Text>
-              <Text style={[styles.langText, i18n.language === 'pt' && styles.langTextActive]}>PT</Text>
-            </TouchableOpacity>
+        <Text style={styles.sectionTitle}>{t('perfil.opcoes') || 'Opções'}</Text>
+        
+        {/* BOTÃO IDIOMA */}
+        <TouchableOpacity style={styles.menuItem} onPress={() => setModalIdiomaVisivel(true)}>
+          <View style={[styles.menuIconConfig, { backgroundColor: '#5D6D7E' }]}>
+             <Ionicons name="language" size={20} color="#fff" />
+          </View>
+          <Text style={styles.menuText}>{t('perfil.idioma') || 'Idioma / Language'}</Text>
+          <View style={styles.row}>
+            <Text style={styles.currentLang}>{i18n.language.toUpperCase()}</Text>
+            <Ionicons name="chevron-forward" size={20} color="#CCC" />
+          </View>
+        </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.langBtn, i18n.language === 'en' && styles.langBtnActive]} onPress={() => mudarIdioma('en')}>
-              <Text style={{fontSize: 20}}>🇺🇸</Text>
-              <Text style={[styles.langText, i18n.language === 'en' && styles.langTextActive]}>EN</Text>
-            </TouchableOpacity>
+        {/* BOTÃO MEUS DADOS */}
+        <TouchableOpacity style={styles.menuItem} onPress={() => setModalDadosVisivel(true)}>
+          <View style={[styles.menuIconConfig, { backgroundColor: '#3498DB' }]}>
+             <Ionicons name="person" size={20} color="#fff" />
+          </View>
+          <Text style={styles.menuText}>{t('perfil.meusDados') || 'Meus Dados'}</Text>
+          <Ionicons name="chevron-forward" size={20} color="#CCC" />
+        </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.langBtn, i18n.language === 'es' && styles.langBtnActive]} onPress={() => mudarIdioma('es')}>
-              <Text style={{fontSize: 20}}>🇪🇸</Text>
-              <Text style={[styles.langText, i18n.language === 'es' && styles.langTextActive]}>ES</Text>
-            </TouchableOpacity>
-        </View>
+        {/* BOTÃO SUPORTE */}
+        <TouchableOpacity style={styles.menuItem} onPress={abrirSuporte}>
+          <View style={[styles.menuIconConfig, { backgroundColor: '#2ECC71' }]}>
+             <Ionicons name="help" size={20} color="#fff" />
+          </View>
+          <Text style={styles.menuText}>{t('perfil.suporte') || 'Suporte Técnico'}</Text>
+          <Ionicons name="chevron-forward" size={20} color="#CCC" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -249,22 +283,36 @@ export default function Perfil() {
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('perfil.opcoes') || 'Opções'}</Text>
-        <TouchableOpacity style={styles.menuItem} onPress={() => setModalDadosVisivel(true)}>
-          <Ionicons name="person-outline" size={20} color="#555" />
-          <Text style={styles.menuText}>{t('perfil.meusDados') || 'Meus Dados'}</Text>
-          <Ionicons name="chevron-forward" size={20} color="#CCC" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={abrirSuporte}>
-          <Ionicons name="help-circle-outline" size={20} color="#555" />
-          <Text style={styles.menuText}>{t('perfil.suporte') || 'Suporte Técnico'}</Text>
-          <Ionicons name="chevron-forward" size={20} color="#CCC" />
-        </TouchableOpacity>
-      </View>
-
       <Text style={styles.version}>Versão 1.0.0</Text>
+      
       <ModalDadosPessoais visivel={modalDadosVisivel} fechar={() => setModalDadosVisivel(false)} />
+
+      {/* MODAL DE SELEÇÃO DE IDIOMA */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalIdiomaVisivel}
+        onRequestClose={() => setModalIdiomaVisivel(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('perfil.idioma')}</Text>
+              <TouchableOpacity onPress={() => setModalIdiomaVisivel(false)}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.optionsList}>
+              {renderLanguageOption('pt', 'Português (Brasil)', '🇧🇷')}
+              {renderLanguageOption('en', 'English (US)', '🇺🇸')}
+              {renderLanguageOption('es', 'Español', '🇪🇸')}
+              {renderLanguageOption('hi', 'हिन्दी (India)', '🇮🇳')} 
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 }
@@ -281,7 +329,7 @@ const styles = StyleSheet.create({
 
   section: { marginTop: 25, paddingHorizontal: 20 },
   sectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#999', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
- 
+  
   // --- ESTILOS RANKING ---
   cardRank: { backgroundColor: '#FFF', borderRadius: 12, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   headerRank: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
@@ -290,7 +338,7 @@ const styles = StyleSheet.create({
   txtNivel: { fontSize: 20, fontWeight: 'bold' },
   scoreTotal: { fontSize: 28, fontWeight: 'bold', color: '#2C3E50' },
   scoreLabel: { fontSize: 10, color: '#BDC3C7', textTransform: 'uppercase', fontWeight: 'bold', textAlign:'right' },
- 
+  
   barraContainer: { height: 8, backgroundColor: '#F0F2F5', borderRadius: 4, overflow: 'hidden', marginBottom: 20 },
   barraFill: { height: '100%', borderRadius: 4 },
 
@@ -306,14 +354,23 @@ const styles = StyleSheet.create({
   cardDesc: { color: '#777', fontSize: 14, lineHeight: 20, marginBottom: 20 },
   btnManage: { backgroundColor: '#2980B9', paddingVertical: 12, borderRadius: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   txtManage: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
- 
+  
   menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: '#F0F0F0' },
-  menuText: { flex: 1, marginLeft: 15, fontSize: 15, color: '#333' },
+  menuIconConfig: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 }, // Novo estilo para o ícone colorido
+  menuText: { flex: 1, fontSize: 15, color: '#333', fontWeight: '500' },
   version: { textAlign: 'center', color: '#CCC', marginTop: 30, marginBottom: 40, fontSize: 12 },
 
-  langContainer: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  langBtn: { flex: 1, backgroundColor: '#FFF', paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#DDD', flexDirection:'row', justifyContent:'center', gap: 8 },
-  langBtnActive: { borderColor: '#2980B9', backgroundColor: '#EBF5FB' },
-  langText: { fontWeight: 'bold', color: '#7F8C8D' },
-  langTextActive: { color: '#2980B9' }
+  row: { flexDirection: 'row', alignItems: 'center' },
+  currentLang: { fontSize: 14, color: '#888', marginRight: 8, fontWeight: '600' },
+
+  // Estilos do Modal
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  optionsList: { gap: 12 },
+  languageOption: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#eee', backgroundColor: '#FAFAFA' },
+  selectedOption: { borderColor: '#2980B9', backgroundColor: 'rgba(41, 128, 185, 0.1)' },
+  flag: { fontSize: 24, marginRight: 12 },
+  languageText: { flex: 1, fontSize: 16, color: '#333' },
 });

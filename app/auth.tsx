@@ -178,6 +178,10 @@ export default function Auth() {
             <TouchableOpacity onPress={() => mudarIdioma('es')} style={[styles.langBtn, langAtual.startsWith('es') && styles.langBtnActive]}>
               <Text style={styles.flag}>🇪🇸</Text>
             </TouchableOpacity>
+            {/* --- NOVO BOTÃO HINDI (ÍNDIA) --- */}
+            <TouchableOpacity onPress={() => mudarIdioma('hi')} style={[styles.langBtn, langAtual.startsWith('hi') && styles.langBtnActive]}>
+              <Text style={styles.flag}>🇮🇳</Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.title}>Axoryn Control</Text>
