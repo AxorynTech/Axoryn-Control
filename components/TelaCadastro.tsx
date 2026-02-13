@@ -7,7 +7,7 @@ type Props = {
 };
 
 export default function TelaCadastro({ aoSalvar }: Props) {
-  const { t, i18n } = useTranslation(); // Adicionamos i18n para verificar o idioma
+  const { t, i18n } = useTranslation();
   
   // Estados do Formulário
   const [nome, setNome] = useState('');
@@ -18,38 +18,50 @@ export default function TelaCadastro({ aoSalvar }: Props) {
   const [reputacao, setReputacao] = useState('');
   const [segmento, setSegmento] = useState('EMPRESTIMO');
 
-  // Verifica se é usuário brasileiro para forçar a máscara de CPF
+  // Verifica se é usuário brasileiro
   const isBrasil = i18n.language.startsWith('pt');
 
-  // Máscara de Documento Inteligente (Adaptável)
+  // Máscara de Documento Inteligente (CPF e CNPJ)
   const handleDocumentoChange = (text: string) => {
     if (isBrasil) {
-        // --- LÓGICA BRASIL (CPF RÍGIDO) ---
-        let v = text.replace(/\D/g, ''); // Remove letras
-        if (v.length > 11) v = v.slice(0, 11); // Trava em 11 números
+        // --- LÓGICA BRASIL (Agora com suporte estendido) ---
+        let v = text.replace(/\D/g, ''); // Remove tudo que não é número
         
-        // Aplica os pontos e traço
-        v = v.replace(/(\d{3})(\d)/, '$1.$2');
-        v = v.replace(/(\d{3})(\d)/, '$1.$2');
-        v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        // AUMENTADO: Permite até 40 dígitos numéricos (antes era 14)
+        if (v.length > 40) v = v.slice(0, 40); 
+        
+        if (v.length <= 11) {
+            // --- MÁSCARA CPF (Até 11 números) ---
+            v = v.replace(/(\d{3})(\d)/, '$1.$2');
+            v = v.replace(/(\d{3})(\d)/, '$1.$2');
+            v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        } else {
+            // --- MÁSCARA CNPJ + EXTRAS ---
+            // Aplica a formatação padrão de CNPJ no início
+            // Se tiver mais de 14 dígitos, eles aparecerão normalmente no final
+            v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+            v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+            v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
+            v = v.replace(/(\d{4})(\d)/, '$1-$2');
+        }
         
         setCpf(v);
     } else {
-        // --- LÓGICA INTERNACIONAL (FLEXÍVEL) ---
-        // Permite letras e números, pois Tax IDs variam muito
+        // --- LÓGICA INTERNACIONAL ---
+        // Apenas limita o tamanho bruto, sem máscara
+        if (text.length > 60) return; // Segurança visual
         setCpf(text);
     }
   };
 
   const handleSalvar = () => {
     if (!nome.trim()) {
-       // CORREÇÃO: Usando chave de tradução para erro
        return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
     }
     
     aoSalvar({
       nome: nome.trim().toUpperCase(),
-      cpf: cpf, // Salva o documento (seja CPF ou Tax ID)
+      cpf: cpf, 
       whatsapp: whatsapp.trim(),
       endereco: endereco.trim(),
       indicacao: indicacao.trim(),
@@ -66,7 +78,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
     setReputacao(''); 
     setSegmento('EMPRESTIMO');
     
-    // CORREÇÃO: Usando chave de tradução para sucesso
     Alert.alert(t('common.sucesso'), t('cadastro.msgSucesso'));
   };
 
@@ -86,10 +97,8 @@ export default function TelaCadastro({ aoSalvar }: Props) {
             placeholderTextColor="#999"
           />
 
-          {/* --- CAMPO DE DOCUMENTO (INTERNACIONALIZADO) --- */}
-          {/* Usa as mesmas chaves de tradução do Radar para consistência */}
           <Text style={styles.label}>
-             {t('radar.documentoLabel', 'CPF / Tax ID')}
+             {t('radar.documentoLabel', 'CPF / CNPJ / Tax ID')}
           </Text>
           <TextInput 
             style={styles.input} 
@@ -97,11 +106,10 @@ export default function TelaCadastro({ aoSalvar }: Props) {
             onChangeText={handleDocumentoChange} 
             placeholder={t('radar.documentoPlaceholder', '000.000.000-00')} 
             placeholderTextColor="#999"
-            // Se for Brasil, teclado numérico. Se não, teclado normal (pode ter letras)
             keyboardType={isBrasil ? "numeric" : "default"}
-            maxLength={isBrasil ? 14 : 20}
+            // ATUALIZADO: maxLength 60 garante espaço para 40 números + formatação
+            maxLength={60} 
           />
-          {/* ----------------------------------------------- */}
 
           <Text style={styles.label}>{t('cadastro.segmento')}</Text>
           <View style={styles.rowSegmento}>
@@ -127,7 +135,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           />
 
           <Text style={styles.label}>{t('cadastro.endereco')}</Text>
-          {/* CORREÇÃO: Placeholder traduzido */}
           <TextInput 
             style={styles.input} 
             value={endereco} 
@@ -137,7 +144,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           />
 
           <Text style={styles.label}>{t('cadastro.indicacao')}</Text>
-          {/* CORREÇÃO: Placeholder traduzido */}
           <TextInput 
             style={styles.input} 
             value={indicacao} 
@@ -147,7 +153,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           />
 
           <Text style={styles.label}>{t('cadastro.reputacao')}</Text>
-          {/* CORREÇÃO: Placeholder traduzido */}
           <TextInput 
             style={styles.input} 
             value={reputacao} 
