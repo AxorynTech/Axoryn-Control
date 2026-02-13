@@ -3,37 +3,215 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Política de Privacidade - Axoryn Control</title>
+    <title>Política de Privacidade | Axoryn Control</title>
     <style>
-        body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }
-        h1 { color: #2c3e50; }
-        h2 { color: #34495e; margin-top: 20px; }
+        :root {
+            --primary-color: #000000;
+            --secondary-color: #333333;
+            --accent-color: #007AFF; /* Azul estilo iOS */
+            --bg-color: #ffffff;
+            --text-color: #1c1c1e;
+            --light-gray: #f2f2f7;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            padding: 40px 0;
+            border-bottom: 1px solid #e5e5ea;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            color: var(--primary-color);
+            letter-spacing: -0.5px;
+        }
+
+        .meta {
+            font-size: 0.9rem;
+            color: #8e8e93;
+            margin-top: 10px;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--light-gray);
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            margin-top: 25px;
+            color: var(--secondary-color);
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: #3a3a3c;
+        }
+
+        ul {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+            color: #3a3a3c;
+        }
+
+        strong {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .contact-box {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 40px;
+        }
+
+        .contact-box p {
+            margin: 5px 0;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            padding: 40px 0;
+            font-size: 0.8rem;
+            color: #8e8e93;
+            border-top: 1px solid #e5e5ea;
+        }
+
+        /* Responsividade para Celulares */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+            .container {
+                padding: 15px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Política de Privacidade do Axoryn Control</h1>
-    <p><strong>Última atualização:</strong> 11 de Fevereiro de 2026</p>
 
-    <p>A sua privacidade é importante para nós. É política do Axoryn Control respeitar a sua privacidade em relação a qualquer informação que possamos coletar no aplicativo Axoryn Control.</p>
+    <div class="container">
+        <header>
+            <h1>Política de Privacidade Global</h1>
+            <div class="meta">
+                <strong>Aplicativo:</strong> Axoryn Control<br>
+                <strong>Vigência:</strong> 13 de Fevereiro de 2026
+            </div>
+        </header>
 
-    <h2>1. Informações que Coletamos</h2>
-    <p>Para o funcionamento das ferramentas de gestão de vendas e empréstimos, podemos coletar informações fornecidas voluntariamente por você, como:</p>
-    <ul>
-        <li>Dados de cadastro (e-mail, nome);</li>
-        <li>Registros de vendas e clientes inseridos no sistema;</li>
-        <li>Informações sobre empréstimos e pagamentos.</li>
-    </ul>
+        <p>A <strong>Axoryn Tech</strong> ("nós", "nosso" ou "Axoryn Control") está comprometida em proteger a privacidade e a segurança dos dados de nossos usuários em escala global. Esta Política de Privacidade descreve nossas práticas de coleta, uso e proteção de dados, estruturada para atender aos requisitos rigorosos da <strong>GDPR</strong> (Europa), <strong>LGPD</strong> (Brasil), <strong>CCPA/CPRA</strong> (Estados Unidos - Califórnia), <strong>PIPL</strong> (China) e outras legislações internacionais aplicáveis.</p>
 
-    <h2>2. Uso das Informações</h2>
-    <p>Utilizamos os dados coletados exclusivamente para fornecer e manter o serviço, permitindo que você gerencie seu negócio, recupere seu histórico e utilize as funcionalidades do aplicativo.</p>
+        <p>Ao utilizar o Axoryn Control, você confia a nós suas informações comerciais e pessoais. Esta responsabilidade é a nossa prioridade.</p>
 
-    <h2>3. Segurança de Dados</h2>
-    <p>Valorizamos sua confiança em nos fornecer suas informações pessoais e utilizamos meios comercialmente aceitáveis para protegê-las. O aplicativo utiliza serviços de banco de dados seguros (como Supabase) para armazenamento.</p>
+        <h2>1. Definições e Escopo de Controle</h2>
+        <p>Para fins de clareza legal e conformidade:</p>
+        <ul>
+            <li><strong>Usuário (Você):</strong> Ao criar uma conta e inserir dados no aplicativo, você atua como <strong>Controlador</strong> dos dados de seus clientes finais.</li>
+            <li><strong>Axoryn Control:</strong> Atuamos como <strong>Controlador</strong> em relação aos seus dados de cadastro (sua conta) e como <strong>Operador (Processador)</strong> em relação aos dados que você insere na plataforma (seus clientes e vendas), processando-os estritamente conforme suas instruções de uso do aplicativo.</li>
+        </ul>
 
-    <h2>4. Compartilhamento de Dados</h2>
-    <p>Não compartilhamos informações de identificação pessoal publicamente ou com terceiros, exceto quando exigido por lei.</p>
+        <h2>2. Dados que Coletamos</h2>
+        <p>Limitamos a coleta de dados ao estritamente necessário para a funcionalidade, segurança e aprimoramento do serviço.</p>
 
-    <h2>5. Contato</h2>
-    <p>Se você tiver alguma dúvida sobre como lidamos com dados do usuário e informações pessoais, entre em contato conosco.</p>
+        <h3>A. Informações de Conta e Identificação</h3>
+        <ul>
+            <li><strong>Dados de Cadastro:</strong> Nome completo e endereço de e-mail corporativo ou pessoal.</li>
+            <li><strong>Credenciais de Segurança:</strong> Senhas e tokens de autenticação (armazenados sob criptografia irreversível/hash).</li>
+        </ul>
+
+        <h3>B. Dados Financeiros e de Transações</h3>
+        <ul>
+            <li><strong>Processamento de Assinaturas:</strong> Caso você opte por serviços pagos, as transações são processadas por <strong>Gateways de Pagamento Globais certificados pelo PCI-DSS</strong> (Payment Card Industry Data Security Standard).</li>
+            <li><strong>Isenção de Armazenamento Sensível:</strong> A Axoryn Tech <strong>não</strong> coleta, <strong>não</strong> visualiza e <strong>não</strong> armazena números completos de cartão de crédito ou códigos de segurança (CVV). Apenas recebemos confirmações de status (ex: "Aprovado" ou "Recusado") e tokens de transação anonimizados.</li>
+        </ul>
+
+        <h3>C. Conteúdo Gerado pelo Usuário (Seus Dados Comerciais)</h3>
+        <p>Dados de terceiros que você insere voluntariamente no sistema para gestão (ex: nomes de clientes, registros de vendas, datas de vencimento e valores de empréstimos). Estes dados são tratados com confidencialidade absoluta e isolamento lógico.</p>
+
+        <h3>D. Dados Técnicos e de Telemetria</h3>
+        <p>Informações automaticamente coletadas para garantia de estabilidade: Endereço IP, ID do dispositivo, modelo de hardware, versão do sistema operacional e logs de falhas (crash reports).</p>
+
+        <h2>3. Bases Legais e Finalidade do Uso</h2>
+        <p>Processamos seus dados baseados nas seguintes premissas legais:</p>
+        <ol>
+            <li><strong>Execução de Contrato:</strong> Para fornecer as funcionalidades de gestão de vendas, autenticar seu acesso e processar sua assinatura.</li>
+            <li><strong>Obrigação Legal:</strong> Para cumprir exigências fiscais, judiciais ou regulatórias em qualquer jurisdição onde operamos.</li>
+            <li><strong>Legítimo Interesse:</strong> Para prevenção de fraudes, segurança da rede e melhoria da infraestrutura do aplicativo.</li>
+        </ol>
+
+        <h2>4. Compartilhamento com Terceiros</h2>
+        <p>Não comercializamos dados pessoais. O compartilhamento ocorre estritamente com <strong>categorias</strong> de fornecedores de infraestrutura essenciais, todos sujeitos a obrigações contratuais de confidencialidade:</p>
+        <ul>
+            <li><strong>Provedores de Infraestrutura em Nuvem e Banco de Dados:</strong> Para hospedagem segura e alta disponibilidade dos serviços.</li>
+            <li><strong>Processadores de Pagamento:</strong> Para viabilizar cobranças e gestão de assinaturas de forma segura.</li>
+            <li><strong>Serviços de Análise e Monitoramento:</strong> Para identificar falhas técnicas e otimizar a experiência do usuário (dados agregados e anonimizados, sempre que possível).</li>
+            <li><strong>Autoridades Governamentais:</strong> Estritamente mediante ordem judicial válida ou exigência legal mandatória.</li>
+        </ul>
+
+        <h2>5. Transferência Internacional de Dados</h2>
+        <p>Devido à natureza global da internet e de nossa infraestrutura de nuvem, seus dados podem ser processados em servidores localizados fora de seu país de residência (incluindo Estados Unidos e Europa). A Axoryn Tech assegura que tais transferências são regidas por Mecanismos de Transferência Adequados, como as <strong>Cláusulas Contratuais Padrão (SCCs)</strong> aprovadas pela Comissão Europeia e normas equivalentes, garantindo nível de proteção compatível com a legislação local.</p>
+
+        <h2>6. Seus Direitos de Privacidade (Global)</h2>
+        <p>Respeitamos os direitos conferidos aos titulares de dados em todas as jurisdições:</p>
+        <ul>
+            <li><strong>Direito de Acesso e Portabilidade:</strong> Você pode solicitar uma cópia estruturada de seus dados.</li>
+            <li><strong>Direito de Retificação:</strong> Correção de dados incompletos, inexatos ou desatualizados diretamente no painel do aplicativo.</li>
+            <li><strong>Direito de Exclusão (Account Deletion):</strong> Em conformidade com as diretrizes da App Store e Google Play, disponibilizamos um mecanismo claro para solicitação de exclusão de conta e dados associados dentro do aplicativo ou via canal de suporte.</li>
+            <li><strong>Revogação de Consentimento:</strong> Você pode revogar permissões concedidas a qualquer momento.</li>
+        </ul>
+
+        <h2>7. Retenção de Dados</h2>
+        <p>Seus dados pessoais e os dados de gestão inseridos serão mantidos enquanto sua conta estiver ativa. Após a solicitação de exclusão, os dados serão removidos permanentemente ou anonimizados, salvo se a retenção for necessária para cumprimento de obrigações legais (como registros fiscais de transações).</p>
+
+        <h2>8. Segurança da Informação</h2>
+        <p>Implementamos medidas técnicas e organizacionais de padrão industrial, incluindo:</p>
+        <ul>
+            <li>Criptografia de dados em trânsito (TLS 1.2+) e em repouso.</li>
+            <li>Controles de acesso restritos (princípio do menor privilégio).</li>
+            <li>Monitoramento contínuo contra ameaças e vulnerabilidades.</li>
+        </ul>
+
+        <h2>9. Privacidade de Menores</h2>
+        <p>O Axoryn Control não é destinado a indivíduos com idade inferior a 13 anos (ou a maioridade local aplicável). Não coletamos intencionalmente dados de crianças. Caso tomemos conhecimento de tal coleta, procederemos com a exclusão imediata dos registros.</p>
+
+        <h2>10. Contato e Encarregado de Dados (DPO)</h2>
+        <p>Para exercer seus direitos, relatar incidentes ou esclarecer dúvidas sobre esta política, entre em contato com nosso canal oficial de privacidade:</p>
+        
+        <div class="contact-box">
+            <p><strong>E-mail:</strong> <a href="mailto:axoryncontrol@gmail.com">axoryncontrol@gmail.com</a></p>
+            <p><strong>Responsável:</strong> Axoryn Tech Privacy Team</p>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Axoryn Tech. Todos os direitos reservados.</p>
+        </footer>
+    </div>
+
 </body>
 </html>

@@ -3,43 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solicitação de Exclusão de Conta - Axoryn Control</title>
+    <title>Solicitação de Exclusão de Conta | Axoryn Control</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; line-height: 1.6; color: #333; }
-        h1 { color: #2C3E50; }
-        .btn { display: inline-block; background: #c0392b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold;}
-        .info-box { background: #f9f9f9; padding: 15px; border-left: 5px solid #2C3E50; margin: 20px 0; }
+        :root {
+            --primary-color: #000000;
+            --secondary-color: #333333;
+            --accent-color: #007AFF; /* Azul System iOS */
+            --danger-color: #FF3B30; /* Vermelho Alerta */
+            --bg-color: #ffffff;
+            --text-color: #1c1c1e;
+            --light-gray: #f2f2f7;
+            --border-color: #e5e5ea;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin: 0 0 10px 0;
+            letter-spacing: -0.5px;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: #3a3a3c;
+        }
+
+        .alert-box {
+            background-color: #fff4f4;
+            border-left: 4px solid var(--danger-color);
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+
+        .step-box {
+            background-color: var(--light-gray);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            font-size: 1.4rem;
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        h3 {
+            font-size: 1.1rem;
+            color: var(--secondary-color);
+            margin-top: 20px;
+        }
+
+        ol {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 2px solid var(--border-color);
+            color: var(--text-color);
+        }
+
+        .data-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .data-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            color: #8e8e93;
+        }
+
+        @media (max-width: 600px) {
+            .data-list {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Solicitação de Exclusão de Dados</h1>
-    <p>O aplicativo <strong>Axoryn Control</strong> respeita sua privacidade e permite que você solicite a exclusão completa da sua conta e dados associados.</p>
 
-    <h2>Como excluir sua conta:</h2>
-    <p>Você tem duas opções para solicitar a exclusão:</p>
-    
-    <h3>Opção 1: Via Aplicativo (Automático)</h3>
-    <ol>
-        <li>Abra o app Axoryn Control.</li>
-        <li>Vá em <strong>Perfil</strong> > <strong>Meus Dados</strong>.</li>
-        <li>Role até o final e clique em <strong>"Excluir Minha Conta"</strong>.</li>
-    </ol>
+    <div class="container">
+        <header>
+            <h1>Central de Exclusão de Dados</h1>
+            <p>Conformidade Global (GDPR, LGPD, CCPA, PIPL)</p>
+        </header>
 
-    <h3>Opção 2: Via Formulário Web (Manual)</h3>
-    <p>Caso não tenha mais acesso ao app, clique no botão abaixo para nos enviar um e-mail solicitando a remoção.</p>
-    
-    <a href="mailto:axoryncontrol@gmail.com?subject=Solicitacao%20de%20Exclusao%20de%20Conta&body=Desejo%20solicitar%20a%20exclusao%20da%20minha%20conta%20e%20dados%20associados%20ao%20email%3A%20(Insira%20seu%20email%20aqui)" class="btn">Solicitar Exclusão por E-mail</a>
+        <p>A <strong>Axoryn Tech</strong> respeita o seu direito fundamental à privacidade e ao controle de seus dados. Em conformidade com as diretrizes da Apple App Store, Google Play Store e legislações internacionais, disponibilizamos canais diretos para que você exerça o seu <strong>"Direito ao Esquecimento"</strong>.</p>
 
-    <div class="info-box">
-        <h3>Quais dados serão excluídos?</h3>
-        <ul>
-            <li>Seu cadastro de login (E-mail e Senha/Hash).</li>
-            <li>Todos os clientes e contratos cadastrados.</li>
-            <li>Histórico de consultas do Risk Radar.</li>
-        </ul>
-        <p><strong>Atenção:</strong> A exclusão é irreversível. Dados de transações financeiras processadas (pagamentos de assinatura) podem ser mantidos por até 5 anos apenas para cumprimento legal fiscal, conforme legislação vigente.</p>
+        <div class="alert-box">
+            <strong>⚠️ Atenção: Ação Irreversível</strong><br>
+            Ao confirmar a exclusão, sua conta e todos os dados de clientes associados a ela serão removidos permanentemente de nossos servidores e backups. Esta ação não poderá ser desfeita.
+        </div>
+
+        <div class="step-box">
+            <h2>Como Solicitar a Exclusão</h2>
+            <p>Você pode excluir sua conta de duas maneiras:</p>
+
+            <h3>Opção 1: Via Aplicativo (Automático e Imediato)</h3>
+            <p>Esta é a maneira mais rápida. Se você ainda tem o app instalado:</p>
+            <ol>
+                <li>Abra o aplicativo <strong>Axoryn Control</strong>.</li>
+                <li>Acesse a aba <strong>Perfil</strong> no menu inferior.</li>
+                <li>Toque em <strong>Meus Dados</strong> ou <strong>Configurações</strong>.</li>
+                <li>Role até o final da tela e selecione <strong>"Excluir Minha Conta"</strong>.</li>
+                <li>Confirme a ação digitando sua senha ou confirmando o alerta.</li>
+            </ol>
+
+            <h3>Opção 2: Via Solicitação Web (Caso não tenha o App)</h3>
+            <p>Se você já desinstalou o aplicativo, pode solicitar a exclusão através do nosso suporte oficial. Processaremos sua solicitação em até 30 dias (conforme exigido pela LGPD/GDPR).</p>
+            
+            <a href="mailto:axoryncontrol@gmail.com?subject=Solicitacao%20de%20Exclusao%20Definitiva%20-%20Axoryn%20Control&body=Eu%20desejo%20solicitar%20a%20exclusao%20permanente%20da%20minha%20conta%20e%20de%20todos%20os%20dados%20pessoais%20associados.%0A%0AEmail%20da%20Conta%3A%20(Insira%20seu%20email%20aqui)%0A%0ADeclaracao%3A%20Estou%20ciente%20de%20que%20esta%20acao%20e%20irreversivel." class="btn">Solicitar via E-mail</a>
+        </div>
+
+        <h3>O que acontece com seus dados?</h3>
+        <div class="data-list">
+            <div class="data-item">
+                <strong>🗑️ Dados Excluídos</strong>
+                <p style="font-size: 0.9rem; margin-bottom: 0;">
+                    • Suas credenciais de login e e-mail.<br>
+                    • Todos os registros de clientes cadastrados.<br>
+                    • Histórico de empréstimos e vendas.<br>
+                    • Logs de atividade do dispositivo.
+                </p>
+            </div>
+            <div class="data-item">
+                <strong>🔒 Dados Retidos (Compliance)</strong>
+                <p style="font-size: 0.9rem; margin-bottom: 0;">
+                    • Registros de transações financeiras (pagamentos de assinatura) são anonimizados e mantidos pelo período exigido pela legislação fiscal local (ex: 5 anos).
+                </p>
+            </div>
+        </div>
+
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+            <h3>⚠️ Importante: Assinaturas Ativas</h3>
+            <p>A exclusão da sua conta no Axoryn Control <strong>não cancela automaticamente</strong> assinaturas renováveis adquiridas via Apple App Store ou Google Play Store.</p>
+            <p>Para evitar cobranças futuras, você deve gerenciar suas assinaturas diretamente nas configurações do seu telefone:</p>
+            <ul>
+                <li><strong>iOS:</strong> Ajustes > Seu Nome > Assinaturas.</li>
+                <li><strong>Android:</strong> Google Play Store > Ícone de Perfil > Pagamentos e assinaturas.</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Axoryn Tech. Todos os direitos reservados.</p>
+            <p><a href="privacy.html" style="color: #8e8e93;">Política de Privacidade</a></p>
+        </footer>
     </div>
 
-    <p style="font-size: 12px; color: #777; margin-top: 50px;">© 2026 Axoryn Tech. Todos os direitos reservados.</p>
 </body>
 </html>
