@@ -397,7 +397,12 @@
     "idUsuario": "ID Usuário",
     "membroDesde": "Membro desde",
     "avisoSenha": "Por segurança, sua senha não é exibida.",
-    "usuarioPadrao": "Usuário Axoryn"
+    "usuarioPadrao": "Usuário Axoryn",
+    "tituloExclusao": "Excluir Conta",
+    "btnExcluir": "EXCLUIR MINHA CONTA",
+    "msgExclusao": "Tem certeza? Esta ação excluirá permanentemente todos os seus dados e não pode ser desfeita.",
+    "confirmar": "Sim, Excluir",
+    "erroExclusao": "Erro ao excluir conta. Entre em contato com o suporte."
   },
   "modalEditarCliente": {
     "tituloEditar": "Editar Cliente",

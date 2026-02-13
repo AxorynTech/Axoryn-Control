@@ -397,7 +397,12 @@
     "idUsuario": "ID Usuario",
     "membroDesde": "Miembro desde",
     "avisoSenha": "Por seguridad, no se muestra su contraseña.",
-    "usuarioPadrao": "Usuario Axoryn"
+    "usuarioPadrao": "Usuario Axoryn",
+    "tituloExclusao": "Eliminar Cuenta",
+    "btnExcluir": "ELIMINAR MI CUENTA",
+    "msgExclusao": "¿Estás seguro? Esta acción eliminará permanentemente todos tus datos y no se puede deshacer.",
+    "confirmar": "Sí, Eliminar",
+    "erroExclusao": "Error al eliminar la cuenta. Contacte a soporte."
   },
   "modalEditarCliente": {
     "tituloEditar": "Editar Cliente",

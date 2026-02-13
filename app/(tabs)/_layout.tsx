@@ -1,10 +1,13 @@
 import { FontAwesome } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
+import { useTranslation } from 'react-i18next'; // <--- Importação da tradução mantida
+import { Platform } from 'react-native'; // <--- Adicionado para verificar se é Android ou iOS
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; // <--- Adicionado para medir a área segura
 
 export default function TabLayout() {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation(); // <--- Hook de tradução mantido
+  const insets = useSafeAreaInsets(); // <--- Hook para calcular o espaço seguro
 
   return (
     <Tabs screenOptions={{
@@ -12,10 +15,22 @@ export default function TabLayout() {
       tabBarActiveTintColor: '#2C3E50', // Azul Escuro
       tabBarInactiveTintColor: '#999999', // Cinza
       tabBarStyle: { 
-        height: 60, 
-        paddingBottom: 10, 
+        // LÓGICA DE CORREÇÃO:
+        // Altura: 60px base + o espaço da barra de navegação do sistema
+        height: 60 + (Platform.OS === 'ios' ? insets.bottom : insets.bottom + 10), 
+        
+        // Padding: Empurra os ícones para cima da barra do sistema
+        paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 0 : 10), 
+        
+        paddingTop: 10, // Adicionado para dar respiro superior aos ícones
         backgroundColor: '#FFF' 
       },
+      // Estilo extra para garantir que os textos fiquem bonitos e não cortem
+      tabBarLabelStyle: {
+        marginBottom: 5,
+        fontSize: 10,
+        fontWeight: 'bold'
+      }
     }}>
       
       {/* 1. TELA PRINCIPAL (Carteira) */}

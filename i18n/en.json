@@ -397,7 +397,12 @@
     "idUsuario": "User ID",
     "membroDesde": "Member since",
     "avisoSenha": "For security, your password is not shown.",
-    "usuarioPadrao": "Axoryn User"
+    "usuarioPadrao": "Axoryn User",
+    "tituloExclusao": "Delete Account",
+    "btnExcluir": "DELETE MY ACCOUNT",
+    "msgExclusao": "Are you sure? This action will permanently delete all your data and cannot be undone.",
+    "confirmar": "Yes, Delete",
+    "erroExclusao": "Error deleting account. Please contact support."
   },
   "modalEditarCliente": {
     "tituloEditar": "Edit Client",
