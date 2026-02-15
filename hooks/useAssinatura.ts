@@ -1,78 +1,94 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
-import Purchases from 'react-native-purchases';
-import { supabase } from '../services/supabase';
+import { Alert, Platform } from 'react-native';
+import Purchases, { LOG_LEVEL, PurchasesPackage } from 'react-native-purchases';
+import { supabase } from '../services/supabase'; // Ajuste o caminho se for ../services/supabase
 
 // ----------------------------------------------------------------------
 // CONFIGURAÇÃO DO REVENUECAT
 // ----------------------------------------------------------------------
-const API_KEY_GOOGLE = 'goog_eIEPHdCOVMCoYvxMxJwuJqtzqqw'; // <--- COLOCAR SUA CHAVE DO GOOGLE AQUI
-const API_KEY_APPLE = '';  // <--- Pode deixar vazio por enquanto
-const ENTITLEMENT_ID = 'pro'; 
+const API_KEYS = {
+  google: 'goog_eIEPHdCOVMCoYvxMxJwuJqtzqqw', // Sua chave atual
+  apple: 'appl_SUA_CHAVE_AQUI', // Coloque a da Apple quando tiver
+};
+
+const ENTITLEMENT_ID = 'premium'; // O ID que você criou no RevenueCat ("Entitlements")
 
 export function useAssinatura() {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [diasRestantes, setDiasRestantes] = useState<number | string>(0);
   const [tipoPlano, setTipoPlano] = useState<'teste_gratis' | 'mensal' | 'anual' | 'vitalicio' | 'expirado' | 'store'>('expirado');
+  
+  // Novos estados para suportar a tela de vendas
+  const [pacotes, setPacotes] = useState<PurchasesPackage[]>([]);
 
   useEffect(() => {
-    const initRevenueCat = async () => {
-      try {
-        if (Platform.OS === 'android') {
-          // Só configura se estiver no Android
-          await Purchases.configure({ apiKey: API_KEY_GOOGLE });
-        } else if (Platform.OS === 'ios' && API_KEY_APPLE) {
-          // Só tenta configurar iOS se você tiver colocado a chave (evita erros)
-          await Purchases.configure({ apiKey: API_KEY_APPLE });
-        }
-      } catch (e) {
-        console.log("Erro ao iniciar pagamentos:", e);
-      }
-    };
-    
-    initRevenueCat();
-    checkStatus();
+    configurarRevenueCat();
   }, []);
+
+  async function configurarRevenueCat() {
+    try {
+      Purchases.setLogLevel(LOG_LEVEL.ERROR); // Reduz logs desnecessários
+
+      if (Platform.OS === 'android') {
+        await Purchases.configure({ apiKey: API_KEYS.google });
+      } else if (Platform.OS === 'ios' && API_KEYS.apple) {
+        await Purchases.configure({ apiKey: API_KEYS.apple });
+      }
+
+      // Tenta carregar as ofertas de venda (para o Paywall usar)
+      const offerings = await Purchases.getOfferings();
+      if (offerings.current && offerings.current.availablePackages.length > 0) {
+        setPacotes(offerings.current.availablePackages);
+      }
+
+      // Inicia a verificação de status
+      checkStatus();
+
+    } catch (e) {
+      console.log("Erro ao configurar RevenueCat:", e);
+      // Se der erro no RevenueCat, ainda verificamos o banco de dados
+      checkStatus(); 
+    }
+  }
 
   async function checkStatus() {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) return;
-
-      console.log("Verificando assinatura para:", user.email);
-
-      // ============================================================
-      // 0. NOVO: Verifica Assinatura na Google Play (ou Apple se tiver)
-      // ============================================================
-      try {
-        if (Platform.OS === 'android' || (Platform.OS === 'ios' && API_KEY_APPLE)) {
-          await Purchases.logIn(user.id);
-          const customerInfo = await Purchases.getCustomerInfo();
-          
-          if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
-            console.log("Assinatura ativa encontrada via Loja");
-            setTipoPlano('store');
-            setIsPremium(true);
-            setDiasRestantes('Assinatura Google/Apple');
-            setLoading(false);
-            return; 
-          }
-        }
-      } catch (rcError) {
-        // Erros aqui são normais se o usuário nunca comprou nada
-        // console.log("Nota: Sem assinatura na loja.", rcError);
+      if (!user) {
+        setLoading(false);
+        return;
       }
 
       // ============================================================
-      // 1. Verifica Status Vitalício no Banco de Dados
+      // 1. PRIORIDADE: Verifica Google Play / App Store (RevenueCat)
       // ============================================================
-      const { data: profile, error: profileError } = await supabase
+      try {
+        // Vincula o usuário do Supabase ao RevenueCat
+        await Purchases.logIn(user.id);
+        const customerInfo = await Purchases.getCustomerInfo();
+        
+        // Verifica se tem o entitlement "premium" (ou "pro")
+        if (customerInfo.entitlements.active[ENTITLEMENT_ID] || customerInfo.entitlements.active['pro']) {
+          setTipoPlano('store');
+          setIsPremium(true);
+          setDiasRestantes('Assinatura Ativa');
+          setLoading(false);
+          return; // Para aqui se achou na loja
+        }
+      } catch (rcError) {
+        console.log("Sem assinatura na loja ou erro de conexão.", rcError);
+      }
+
+      // ============================================================
+      // 2. Verifica Status Vitalício no Banco de Dados
+      // ============================================================
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*') 
-        .eq('user_id', user.id)
+        .eq('id', user.id) // Geralmente a PK é 'id', mas se for 'user_id' mantenha
         .single();
 
       const statusEncontrado = profile?.status || profile?.plano || profile?.role || "";
@@ -86,8 +102,9 @@ export function useAssinatura() {
       }
 
       // ============================================================
-      // 2. Busca a Assinatura (Mensal/Anual) no Banco de Dados
+      // 3. Verifica Assinatura Manual (Tabelas Antigas)
       // ============================================================
+      // Mantive sua lógica original de verificar a tabela 'assinaturas'
       const { data: assinatura } = await supabase
         .from('assinaturas')
         .select('*')
@@ -97,7 +114,9 @@ export function useAssinatura() {
         .single();
 
       const hoje = new Date();
-      let dataVencimento: Date;
+      let dataVencimento = new Date(); // Inicializa com hoje
+
+      let achouNoBanco = false;
 
       if (assinatura && assinatura.status === 'approved') {
         const dataPagamento = new Date(assinatura.created_at);
@@ -113,19 +132,20 @@ export function useAssinatura() {
         
         if (hoje < dataVencimento) {
           setIsPremium(true);
-        } else {
-          setTipoPlano('expirado');
-          setIsPremium(false);
+          achouNoBanco = true;
         }
-      } else {
-        // ============================================================
-        // 3. Teste Grátis (30 dias)
-        // ============================================================
-        const dataCadastro = new Date(user.created_at);
-        dataVencimento = new Date(dataCadastro);
-        dataVencimento.setDate(dataCadastro.getDate() + 30);
+      }
 
-        if (hoje < dataVencimento) {
+      // ============================================================
+      // 4. FALLBACK: Teste Grátis (30 dias após cadastro)
+      // ============================================================
+      if (!achouNoBanco) {
+        const dataCadastro = new Date(user.created_at);
+        const fimDoTeste = new Date(dataCadastro);
+        fimDoTeste.setDate(dataCadastro.getDate() + 30);
+        dataVencimento = fimDoTeste; // Atualiza para cálculo de dias
+
+        if (hoje < fimDoTeste) {
           setTipoPlano('teste_gratis');
           setIsPremium(true);
         } else {
@@ -134,6 +154,7 @@ export function useAssinatura() {
         }
       }
 
+      // Cálculo visual de dias restantes (para UI)
       if (tipoPlano !== 'vitalicio' && tipoPlano !== 'store') {
         const diferencaTempo = dataVencimento.getTime() - hoje.getTime();
         const dias = Math.ceil(diferencaTempo / (1000 * 3600 * 24));
@@ -141,11 +162,81 @@ export function useAssinatura() {
       }
 
     } catch (error) {
-      console.log("Erro geral:", error);
+      console.log("Erro geral no checkStatus:", error);
     } finally {
       setLoading(false);
     }
   }
 
-  return { loading, isPremium, diasRestantes, tipoPlano, refresh: checkStatus };
+  // ============================================================
+  // FUNÇÃO DE COMPRA CENTRALIZADA
+  // ============================================================
+  async function comprarPacote(pacote: PurchasesPackage) {
+    setLoading(true);
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pacote);
+
+      // A) LÓGICA DE RECARGA (RISK RADAR) - Consumível
+      if (pacote.product.identifier.includes('radar')) {
+        let creditos = 0;
+        if (pacote.product.identifier.includes('10')) creditos = 10;
+        if (pacote.product.identifier.includes('50')) creditos = 50;
+        if (pacote.product.identifier.includes('100')) creditos = 100;
+
+        if (creditos > 0) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { error } = await supabase.rpc('adicionar_creditos', {
+              user_id: user.id,
+              quantidade: creditos
+            });
+            if (!error) {
+              Alert.alert('Sucesso!', `${creditos} consultas adicionadas.`);
+            } else {
+              Alert.alert('Erro', 'Compra processada, mas erro ao creditar. Contate o suporte.');
+            }
+          }
+        }
+      } 
+      // B) LÓGICA DE ASSINATURA (PREMIUM)
+      else if (customerInfo.entitlements.active[ENTITLEMENT_ID] || customerInfo.entitlements.active['pro']) {
+        await checkStatus(); // Atualiza o estado global
+        Alert.alert('Parabéns!', 'Sua assinatura foi ativada com sucesso.');
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert('Erro na compra', e.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function restaurarCompras() {
+    setLoading(true);
+    try {
+      const info = await Purchases.restorePurchases();
+      if (info.entitlements.active[ENTITLEMENT_ID] || info.entitlements.active['pro']) {
+        await checkStatus();
+        Alert.alert("Restaurado", "Suas compras foram recuperadas!");
+      } else {
+        Alert.alert("Aviso", "Nenhuma assinatura ativa encontrada para restaurar.");
+      }
+    } catch (e: any) {
+      Alert.alert("Erro", e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return { 
+    loading, 
+    isPremium, 
+    diasRestantes, 
+    tipoPlano, 
+    pacotes,          // Exporta os pacotes para a UI usar
+    comprarPacote,    // Exporta a função de compra
+    restaurarCompras, // Exporta a função de restaurar
+    refresh: checkStatus 
+  };
 }
