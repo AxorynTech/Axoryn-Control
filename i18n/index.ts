@@ -6,49 +6,55 @@ import { Platform } from 'react-native';
 
 import en from './en.json';
 import es from './es.json';
-import hi from './hi.json'; // <--- Importação do Hindi adicionada
+import hi from './hi.json';
 import pt from './pt.json';
 
 const RESOURCES = {
   pt: { translation: pt },
   en: { translation: en },
   es: { translation: es },
-  hi: { translation: hi }, // <--- Adicionado aos recursos
+  hi: { translation: hi },
 };
 
-const initI18n = async () => {
-  let savedLanguage = 'pt'; // Valor padrão seguro para o build
+// 1. Inicializa o i18n IMEDIATAMENTE (Síncrono)
+// Isso evita que o app carregue sem as traduções prontas
+i18n.use(initReactI18next).init({
+  compatibilityJSON: 'v3', // <--- CORREÇÃO DO ERRO (v3 não exige Intl)
+  resources: RESOURCES,
+  lng: 'pt', // Idioma inicial padrão (evita tela em branco)
+  fallbackLng: 'pt',
+  interpolation: {
+    escapeValue: false,
+  },
+});
 
-  // Só executa a busca de idioma se NÃO estiver no servidor de build (proteção)
-  if (Platform.OS !== 'web' || typeof window !== 'undefined') {
-    try {
-      const languageFromStorage = await AsyncStorage.getItem('user-language');
-      
-      if (languageFromStorage) {
-        savedLanguage = languageFromStorage;
-      } else {
-        // Se não achou no storage, pega do dispositivo
-        const deviceLanguage = Localization.getLocales()[0]?.languageCode;
-        if (deviceLanguage) {
-          savedLanguage = deviceLanguage;
-        }
-      }
-    } catch (error) {
-      console.log('Erro ao recuperar idioma:', error);
+// 2. Função Assíncrona para buscar o idioma salvo ou do dispositivo
+// Ela roda em segundo plano e atualiza o idioma assim que possível
+const loadLanguageAsync = async () => {
+  // Só executa se não estiver na web (proteção)
+  if (Platform.OS === 'web' && typeof window === 'undefined') return;
+
+  try {
+    // Tenta pegar do armazenamento do usuário
+    const languageFromStorage = await AsyncStorage.getItem('user-language');
+    
+    if (languageFromStorage) {
+      i18n.changeLanguage(languageFromStorage);
+      return;
     }
-  }
 
-  i18n.use(initReactI18next).init({
-    compatibilityJSON: 'v4', // Mantido v4 como você pediu
-    resources: RESOURCES,
-    lng: savedLanguage,
-    fallbackLng: 'pt',
-    interpolation: {
-      escapeValue: false,
-    },
-  });
+    // Se não tiver salvo, tenta pegar a configuração do celular
+    const deviceLanguage = Localization.getLocales()[0]?.languageCode;
+    if (deviceLanguage) {
+      i18n.changeLanguage(deviceLanguage);
+    }
+
+  } catch (error) {
+    console.log('Erro ao recuperar idioma:', error);
+  }
 };
 
-initI18n();
+// Chama a função de carregamento (não precisa de await aqui no top-level)
+loadLanguageAsync();
 
 export default i18n;
