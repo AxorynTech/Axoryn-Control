@@ -1,220 +1,208 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { useAssinatura } from '../hooks/useAssinatura';
 
-// ✅ CORRIGIDO: Aponta para o arquivo de pagamento correto
-const URL_GERENCIAMENTO = 'https://axoryntech.com.br/pay.html';
+// 🔑 SUAS CHAVES DO REVENUECAT (Copie do painel do RevenueCat)
+// Se não tiver a da Apple ainda, deixe vazio ou a mesma string por enquanto para não dar erro
+const API_KEYS = {
+  apple: "appl_SUA_CHAVE_AQUI", 
+  google: "goog_eIEPHdCOVMCoYvxMxJwuJqtzqqw" 
+};
 
 export default function PaywallScreen() {
   const router = useRouter();
-  const { refresh, isPremium } = useAssinatura(); 
-  const [verificando, setVerificando] = useState(false);
+  const { refresh } = useAssinatura(); 
+  const [pacotes, setPacotes] = useState<PurchasesPackage[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [processandoCompra, setProcessandoCompra] = useState(false);
 
-  // 1. Abre o Site
-  const abrirSite = async () => {
-    const supported = await Linking.canOpenURL(URL_GERENCIAMENTO);
-    if (supported) {
-      await Linking.openURL(URL_GERENCIAMENTO);
-    } else {
-      // Fallback: Se der erro, tenta abrir direto sem verificar
-      await Linking.openURL(URL_GERENCIAMENTO).catch(() => {
-        Alert.alert("Erro", "Não foi possível abrir o portal de pagamento.");
-      });
+  useEffect(() => {
+    configurarRevenueCat();
+  }, []);
+
+  const configurarRevenueCat = async () => {
+    try {
+      // 1. Configura a chave correta baseada no sistema (Android/iOS)
+      if (Platform.OS === 'android') {
+        await Purchases.configure({ apiKey: API_KEYS.google });
+      } else {
+        await Purchases.configure({ apiKey: API_KEYS.apple });
+      }
+
+      // 2. Busca os produtos configurados no painel (Offerings)
+      const offerings = await Purchases.getOfferings();
+      
+      if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
+        setPacotes(offerings.current.availablePackages);
+      }
+    } catch (e) {
+      console.log("Erro ao carregar ofertas", e);
+      // Não mostramos erro pro usuário logo de cara, deixamos a tela limpa
+    } finally {
+      setCarregando(false);
     }
   };
 
-  // 2. Verifica se o usuário já pagou/validou e volta
-  const verificarEVoltar = async () => {
-    if (verificando) return;
-    setVerificando(true);
-    
-    // Força uma atualização dos dados no Supabase
-    await refresh(); 
-    
-    setTimeout(() => {
-      setVerificando(false);
-      // Se a assinatura foi detectada, o redirecionamento acontece
-      // (O ideal é que o hook useAssinatura gerencie isso, mas aqui forçamos o refresh)
-      router.replace('/(tabs)'); 
-    }, 1500);
+  const realizarCompra = async (pacote: PurchasesPackage) => {
+    if (processandoCompra) return;
+    setProcessandoCompra(true);
+
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pacote);
+      
+      // Verifica se a compra liberou o acesso (use o identificador que você criou no RevenueCat)
+      // DICA: Se no RevenueCat o Entitlement chama "pro", use ["pro"]
+      if (customerInfo.entitlements.active["premium"] || customerInfo.entitlements.active["pro"]) {
+        await refresh(); // Atualiza o status no seu App
+        Alert.alert("Sucesso!", "Sua assinatura está ativa.");
+        router.replace('/(tabs)');
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert("Erro na compra", e.message);
+      }
+    } finally {
+      setProcessandoCompra(false);
+    }
   };
 
-  // 3. Monitoramento Automático
-  useEffect(() => {
-    // Detecta link de sucesso
-    const handleDeepLink = (event: { url: string }) => {
-      if (event.url && event.url.includes('payment-success')) {
-        verificarEVoltar();
+  const restaurarCompras = async () => {
+    setProcessandoCompra(true);
+    try {
+      const info = await Purchases.restorePurchases();
+      // Verifica os mesmos direitos
+      if (info.entitlements.active["premium"] || info.entitlements.active["pro"]) {
+        await refresh();
+        Alert.alert("Restaurado", "Suas compras foram recuperadas!");
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert("Aviso", "Nenhuma assinatura ativa encontrada para restaurar.");
       }
-    };
-
-    Linking.getInitialURL().then((url) => {
-      if (url && url.includes('payment-success')) {
-        verificarEVoltar();
-      }
-    });
-
-    const linkingSubscription = Linking.addEventListener('url', handleDeepLink);
-
-    // Detecta volta ao app
-    const appStateSubscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active') {
-        refresh(); 
-      }
-    });
-
-    return () => {
-      linkingSubscription.remove();
-      appStateSubscription.remove();
-    };
-  }, []);
+    } catch (e: any) {
+      Alert.alert("Erro", "Não foi possível restaurar: " + e.message);
+    } finally {
+      setProcessandoCompra(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      
-      <View style={styles.iconContainer}>
-        <Ionicons name="shield-half-outline" size={80} color="#2C3E50" />
-      </View>
-
-      <Text style={styles.title}>Acesso Restrito</Text>
-      
-      <Text style={styles.description}>
-        Para continuar utilizando todos os recursos, é necessário validar o status da sua conta em nosso portal.
-      </Text>
-
-      {/* Card Informativo */}
-      <View style={styles.infoCard}>
-        <View style={styles.row}>
-          <Ionicons name="globe-outline" size={24} color="#555" />
-          <Text style={styles.cardText}>Gerenciamento externo</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.row}>
-          <Ionicons name="lock-closed-outline" size={24} color="#555" />
-          <Text style={styles.cardText}>Ambiente seguro</Text>
-        </View>
-      </View>
-
-      {/* BOTÃO PRINCIPAL: IR PARA O SITE */}
-      <TouchableOpacity style={styles.button} onPress={abrirSite}>
-        <Text style={styles.buttonText}>Gerenciamento de Conta</Text>
-        <Ionicons name="open-outline" size={20} color="#FFF" style={{ marginLeft: 10 }} />
-      </TouchableOpacity>
-
-      {/* BOTÃO SECUNDÁRIO: ATUALIZAR */}
-      <TouchableOpacity 
-        style={[styles.backButton, verificando && { opacity: 0.7 }]} 
-        onPress={verificarEVoltar}
-        disabled={verificando}
-      >
-        {verificando ? (
-          <View style={{flexDirection: 'row', alignItems:'center'}}>
-            <ActivityIndicator size="small" color="#2980B9" style={{marginRight: 8}} />
-            <Text style={styles.backText}>Verificando status...</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        
+        <View style={styles.header}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="diamond-outline" size={60} color="#2980B9" />
           </View>
-        ) : (
-          <Text style={styles.backText}>Já validei meu acesso (Atualizar)</Text>
-        )}
-      </TouchableOpacity>
-      
-      <Text style={styles.footer}>
-        A gestão de acesso é realizada exclusivamente fora do aplicativo.
-      </Text>
+          <Text style={styles.title}>Axoryn Premium</Text>
+          <Text style={styles.subtitle}>Desbloqueie todo o poder do seu controle financeiro.</Text>
+        </View>
 
+        {/* Lista de Benefícios */}
+        <View style={styles.featuresContainer}>
+            <View style={styles.featureRow}>
+                <Ionicons name="checkmark-circle" size={20} color="#27ae60" />
+                <Text style={styles.featureText}>Clientes e vendas ilimitados</Text>
+            </View>
+            <View style={styles.featureRow}>
+                <Ionicons name="checkmark-circle" size={20} color="#27ae60" />
+                <Text style={styles.featureText}>Cobrança automática no WhatsApp</Text>
+            </View>
+            <View style={styles.featureRow}>
+                <Ionicons name="checkmark-circle" size={20} color="#27ae60" />
+                <Text style={styles.featureText}>Relatórios avançados</Text>
+            </View>
+        </View>
+
+        {/* Carregando ou Lista de Planos */}
+        {carregando ? (
+          <ActivityIndicator size="large" color="#2980B9" style={{ marginTop: 30 }} />
+        ) : (
+          <View style={styles.planosContainer}>
+            {pacotes.map((item) => (
+              <TouchableOpacity 
+                key={item.identifier} 
+                style={styles.cardPlano}
+                onPress={() => realizarCompra(item)}
+                disabled={processandoCompra}
+              >
+                <View>
+                   {/* Título do produto (ex: Mensal) */}
+                  <Text style={styles.planoNome}>{item.product.title}</Text>
+                  <Text style={styles.planoDesc}>{item.product.description}</Text>
+                </View>
+                <Text style={styles.planoPreco}>{item.product.priceString}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            {pacotes.length === 0 && (
+              <Text style={styles.errorText}>
+                Nenhum plano disponível no momento. Verifique sua conexão.
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Botão Restaurar */}
+        <TouchableOpacity 
+            style={styles.restoreButton} 
+            onPress={restaurarCompras}
+            disabled={processandoCompra}
+        >
+          <Text style={styles.restoreText}>Já sou assinante? Restaurar compras</Text>
+        </TouchableOpacity>
+
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F6F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
+  container: { flex: 1, backgroundColor: '#F4F6F7' },
+  scrollContent: { padding: 25, paddingBottom: 50, alignItems: 'center' },
+  header: { alignItems: 'center', marginBottom: 30, marginTop: 40 },
   iconContainer: {
-    marginBottom: 20,
-    backgroundColor: '#EAECEE',
-    padding: 20,
-    borderRadius: 60,
+    backgroundColor: '#EAF2F8', padding: 20, borderRadius: 50, marginBottom: 15
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 10,
-  },
-  description: {
-    fontSize: 16,
-    color: '#7F8C8D',
-    textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 24,
-  },
-  infoCard: {
+  title: { fontSize: 28, fontWeight: 'bold', color: '#2C3E50', marginBottom: 8 },
+  subtitle: { fontSize: 16, color: '#7F8C8D', textAlign: 'center', lineHeight: 22 },
+  
+  featuresContainer: { alignSelf: 'stretch', marginBottom: 30, backgroundColor: '#FFF', padding: 20, borderRadius: 12, elevation: 1 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  featureText: { marginLeft: 10, fontSize: 16, color: '#34495E' },
+
+  planosContainer: { width: '100%', marginBottom: 20 },
+  cardPlano: {
     backgroundColor: '#FFF',
     borderRadius: 12,
-    width: '100%',
-    padding: 15,
-    marginBottom: 30,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-  },
-  row: {
+    padding: 20,
+    marginBottom: 15,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-  },
-  cardText: {
-    marginLeft: 15,
-    fontSize: 16,
-    color: '#333',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginVertical: 5,
-  },
-  button: {
-    backgroundColor: '#2980B9',
-    width: '100%',
-    paddingVertical: 16,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     elevation: 3,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  backButton: {
-    marginTop: 20,
-    padding: 15,
-    width: '100%',
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
     borderWidth: 1,
-    borderColor: '#BDC3C7',
-    borderRadius: 10,
+    borderColor: '#BDC3C7'
   },
-  backText: {
-    color: '#2980B9',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    fontSize: 11,
-    color: '#BDC3C7',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  }
+  planoNome: { fontSize: 18, fontWeight: 'bold', color: '#2980B9', marginBottom: 4 },
+  planoDesc: { fontSize: 12, color: '#95A5A6', maxWidth: 180 },
+  planoPreco: { fontSize: 20, fontWeight: 'bold', color: '#27ae60' },
+
+  restoreButton: { padding: 15 },
+  restoreText: { color: '#7F8C8D', fontSize: 14, textDecorationLine: 'underline' },
+  errorText: { color: '#E74C3C', textAlign: 'center', marginTop: 10 }
 });
