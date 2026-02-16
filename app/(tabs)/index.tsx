@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da Tradução
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,13 +14,15 @@ import {
   View
 } from 'react-native';
 
-// ✅ NOVOS IMPORTS PARA O TOKEN
+// ✅ IMPORTS DO TOKEN E SUPABASE
 import { supabase } from '@/services/supabase';
 import * as Notifications from 'expo-notifications';
 
 // Serviços
 import { verificarNotificacoes } from '@/services/NotificacaoService';
-import { verificarAcesso } from '@/services/subscription';
+
+// Hook de Assinatura (A NOVA LÓGICA DE BLOQUEIO)
+import { useAssinatura } from '@/hooks/useAssinatura';
 
 // Componentes
 import { BarraPesquisa } from '@/components/BarraPesquisa';
@@ -46,10 +48,11 @@ import { useClientes } from '@/hooks/useClientes';
 
 export default function VertoApp() {
   const router = useRouter();
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation();
 
-  // --- ESTADOS DE CONTROLE DE ACESSO ---
-  const [checando, setChecando] = useState(true);
+  // --- CONTROLE DE ACESSO VIA HOOK ---
+  // ATUALIZAÇÃO DELICADA: Adicionei o 'refresh' aqui
+  const { isPremium, loading: loadingAssinatura, refresh } = useAssinatura();
   const [acessoLiberado, setAcessoLiberado] = useState(false);
 
   const { 
@@ -57,7 +60,7 @@ export default function VertoApp() {
     adicionarCliente, editarCliente, excluirCliente, 
     adicionarContrato, editarContrato, excluirContrato, acaoRenovarQuitar, 
     criarAcordo, pagarParcela,
-    alternarBloqueio // <--- 1. ADICIONADO AQUI
+    alternarBloqueio
   } = useClientes();
 
   const [aba, setAba] = useState('carteira');
@@ -67,119 +70,65 @@ export default function VertoApp() {
   // --- ✅ FUNÇÃO: SALVAR TOKEN NO SUPABASE ---
   async function registrarTokenDeNotificacao() {
     try {
-      // 1. Pede permissão para notificações
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
-        console.log("Permissão de notificação negada.");
-        return;
-      }
+      if (status !== 'granted') return;
 
-      // 2. Pega o token do dispositivo
       const tokenData = await Notifications.getExpoPushTokenAsync();
       const token = tokenData.data;
-      console.log("📍 Token do dispositivo:", token);
 
-      // 3. Pega o usuário logado
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user && token) {
-        // 4. Salva na tabela 'profiles'
-        const { error } = await supabase
+        await supabase
           .from('profiles')
           .update({ expo_token: token })
           .eq('user_id', user.id);
-
-        if (error) {
-          console.error("❌ Erro ao salvar token no Supabase:", error.message);
-        } else {
-          console.log("✅ Token vinculado ao usuário com sucesso!");
-        }
       }
     } catch (error) {
       console.log("Erro no registro de notificação:", error);
     }
   }
 
-  // --- 1. LÓGICA DE PROTEÇÃO (Paywall) ---
+  // --- 1. LÓGICA DE PROTEÇÃO (ATUALIZADA PARA FORÇAR REFRESH) ---
+  useFocusEffect(
+    useCallback(() => {
+      // Assim que a tela ganha foco, força a verificação no RevenueCat/Banco
+      // Isso resolve o problema da tela não liberar logo após a compra
+      refresh();
+    }, [])
+  );
+
   useEffect(() => {
-    let isMounted = true;
-
-    async function validarAcesso() {
-      try {
-        const temAcesso = await verificarAcesso();
-        
-        if (!isMounted) return;
-
-        if (!temAcesso) {
-          router.replace('/paywall');
-        } else {
-          setAcessoLiberado(true);
-        }
-      } catch (error) {
-        console.log("Erro ao verificar acesso:", error);
-        router.replace('/paywall');
-      } finally {
-        if (isMounted) setChecando(false);
+    // Reage às mudanças de estado após o refresh
+    if (!loadingAssinatura) {
+      if (!isPremium) {
+        router.replace('/planos'); // Redireciona para a vitrine
+      } else {
+        setAcessoLiberado(true); // Libera o uso
       }
     }
-
-    validarAcesso();
-
-    return () => { isMounted = false; };
-  }, []);
+  }, [isPremium, loadingAssinatura]);
 
   // --- 2. NOTIFICAÇÕES & TOKEN ---
   useEffect(() => {
     if (acessoLiberado) {
-      // 1. Salva o token no servidor
       registrarTokenDeNotificacao();
-
-      // 2. Verifica notificações locais
       if (clientes.length > 0) {
-        console.log("Verificando notificações locais...");
         verificarNotificacoes(clientes);
       }
     }
   }, [acessoLiberado, clientes]);
 
-  // --- 3. ✅ ATIVAÇÃO DO REALTIME (ATUALIZADO PARA DUAS TABELAS) ---
+  // --- 3. ✅ ATIVAÇÃO DO REALTIME ---
   useEffect(() => {
     if (!acessoLiberado) return;
 
-    console.log("📡 Conectando ao Realtime do Supabase (Contratos e Clientes)...");
-
-    // Cria o canal para escutar o banco de dados
     const canalRealtime = supabase
       .channel('atualizacao-global')
-      // 1. Escuta mudanças na tabela CONTRATOS (Pagamentos, empréstimos, etc)
-      .on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'contratos' 
-        }, 
-        (payload) => {
-          console.log('🔄 Mudança em CONTRATOS detectada! Atualizando...', payload);
-          fetchData(); 
-        }
-      )
-      // 2. Escuta mudanças na tabela CLIENTES (Novos cadastros, edições)
-      .on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'clientes' 
-        }, 
-        (payload) => {
-          console.log('👤 Mudança em CLIENTES detectada! Atualizando...', payload);
-          fetchData();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contratos' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes' }, () => fetchData())
       .subscribe();
 
-    // Limpa a conexão ao sair da tela
     return () => {
       supabase.removeChannel(canalRealtime);
     };
@@ -198,7 +147,6 @@ export default function VertoApp() {
   const [clienteEditandoNome, setClienteEditandoNome] = useState<any>(null);
   const [contratoSendoEditado, setContratoSendoEditado] = useState<any>(null);
 
-  // Filtro de Busca
   const clientesFiltrados = clientes.filter((cli: any) => 
     cli.nome.toLowerCase().includes(textoBusca.toLowerCase())
   );
@@ -236,8 +184,8 @@ export default function VertoApp() {
     setModalPagarParcela({ visivel: false, contrato: null, clienteNome: '' });
   };
 
-  // --- BLOQUEIO VISUAL (A CORTINA) ---
-  if (checando || !acessoLiberado) {
+  // --- BLOQUEIO VISUAL (ENQUANTO CARREGA OU SE NÃO FOR PREMIUM) ---
+  if (loadingAssinatura || !isPremium) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F2F5' }}>
         <ActivityIndicator size="large" color="#2C3E50" />
@@ -248,7 +196,7 @@ export default function VertoApp() {
     );
   }
 
-  // --- RENDERIZAÇÃO DO APP ---
+  // --- RENDERIZAÇÃO DO APP (SÓ CHEGA AQUI SE FOR PREMIUM) ---
   return (
     <View style={styles.container}>
       <Topo dados={clientes} />
@@ -295,13 +243,12 @@ export default function VertoApp() {
                   aoRenovarOuQuitar={(tipo, con) => setModalAcao({visivel:true, tipo, contrato:con, cliente:cli.nome})}
                   aoNegociar={(con) => setModalParcelamento({visivel:true, contrato:con, cliente:cli.nome})}
                   aoPagarParcela={(con) => setModalPagarParcela({visivel:true, contrato:con, clienteNome:cli.nome})}
-                  aoAlternarBloqueio={alternarBloqueio} // <--- 2. ADICIONADO AQUI
+                  aoAlternarBloqueio={alternarBloqueio}
                 />
               ))}
             </>
           )}
 
-          {/* --- NOVA ABA DE FLUXO PESSOAL --- */}
           {aba === 'pessoal' && <TelaFluxoPessoal />}
 
           {aba === 'cadastro' && <TelaCadastro aoSalvar={salvarNovoCliente} />}

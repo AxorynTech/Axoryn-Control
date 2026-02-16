@@ -61,15 +61,21 @@ export default function RootLayout() {
     const inTabsGroup = segments[0] === '(tabs)';
     const inAuthGroup = segments[0] === 'auth';
     const inResetPassword = segments[0] === 'reset-password';
-    const inPaywall = segments[0] === 'paywall';
+    // Removida a verificação de 'paywall'
 
     if (session) {
-      if (inAuthGroup) router.replace('/(tabs)');
-      else if (!inTabsGroup && !inResetPassword && !inPaywall && segments[0] !== 'modal') {
+      if (inAuthGroup) {
+        router.replace('/(tabs)');
+      } 
+      // Se não estiver em Tabs, Reset ou Modal, manda para Tabs
+      else if (!inTabsGroup && !inResetPassword && segments[0] !== 'modal') {
         router.replace('/(tabs)');
       }
     } else {
-      if (inTabsGroup || inPaywall) router.replace('/auth');
+      // Se não tem sessão e tentar acessar abas protegidas, manda para Auth
+      if (inTabsGroup) {
+        router.replace('/auth');
+      }
     }
   }, [session, isReady, segments]);
 
@@ -92,7 +98,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="paywall" />
+          {/* <Stack.Screen name="paywall" />  <-- REMOVIDO */}
           <Stack.Screen name="reset-password" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>

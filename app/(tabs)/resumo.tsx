@@ -1,16 +1,40 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useClientes } from '@/hooks/useClientes';
 import { supabase } from '@/services/supabase';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRouter } from 'expo-router'; // <--- Adicionado useRouter
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator, // <--- Adicionado para o loading
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+
+// ✅ IMPORT DO HOOK DE SEGURANÇA
+import { useAssinatura } from '@/hooks/useAssinatura';
 
 export default function ResumoScreen() {
   const { t } = useTranslation(); 
+  const router = useRouter(); // <--- Hook de navegação
+  
+  // --- SEGURANÇA / BLOQUEIO ---
+  const { isPremium, loading: loadingAssinatura } = useAssinatura();
+
   const { clientes, fetchData } = useClientes(); 
   const [totais, setTotais] = useState({ dia: 0, semana: 0, mes: 0 });
   const [historicoRecente, setHistoricoRecente] = useState<any[]>([]);
+
+  // --- LÓGICA DE PROTEÇÃO ---
+  useFocusEffect(
+    useCallback(() => {
+      // Se terminou de carregar e NÃO é Premium -> Manda para a aba Planos
+      if (!loadingAssinatura && !isPremium) {
+        router.replace('/planos');
+      }
+    }, [isPremium, loadingAssinatura])
+  );
 
   // Recalcula sempre que os dados mudarem
   useEffect(() => {
@@ -19,8 +43,11 @@ export default function ResumoScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchData();
-    }, [])
+      // Só busca dados se for Premium (economia de recurso)
+      if (isPremium) {
+        fetchData();
+      }
+    }, [isPremium]) // Adicionado isPremium na dependência
   );
 
   useEffect(() => {
@@ -177,6 +204,16 @@ export default function ResumoScreen() {
     </View>
   );
 
+  // --- BLOQUEIO VISUAL (LOADING / REDIRECIONAMENTO) ---
+  if (loadingAssinatura || !isPremium) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f6fa' }}>
+        <ActivityIndicator size="large" color="#2c3e50" />
+      </View>
+    );
+  }
+
+  // --- RENDERIZAÇÃO DA TELA (SOMENTE SE FOR PREMIUM) ---
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.header}>{t('resumo.titulo')}</Text>
