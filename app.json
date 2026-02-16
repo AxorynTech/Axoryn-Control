@@ -59,13 +59,7 @@
           "defaultChannel": "default"
         }
       ],
-      "@react-native-community/datetimepicker",
-      [
-        "react-native-purchases",
-        {
-          "googlePlayVersion": "7.0.0"
-        }
-      ]
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
