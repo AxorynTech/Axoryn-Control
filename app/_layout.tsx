@@ -1,28 +1,51 @@
 import { Session } from '@supabase/supabase-js';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native'; // <--- Importei Platform e View
+import { ActivityIndicator, Platform, View } from 'react-native';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import '../i18n';
 import { supabase } from '../services/supabase';
 
+// ✅ SUA CHAVE DO REVENUECAT (Já configurada)
+const API_KEY_GOOGLE = 'goog_eIEPHdCOVMCoYvxMxJwuJqtzqqw'; 
+
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isReady, setIsReady] = useState(false); // Só vira true quando TUDO estiver carregado
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
-    // Busca sessão inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsMounted(true);
-    });
+    const inicializarApp = async () => {
+      try {
+        // 1. Configura RevenueCat (Espera terminar OBRIGATORIAMENTE)
+        console.log("Iniciando RevenueCat...");
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG); // Logs para ajudar a ver erros
 
-    // Escuta mudanças de auth (Login, Logout e RECUPERAÇÃO DE SENHA)
+        if (Platform.OS === 'android') {
+          await Purchases.configure({ apiKey: API_KEY_GOOGLE });
+        } else if (Platform.OS === 'ios') {
+          // await Purchases.configure({ apiKey: 'SUA_CHAVE_IOS' });
+        }
+        console.log("RevenueCat Configurado com Sucesso!");
+
+        // 2. Busca Sessão do Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+
+      } catch (error) {
+        console.error("ERRO FATAL na inicialização:", error);
+      } finally {
+        // 3. Libera o App para aparecer na tela SÓ AGORA
+        setIsReady(true);
+      }
+    };
+
+    inicializarApp();
+
+    // Listener de Auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-
-      // ✅ FIX 1: Redirecionamento correto ao clicar no link do e-mail
       if (event === 'PASSWORD_RECOVERY') {
         router.push('/reset-password');
       }
@@ -31,62 +54,41 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Proteção de Rotas
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isReady) return;
 
-    // Identifica onde o usuário está
     const inTabsGroup = segments[0] === '(tabs)';
     const inAuthGroup = segments[0] === 'auth';
     const inResetPassword = segments[0] === 'reset-password';
     const inPaywall = segments[0] === 'paywall';
 
     if (session) {
-      // --- USUÁRIO LOGADO ---
-      
-      // 1. Se tentar voltar pra tela de login, joga pra Home
-      if (inAuthGroup) {
-        router.replace('/(tabs)');
-      } 
-      // 2. Se estiver perdido (fora das abas, fora do reset e FORA DO PAYWALL), joga pra Home.
+      if (inAuthGroup) router.replace('/(tabs)');
       else if (!inTabsGroup && !inResetPassword && !inPaywall && segments[0] !== 'modal') {
-        // (Adicionei verificação de 'modal' para garantir que não feche modais acidentalmente)
         router.replace('/(tabs)');
       }
-
     } else {
-      // --- USUÁRIO DESLOGADO ---
-      
-      // Se tentar acessar Abas ou Paywall sem conta, manda pro Login
-      // Permitimos 'reset-password' e 'auth'
-      if (inTabsGroup || inPaywall) {
-        router.replace('/auth');
-      }
+      if (inTabsGroup || inPaywall) router.replace('/auth');
     }
-  }, [session, isMounted, segments]);
+  }, [session, isReady, segments]);
 
-  if (!isMounted) {
+  // TELA DE CARREGAMENTO (Essencial para não dar erro de Singleton)
+  if (!isReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#2C3E50" />
       </View>
     );
   }
 
-  // ✅ FIX 2: Layout Web (Container para centralizar no PC)
   return (
-    <View style={{ 
-      flex: 1, 
-      backgroundColor: '#f0f0f0' // Fundo cinza fora da área do app (só aparece no PC)
-    }}>
+    <View style={{ flex: 1, backgroundColor: '#f0f0f0' }}>
       <View style={{
-        flex: 1,
-        width: '100%',
-        maxWidth: Platform.OS === 'web' ? 500 : '100%', // Limita largura no PC, 100% no celular
-        alignSelf: 'center', // Centraliza a "tira" do app
-        backgroundColor: '#fff', // Garante fundo branco no app
-        boxShadow: Platform.OS === 'web' ? '0px 0px 20px rgba(0,0,0,0.1)' : undefined, // Sombra suave no PC
+        flex: 1, width: '100%', maxWidth: Platform.OS === 'web' ? 500 : '100%',
+        alignSelf: 'center', backgroundColor: '#fff',
+        boxShadow: Platform.OS === 'web' ? '0px 0px 20px rgba(0,0,0,0.1)' : undefined,
       }}>
-        
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />
           <Stack.Screen name="(tabs)" />
@@ -94,7 +96,6 @@ export default function RootLayout() {
           <Stack.Screen name="reset-password" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
-
       </View>
     </View>
   );

@@ -40,7 +40,7 @@ export const verificarAcesso = async () => {
     const diferenca = hoje.getTime() - dataCriacao.getTime();
     const dias = diferenca / (1000 * 3600 * 24);
 
-    if (dias <= 30) {
+    if (dias <= 0) {
       console.log(`🎁 Acesso TESTE (${Math.floor(dias)} dias usados)`);
       return true;
     }

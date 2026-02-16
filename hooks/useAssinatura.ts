@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Purchases from 'react-native-purchases'; // <--- NOVO: Import da RevenueCat
 import { supabase } from '../services/supabase';
 
 export function useAssinatura() {
@@ -15,15 +16,40 @@ export function useAssinatura() {
   async function checkStatus() {
     try {
       setLoading(true);
+
+      // ============================================================
+      // 0. VERIFICAÇÃO REVENUECAT (GOOGLE PLAY / APPLE STORE)
+      // ============================================================
+      // Adicionado try/catch para evitar o erro "No singleton instance"
+      // Se a loja não estiver pronta, ele pula para o banco de dados.
+      try {
+        const customerInfo = await Purchases.getCustomerInfo();
+        // Substitua 'premium' pelo ID do seu "Entitlement" no RevenueCat se for diferente
+        if (customerInfo.entitlements.active['premium']) {
+          console.log("Assinatura ativa encontrada na Loja (RevenueCat)");
+          setIsPremium(true);
+          setTipoPlano('mensal'); // Loja geralmente renova mensal, ou você pode refinar isso
+          setDiasRestantes('Gerenciado pela Loja');
+          setLoading(false);
+          return; // SE ACHOU NA LOJA, PARA AQUI E NÃO OLHA O BANCO
+        }
+      } catch (rcError) {
+        console.log("RevenueCat não inicializado ou sem dados. Seguindo para Supabase...");
+      }
+
+      // ============================================================
+      // 1. LÓGICA ORIGINAL: SUPABASE
+      // ============================================================
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-      console.log("Verificando assinatura para:", user.email);
+      console.log("Verificando assinatura no Banco para:", user.email);
 
-      // ============================================================
-      // 1. PRIORIDADE MÁXIMA: Verifica Status Vitalício no Perfil
-      // ============================================================
+      // 1.1 PRIORIDADE MÁXIMA: Verifica Status Vitalício no Perfil
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*') 
@@ -45,9 +71,7 @@ export function useAssinatura() {
         return; 
       }
 
-      // ============================================================
-      // 2. Busca a Assinatura mais recente (Mensal ou Anual)
-      // ============================================================
+      // 1.2 Busca a Assinatura mais recente (Mensal ou Anual)
       const { data: assinatura } = await supabase
         .from('assinaturas')
         .select('*')
@@ -58,6 +82,9 @@ export function useAssinatura() {
 
       const hoje = new Date();
       let dataVencimento: Date;
+
+      // Variável temporária para saber se achou no banco
+      let achouPlanoBanco = false;
 
       if (assinatura && assinatura.status === 'approved') {
         const dataPagamento = new Date(assinatura.created_at);
@@ -76,13 +103,18 @@ export function useAssinatura() {
         // Verifica se ainda está dentro do prazo
         if (hoje < dataVencimento) {
           setIsPremium(true);
+          achouPlanoBanco = true;
         } else {
+          // Expirado no banco, mas pode ter teste grátis (improvável se já pagou, mas segue a lógica)
           setTipoPlano('expirado');
           setIsPremium(false);
         }
-      } else {
+      } 
+      
+      // Se não achou assinatura paga válida, verifica Teste Grátis
+      if (!achouPlanoBanco) {
         // ============================================================
-        // 3. Lógica de Teste Grátis (30 dias após cadastro)
+        // 1.3 Lógica de Teste Grátis (30 dias após cadastro)
         // ============================================================
         const dataCadastro = new Date(user.created_at);
         dataVencimento = new Date(dataCadastro);
@@ -99,6 +131,7 @@ export function useAssinatura() {
 
       // Calcula os dias restantes para exibição
       if (tipoPlano !== 'vitalicio') {
+        // @ts-ignore: dataVencimento é garantido pelas lógicas acima se entrou aqui
         const diferencaTempo = dataVencimento.getTime() - hoje.getTime();
         const dias = Math.ceil(diferencaTempo / (1000 * 3600 * 24));
         setDiasRestantes(dias > 0 ? dias : 0);
