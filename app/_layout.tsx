@@ -1,4 +1,5 @@
 import { Session } from '@supabase/supabase-js';
+import * as Notifications from 'expo-notifications'; // ✅ NOVO IMPORT
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
@@ -24,6 +25,17 @@ export default function RootLayout() {
 
         if (Platform.OS === 'android') {
           await Purchases.configure({ apiKey: API_KEY_GOOGLE });
+
+          // ✅ NOVA CONFIGURAÇÃO DE CANAL ANDROID (ADICIONADO AQUI)
+          // Isso garante que o canal exista antes da notificação chegar
+          await Notifications.setNotificationChannelAsync('resumo-diario', {
+            name: 'Resumo Diário',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF231F7C',
+          });
+          console.log("Canal de Notificação Android criado!");
+          
         } else if (Platform.OS === 'ios') {
           // await Purchases.configure({ apiKey: 'SUA_CHAVE_IOS' });
         }
