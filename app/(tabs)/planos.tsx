@@ -1,17 +1,18 @@
-import { supabase } from '@/services/supabase';
+import { supabase } from '@/services/supabase'; // Ajuste o caminho se necessário (ex: '../../services/supabase')
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router'; // ✅ IMPORTANTE: Hook para detectar foco na aba
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { useAssinatura } from '../../hooks/useAssinatura';
@@ -28,9 +29,16 @@ export default function PlanosScreen() {
   const [loadingPlanos, setLoadingPlanos] = useState(true);
   const [processando, setProcessando] = useState(false);
 
-  useEffect(() => {
-    carregarOfertas();
-  }, []);
+  // ✅ CORREÇÃO: Usa useFocusEffect para atualizar sempre que a aba abrir
+  useFocusEffect(
+    useCallback(() => {
+      // 1. Atualiza o status da assinatura (recalcula dias)
+      refresh();
+      
+      // 2. Carrega as ofertas da loja
+      carregarOfertas();
+    }, [])
+  );
 
   const carregarOfertas = async () => {
     try {
@@ -40,7 +48,7 @@ export default function PlanosScreen() {
       if (offerings.current && offerings.current.availablePackages.length > 0) {
         setPacotes(offerings.current.availablePackages);
       } else {
-        console.log("⚠️ Nenhuma oferta encontrada. Verifique os produtos 'radar_creditos_10', 'axoryn_premium_anual' e 'axoryn_premium_mensal' no RevenueCat.");
+        console.log("⚠️ Nenhuma oferta encontrada. Verifique os produtos no RevenueCat.");
       }
     } catch (e) {
       console.log("Erro ao buscar planos:", e);
@@ -49,7 +57,7 @@ export default function PlanosScreen() {
     }
   };
 
-  // --- FUNÇÃO DE COMPRA ATUALIZADA ---
+  // --- FUNÇÃO DE COMPRA ---
   const comprar = async (pkg: PurchasesPackage) => {
     if (processando) return;
     setProcessando(true);
@@ -67,7 +75,6 @@ export default function PlanosScreen() {
          // --- LÓGICA DE RECARGA (CONSUMÍVEL) ---
          let qtdParaAdicionar = 0;
          
-         // Mapeamento rigoroso baseado nos seus IDs do Console
          if (idProduto === 'radar_creditos_10') {
             qtdParaAdicionar = 10;
          } else if (idProduto.includes('20')) {
@@ -88,10 +95,10 @@ export default function PlanosScreen() {
                });
                
                if (!error) {
-                 Alert.alert("Recarga Confirmada! 🚀", `Você recebeu +${qtdParaAdicionar} consultas.`);
+                  Alert.alert("Recarga Confirmada! 🚀", `Você recebeu +${qtdParaAdicionar} consultas.`);
                } else {
-                 console.error("Erro RPC Supabase:", error);
-                 Alert.alert("Atenção", "Pagamento aprovado, mas erro ao atualizar user_credits no banco.");
+                  console.error("Erro RPC Supabase:", error);
+                  Alert.alert("Atenção", "Pagamento aprovado, mas erro ao atualizar user_credits no banco.");
                }
             }
          }
@@ -127,6 +134,7 @@ export default function PlanosScreen() {
       case 'mensal': return { label: "Plano Mensal", cor: "#2980B9", icone: "calendar-outline" };
       case 'anual': return { label: "Plano Anual", cor: "#8E44AD", icone: "infinite-outline" };
       case 'vitalicio': return { label: "Acesso Vitalício", cor: "#27AE60", icone: "ribbon-outline" };
+      case 'equipe': return { label: "Plano Corporativo (Equipe)", cor: "#2ECC71", icone: "people-outline" }; // ✅ Adicionado visual para equipe
       default: return { label: "Plano Grátis / Expirado", cor: "#7F8C8D", icone: "alert-circle-outline" };
     }
   };
@@ -184,6 +192,8 @@ export default function PlanosScreen() {
           <Text style={styles.expirationText}>
             {tipoPlano === 'vitalicio' 
               ? "Acesso ilimitado e vitalício" 
+              : tipoPlano === 'equipe'
+              ? "Gerenciado pelo administrador da equipe"
               : `Acesso válido por mais ${diasRestantes} dias`}
           </Text>
         </View>
@@ -216,7 +226,7 @@ export default function PlanosScreen() {
           {assinaturas.length === 0 && recargas.length === 0 && (
              <View style={{padding: 20, alignItems:'center'}}>
                 <Text style={{textAlign:'center', color:'#999'}}>
-                    Nenhum plano disponível no momento.
+                   Nenhum plano disponível no momento.
                 </Text>
              </View>
           )}

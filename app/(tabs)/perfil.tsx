@@ -209,6 +209,7 @@ export default function Perfil() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('perfil.opcoes')}</Text>
         
+        {/* Idioma */}
         <TouchableOpacity style={styles.menuItem} onPress={() => setModalIdiomaVisivel(true)}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#5D6D7E' }]}>
             <Ionicons name="language" size={20} color="#fff" />
@@ -220,6 +221,7 @@ export default function Perfil() {
           </View>
         </TouchableOpacity>
 
+        {/* Meus Dados */}
         <TouchableOpacity style={styles.menuItem} onPress={() => setModalDadosVisivel(true)}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#3498DB' }]}>
             <Ionicons name="person" size={20} color="#fff" />
@@ -228,6 +230,16 @@ export default function Perfil() {
           <Ionicons name="chevron-forward" size={20} color="#CCC" />
         </TouchableOpacity>
 
+        {/* ✅ NOVO: BOTÃO DE MINHA EQUIPE */}
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/equipe')}>
+            <View style={[styles.menuIconConfig, { backgroundColor: '#8E44AD' }]}>
+                <Ionicons name="people" size={20} color="#fff" />
+            </View>
+            <Text style={styles.menuText}>{t('perfil.minhaEquipe', 'Minha Equipe')}</Text>
+            <Ionicons name="chevron-forward" size={20} color="#CCC" />
+        </TouchableOpacity>
+
+        {/* Suporte */}
         <TouchableOpacity style={styles.menuItem} onPress={abrirSuporte}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#2ECC71' }]}>
             <Ionicons name="help" size={20} color="#fff" />
@@ -236,7 +248,7 @@ export default function Perfil() {
           <Ionicons name="chevron-forward" size={20} color="#CCC" />
         </TouchableOpacity>
 
-        {/* ✅ NOVO BOTÃO DE SAIR ADICIONADO AQUI */}
+        {/* Sair da Conta */}
         <TouchableOpacity style={[styles.menuItem, { marginTop: 10 }]} onPress={handleSignOut}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#E74C3C' }]}>
             <Ionicons name="log-out-outline" size={20} color="#fff" />

@@ -61,19 +61,23 @@ export default function RootLayout() {
     const inTabsGroup = segments[0] === '(tabs)';
     const inAuthGroup = segments[0] === 'auth';
     const inResetPassword = segments[0] === 'reset-password';
-    // Removida a verificação de 'paywall'
+    // Verifica se está na tela de equipe ou modal
+    const inEquipe = segments[0] === 'equipe';
+    const inModal = segments[0] === 'modal';
 
     if (session) {
       if (inAuthGroup) {
+        // Se logado tentar ir pra login, manda pra home
         router.replace('/(tabs)');
       } 
-      // Se não estiver em Tabs, Reset ou Modal, manda para Tabs
-      else if (!inTabsGroup && !inResetPassword && segments[0] !== 'modal') {
+      // Se não estiver em Tabs, Reset, Modal OU EQUIPE, manda para Tabs
+      // ADICIONEI "&& !inEquipe" AQUI PARA NÃO BLOQUEAR A TELA NOVA
+      else if (!inTabsGroup && !inResetPassword && !inModal && !inEquipe) {
         router.replace('/(tabs)');
       }
     } else {
       // Se não tem sessão e tentar acessar abas protegidas, manda para Auth
-      if (inTabsGroup) {
+      if (inTabsGroup || inEquipe) {
         router.replace('/auth');
       }
     }
@@ -101,6 +105,15 @@ export default function RootLayout() {
           {/* <Stack.Screen name="paywall" />  <-- REMOVIDO */}
           <Stack.Screen name="reset-password" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          
+          {/* ✅ ADICIONADO: Rota da Equipe */}
+          <Stack.Screen 
+            name="equipe" 
+            options={{ 
+                presentation: 'modal', // Abre deslizando de baixo pra cima (chique)
+                headerShown: false     // Esconde o header padrão feio
+            }} 
+          />
         </Stack>
       </View>
     </View>

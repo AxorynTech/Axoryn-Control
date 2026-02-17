@@ -6,17 +6,15 @@ export function useAssinatura() {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [diasRestantes, setDiasRestantes] = useState<number | string>(0);
-  const [tipoPlano, setTipoPlano] = useState<'teste_gratis' | 'mensal' | 'anual' | 'vitalicio' | 'expirado'>('expirado');
+  const [tipoPlano, setTipoPlano] = useState<'teste_gratis' | 'mensal' | 'anual' | 'vitalicio' | 'equipe' | 'expirado'>('expirado');
 
   useEffect(() => {
     checkStatus();
   }, []);
 
-  // --- FUNÇÃO AUXILIAR: Sincroniza o Banco Silenciosamente ---
-  // Isso garante que seu painel do Supabase mostre quem é pagante, mesmo sem Webhooks agora.
+  // --- FUNÇÕES AUXILIARES DE SINCRONIZAÇÃO ---
   const sincronizarStatusNoBanco = async (userId: string, novoStatus: string, novoPlano: string) => {
     try {
-      // Atualiza o perfil sem bloquear a experiência do usuário
       const { error } = await supabase
         .from('profiles')
         .update({ 
@@ -26,9 +24,22 @@ export function useAssinatura() {
         })
         .eq('user_id', userId);
         
-      if (!error) console.log(`✅ Sync OK: Status alterado para ${novoStatus} / ${novoPlano}`);
+      if (!error) console.log(`✅ Sync Perfil OK: ${novoStatus}`);
     } catch (err) {
-      console.log("Erro ao sincronizar banco (ignorado):", err);
+      console.log("Erro ao sincronizar banco:", err);
+    }
+  };
+
+  const sincronizarEquipeNoBanco = async (teamId: string, statusPremium: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('teams')
+        .update({ is_premium: statusPremium })
+        .eq('id', teamId);
+      
+      if (!error) console.log(`✅ Sync Equipe OK: ${statusPremium ? 'Ativada' : 'Desativada'}`);
+    } catch (err) {
+      console.log("Erro ao sincronizar equipe:", err);
     }
   };
 
@@ -42,13 +53,11 @@ export function useAssinatura() {
       // 0. VERIFICAÇÃO REVENUECAT (Prioridade Máxima - Google/Apple)
       // ============================================================
       try {
+        await Purchases.invalidateCustomerInfoCache(); // Garante dados frescos para o lançamento
         const customerInfo = await Purchases.getCustomerInfo();
-        const entitlementAtivo = customerInfo.entitlements.active['premium']; // Pega o objeto completo
+        const entitlementAtivo = customerInfo.entitlements.active['premium']; 
         
-        // Se existe uma assinatura ativa na loja...
         if (entitlementAtivo) {
-          
-          // 🧠 LÓGICA INTELIGENTE: Descobre se é Anual ou Mensal pelo ID do produto
           const idProduto = entitlementAtivo.productIdentifier.toLowerCase();
           const ehAnual = idProduto.includes('anual') || idProduto.includes('year') || idProduto.includes('yearly');
           const nomePlanoReal = ehAnual ? 'anual' : 'mensal';
@@ -57,34 +66,57 @@ export function useAssinatura() {
           setTipoPlano(nomePlanoReal); 
           setDiasRestantes('Gerenciado pela Loja');
           
-          // 🔥 SYNC: Avisa o Supabase o plano EXATO que ele comprou
           if (user) {
             sincronizarStatusNoBanco(user.id, 'premium', nomePlanoReal);
+            
+            // Se for dono, garante que a equipe esteja ATIVA
+            const { data: prof } = await supabase.from('profiles').select('team_id, teams(owner_id)').eq('user_id', user.id).single();
+            if (prof?.teams?.owner_id === user.id) {
+                sincronizarEquipeNoBanco(prof.team_id, true);
+            }
           }
 
           setLoading(false);
-          return; // Para tudo, o usuário está aprovado pela loja.
+          return; 
         }
       } catch (rcError) {
         console.log("RevenueCat Offline ou não inicializado. Seguindo para verificação local...");
       }
 
-      // Se não tem usuário logado, não tem como verificar o resto
       if (!user) {
         setLoading(false);
         return;
       }
 
       // ============================================================
-      // 1. LÓGICA DE BACKUP (SUPABASE / VITALÍCIO / TESTE GRÁTIS)
+      // 1. LÓGICA DE BACKUP (SUPABASE / EQUIPE / VITALÍCIO / TESTE)
       // ============================================================
 
-      // 1.1 Busca dados do perfil
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+            *,
+            teams (
+                id,
+                is_premium,
+                owner_id
+            )
+        `)
         .eq('user_id', user.id)
         .single();
+
+      const souDonoDaEquipe = profile?.teams?.owner_id === user.id;
+
+      // --- [NOVO] VERIFICAÇÃO DE EQUIPE (Proteção para Milhões de Usuários) ---
+      // Apenas funcionários herdam o acesso da equipe. 
+      // O dono precisa validar sua própria assinatura para evitar o loop.
+      if (profile?.teams?.is_premium && !souDonoDaEquipe) {
+         setIsPremium(true);
+         setTipoPlano('equipe');
+         setDiasRestantes('Acesso Corporativo');
+         setLoading(false);
+         return;
+      }
 
       // Verifica Vitalício
       const statusEncontrado = profile?.status || profile?.plano || "";
@@ -92,11 +124,12 @@ export function useAssinatura() {
         setTipoPlano('vitalicio');
         setIsPremium(true);
         setDiasRestantes('Infinito');
+        if (souDonoDaEquipe) sincronizarEquipeNoBanco(profile.teams.id, true);
         setLoading(false);
         return; 
       }
 
-      // 1.2 Busca Assinatura Antiga no Banco (Caso RevenueCat falhe)
+      // 1.2 Busca Assinatura Antiga no Banco
       const { data: assinatura } = await supabase
         .from('assinaturas')
         .select('*')
@@ -108,69 +141,60 @@ export function useAssinatura() {
 
       const hoje = new Date();
       let dataVencimentoFinal: Date | null = null;
-      let planoIdentificado: typeof tipoPlano = 'expirado';
+      let planoIdentificado: any = 'expirado';
 
-      // Verifica validade da assinatura do banco
       if (assinatura) {
         const dataPagamento = new Date(assinatura.created_at);
         const validade = new Date(dataPagamento);
-        
-        if (assinatura.plano === 'anual') {
-          validade.setDate(dataPagamento.getDate() + 365);
-          planoIdentificado = 'anual';
-        } else {
-          validade.setDate(dataPagamento.getDate() + 30);
-          planoIdentificado = 'mensal';
-        }
+        validade.setDate(dataPagamento.getDate() + (assinatura.plano === 'anual' ? 365 : 30));
 
         if (hoje < validade) {
           dataVencimentoFinal = validade;
-          setIsPremium(true);
-          setTipoPlano(planoIdentificado);
+          planoIdentificado = assinatura.plano;
         }
       }
 
-      // 1.3 Lógica do Teste Grátis (Se não achou pagamento válido)
+      // 1.3 Lógica do Teste Grátis
       if (!dataVencimentoFinal) {
         const dataCadastro = new Date(user.created_at);
         const vencimentoTeste = new Date(dataCadastro);
         vencimentoTeste.setDate(dataCadastro.getDate() + 30);
 
         if (hoje < vencimentoTeste) {
-          // ESTÁ NO PERÍODO DE TESTE
           dataVencimentoFinal = vencimentoTeste;
-          setIsPremium(true);
-          setTipoPlano('teste_gratis');
-          
-          // 🔥 SYNC: Atualiza que é teste grátis (se ainda não estiver)
+          planoIdentificado = 'teste_gratis';
           if (profile?.status !== 'teste_gratis' && profile?.status !== 'premium') {
              sincronizarStatusNoBanco(user.id, 'teste_gratis', 'teste_gratis');
           }
-
-        } else {
-          // ========================================================
-          // ☠️ GAME OVER: Expirado (Assinatura venceu E Teste venceu)
-          // ========================================================
-          setIsPremium(false);
-          setTipoPlano('expirado');
-          setDiasRestantes(0);
-          
-          // 🔥 SYNC: O importante! Avisa o banco que acabou a mamata.
-          // Só chama se o status atual não for 'gratis' ou 'expirado' para economizar requisições
-          if (profile?.status !== 'gratis' && profile?.status !== 'expirado') {
-             sincronizarStatusNoBanco(user.id, 'gratis', 'expirado');
-          }
-          
-          setLoading(false);
-          return;
         }
       }
 
-      // 2. CÁLCULO DE DIAS (Só chega aqui se for Premium ou Teste Ativo)
-      if (dataVencimentoFinal) {
+      // ============================================================
+      // 2. DECISÃO FINAL E SINCRONIZAÇÃO DE EQUIPE
+      // ============================================================
+      if (dataVencimentoFinal && hoje < dataVencimentoFinal) {
+        setIsPremium(true);
+        setTipoPlano(planoIdentificado);
         const diferencaTempo = dataVencimentoFinal.getTime() - hoje.getTime();
-        const dias = Math.ceil(diferencaTempo / (1000 * 3600 * 24));
-        setDiasRestantes(dias > 0 ? dias : 0);
+        setDiasRestantes(Math.ceil(diferencaTempo / (1000 * 3600 * 24)));
+        
+        // Se eu sou o dono e estou válido, minha equipe fica ativa
+        if (souDonoDaEquipe) sincronizarEquipeNoBanco(profile.teams.id, true);
+
+      } else {
+        // --- EXPIRADO ---
+        setIsPremium(false);
+        setTipoPlano('expirado');
+        setDiasRestantes(0);
+        
+        // SE SOU DONO E EXPIREI: Desligo a equipe para todos os membros
+        if (souDonoDaEquipe && profile?.teams?.is_premium) {
+             sincronizarEquipeNoBanco(profile.teams.id, false);
+        }
+
+        if (profile?.status !== 'gratis' && profile?.status !== 'expirado') {
+             sincronizarStatusNoBanco(user.id, 'gratis', 'expirado');
+        }
       }
 
     } catch (error) {
