@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // Hook de tradução
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     Alert,
@@ -22,6 +22,8 @@ interface Props {
 
 export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome, compacto }: Props) {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
+  
   const [cpf, setCpf] = useState('');
   const [telefone, setTelefone] = useState('');
   
@@ -35,8 +37,8 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
     if (initialTelefone) setTelefone(initialTelefone);
   }, [initialCpf, initialTelefone]);
 
-  const abrirSiteRecarga = () => {
-    Linking.openURL('https://axoryntech.com.br/pay.html');
+  const irParaLoja = () => {
+    router.push('/planos');
   };
 
   const handleInvestigar = async () => {
@@ -46,7 +48,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
               t('radar.limiteMsg'),
               [
                   { text: t('common.cancelar'), style: "cancel" },
-                  { text: t('radar.irSite'), onPress: abrirSiteRecarga }
+                  { text: t('radar.irSite'), onPress: irParaLoja }
               ]
           );
           return;
@@ -64,12 +66,10 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
   // --- MÁSCARAS DE PRIVACIDADE ---
   const maskCpfPrivacy = (val: string) => {
     if (!val) return '---';
-    // Se não for Brasil, mostra ID genérico
     if (!isBrasil) {
         if (val.length > 4) return `ID ****${val.slice(-4)}`;
         return val;
     }
-    // Brasil: Máscara de CPF
     const clean = val.replace(/\D/g, '');
     if (clean.length === 11) return `***.***.***-${clean.slice(9)}`;
     return val;
@@ -77,12 +77,10 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
 
   const maskPhonePrivacy = (val: string) => {
     if (!val) return '---';
-    // Se não for Brasil, mostra telefone internacional
     if (!isBrasil) {
         if (val.length > 4) return `(+) ****-${val.slice(-4)}`;
         return val;
     }
-    // Brasil: Máscara de Celular
     const clean = val.replace(/\D/g, '');
     if (clean.length >= 10) return `(**) *****-${clean.slice(-4)}`;
     return val;
@@ -91,7 +89,6 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
   const isSaldoBaixo = (consultasRestantes || 0) <= 3;
   const isZerado = (consultasRestantes || 0) <= 0;
   
-  // Texto do botão traduzido dinamicamente
   const textoBotao = isZerado 
     ? t('radar.btnRecarregar') 
     : t('radar.btnConsultar');
@@ -102,12 +99,14 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
       return t('radar.atencao');
   };
 
-  // --- CORREÇÃO 1: Tradutor de Mensagens do Backend ---
   const traduzirMensagemBackend = (msg: string) => {
       if (!msg) return "";
       const msgLower = msg.toLowerCase();
       
-      // Captura variações de "Cliente Seguro"
+      if (msgLower.includes('nenhum registro') || msgLower.includes('not found') || msgLower.includes('no record')) {
+          return t('radar.msgNaoEncontrado');
+      }
+
       if (msgLower.includes('nada consta') || msgLower.includes('liberado') || msgLower.includes('limpo') || msgLower.includes('safe')) {
           return t('radar.msgLimpo');
       }
@@ -123,17 +122,14 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
       return msg;
   };
 
-  // --- CORREÇÃO 2: Tradutor de Critérios (Checklist) ---
   const traduzirCriterio = (criterio: string) => {
       if (!criterio) return "";
       
-      // Detecta "Nenhum atraso"
       if (criterio.toLowerCase().includes('nenhum atraso') || criterio.includes('No delays')) {
           const icone = criterio.includes('✅') ? '✅ ' : '';
           return icone + t('radar.criterioSemAtraso');
       }
 
-      // Substituições genéricas
       return criterio
         .replace('Pendência', t('radar.atencao'))
         .replace('Limpo', t('radar.aprovado'))
@@ -150,7 +146,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
         </View>
         
         <TouchableOpacity 
-            onPress={abrirSiteRecarga} 
+            onPress={irParaLoja} 
             style={[
                 styles.badgeCreditos, 
                 isSaldoBaixo && {borderColor:'#E74C3C', backgroundColor:'#FDEDEC'}
@@ -177,7 +173,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
               </View>
               <TouchableOpacity 
                 style={[styles.btnInvestigar, compacto && {padding: 10, marginTop: 10}, isZerado && {backgroundColor: '#E74C3C'}]} 
-                onPress={!isZerado ? handleInvestigar : abrirSiteRecarga}
+                onPress={!isZerado ? handleInvestigar : irParaLoja}
                 disabled={loading}
               >
                 {loading ? <ActivityIndicator color="#FFF" size="small" /> : (
@@ -190,6 +186,10 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
           </View>
       ) : (
           <View style={[styles.resultCard, { borderTopColor: getCor(resultado.nivel) }]}>
+              
+              {/* ✅ AQUI ESTÁ A CHAVE ATUALIZADA */}
+              <Text style={styles.sectionTitle}>{t('radar.tituloResultado')}</Text>
+
               <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 10}}>
                   <View>
                       <Text style={[styles.statusTxt, { color: getCor(resultado.nivel) }]}>{getStatusText()}</Text>
@@ -200,7 +200,6 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
                   </View>
               </View>
 
-              {/* MENSAGEM DO BACKEND TRADUZIDA */}
               <Text style={styles.msg}>{traduzirMensagemBackend(resultado.mensagem)}</Text>
               
               {resultado.financeiro && (resultado.financeiro.qtd_atrasos > 0) && (
@@ -208,7 +207,6 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
                       <View style={styles.financeItem}>
                           <Text style={styles.finLabel}>{t('radar.divida')}</Text>
                           <Text style={styles.finValueRed}>
-                             {/* MOEDA DINÂMICA (R$ ou $) */}
                              {t('common.moeda')} {resultado.financeiro.divida_total?.toFixed(2)}
                           </Text>
                       </View>
@@ -232,7 +230,6 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
                   <View style={styles.criteriaBox}>
                       {resultado.criterios.map((c: string, i: number) => (
                           <Text key={i} style={[styles.criteriaTxt, c.includes('✅') ? {color:'#27AE60'} : {color:'#C0392B'}]}>
-                              {/* APLICA A TRADUÇÃO NOS CRITÉRIOS */}
                               {traduzirCriterio(c)}
                           </Text>
                       ))}
@@ -256,6 +253,7 @@ const styles = StyleSheet.create({
   btnInvestigar: { backgroundColor: '#2C3E50', borderRadius: 6, padding: 12, alignItems: 'center', marginTop: 10, elevation: 2 },
   txtBtn: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
   resultCard: { marginTop: 5, backgroundColor: '#FFF', padding: 15, borderRadius: 8, elevation: 1 },
+  sectionTitle: { fontSize: 12, fontWeight: 'bold', color: '#7F8C8D', textTransform: 'uppercase', marginBottom: 8, textAlign: 'center' },
   statusTxt: { fontSize: 18, fontWeight: 'bold' },
   scoreCircle: { width: 50, height: 50, borderRadius: 25, borderWidth: 4, justifyContent:'center', alignItems:'center' },
   scoreNum: { fontSize: 18, fontWeight: 'bold' },

@@ -49,7 +49,8 @@
     "erroConsulta": "Connection or query failed.",
     "criterioSemAtraso": "No delays detected",
     "msgLimpo": "CLEAR. Client approved.",
-    "tituloSection": "🛡️ RISK ANALYSIS (AXORYN SHIELD)"
+    "msgNaoEncontrado": "No records found in the database.",
+    "tituloResultado": "Analysis Result"
   },
   "termos": {
     "tituloPrincipal": "Terms of Use and Legal Policy",
@@ -79,7 +80,8 @@
   "tabs": {
     "carteira": "Wallet",
     "resumo": "Summary",
-    "perfil": "Profile"
+    "perfil": "Profile",
+    "planos": "Premium Store"
   },
   "menuAbas": {
     "novoCliente": "+ CLIENT",
@@ -146,7 +148,7 @@
     "hoje": "Today",
     "semana": "This Week",
     "mes": "This Month",
-    "ultimasMovimentacoes": "Last Movements",
+    "ultimasMovimentacoes": "Recent Activity",
     "vazio": "No payments recorded in this period."
   },
   "cadastro": {
@@ -196,7 +198,11 @@
     "consultas": "Queries",
     "escolhaAtendimento": "Choose a support option:",
     "financeiro": "Financial",
-    "tecnico": "Technical"
+    "tecnico": "Technical",
+    "minhaEquipe": "My Team",
+    "confirmarSairTitulo": "Logout",
+    "confirmarSairMsg": "Do you really want to log out?",
+    "sair": "Logout"
   },
   "dashboardStats": {
     "visaoGeral": "Overview",
@@ -241,7 +247,7 @@
     "tipoPorcentagem": "Percentage (%)",
     "tipoFixo": "Fixed Amount ($)",
     "labelLucro": "Profit Amount ($)",
-    "placeholderFixo": "Ex: 50.00"
+    "placeholderFixo": "E.g. 50.00"
   },
   "pastaCliente": {
     "erroZap": "Client has no number.",
@@ -441,5 +447,80 @@
     "QUITADO": "SETTLED",
     "PARCELADO": "INSTALLMENTS",
     "ATRASADO": "OVERDUE"
+  },
+  "planos": {
+    "lojaTitulo": "Premium Store",
+    "planoTeste": "Trial Period",
+    "planoMensal": "Monthly Plan",
+    "planoAnual": "Annual Plan",
+    "planoVitalicio": "Lifetime Access",
+    "planoEquipe": "Corporate Plan (Team)",
+    "planoGratis": "Free Plan / Expired",
+    "alterarAssinatura": "Change Subscription",
+    "desbloquear": "Unlock Premium",
+    "pacotes": "Query Packages",
+    "nenhumPlano": "No plans available at the moment.",
+    "processando": "Processing...",
+    "rodapeSeguranca": "Payments securely processed by Google Play Store.",
+    "recargaSucesso": "Recharge Confirmed! 🚀",
+    "recargaMsg": "You received +{{qtd}} queries.",
+    "assinaturaSucesso": "Subscription Active! 💎",
+    "assinaturaMsg": "Your Premium plan has been successfully unlocked.",
+    "produtoIndisponivel": "Product Unavailable",
+    "gerenciadoEquipe": "Managed by team administrator",
+    "acessoIlimitado": "Unlimited lifetime access",
+    "validoPor": "Access valid for {{dias}} more days",
+    "seuPlano": "Your Current Plan:",
+    "titulo": "Premium Store",
+    "periodoTeste": "Trial Period",
+    "mensal": "Monthly Plan",
+    "anual": "Annual Plan",
+    "vitalicio": "Lifetime Access",
+    "equipe": "Corporate Plan (Team)",
+    "expirado": "Free / Expired Plan",
+    "acessoVitalicio": "Unlimited lifetime access",
+    "acessoValido": "Access valid for {{dias}} more days",
+    "pacotesConsultas": "Query Packages",
+    "rodape": "Payments securely processed by Google Play Store.",
+    "erroIndisponivel": "Product Unavailable",
+    "erroIndisponivelMsg": "Google Play has not released this item yet. Check the Tester invitation.",
+    "atencao": "Warning",
+    "erroCreditos": "Payment approved, but error updating user_credits in database.",
+    "erroCompra": "Purchase Error"
+  },
+  "equipe": {
+    "titulo": "Team Management",
+    "equipeAtual": "Current Team",
+    "carregando": "Loading...",
+    "premium": "PREMIUM",
+    "codigoConvite": "Invite Code:",
+    "convidar": "Invite",
+    "excluir": "Delete",
+    "sair": "Leave",
+    "membros": "Members",
+    "lider": "👑 Leader",
+    "membro": "Member",
+    "criarEquipe": "Create Team 👑",
+    "placeholderNome": "Team Name",
+    "btnCriar": "Create Team",
+    "sejaPremium": "Go Premium to create teams.",
+    "entrarEquipe": "Join Team 👋",
+    "descEntrar": "Paste the exact code below:",
+    "placeholderCodigo": "E.g. 550e8400-e29b...",
+    "btnEntrar": "Join Team",
+    "alertErro": "Error",
+    "alertSucesso": "Success! 🎉",
+    "alertCriada": "Team created.",
+    "alertEntrou": "You joined the team: {{nome}}",
+    "alertExcluirTitulo": "Delete Team ⚠️",
+    "alertExcluirMsg": "Are you absolutely sure? The team will be deleted and all members removed permanently.",
+    "alertSairTitulo": "Leave Team",
+    "alertSairMsg": "Are you sure?",
+    "alertExcluida": "Your team was deleted.",
+    "erroNome": "Enter a team name.",
+    "erroCodigo": "Paste the team code.",
+    "erroCodigoInvalido": "Invalid code.",
+    "erroNaoEncontrada": "Not Found",
+    "erroVerifique": "Check the code."
   }
 }

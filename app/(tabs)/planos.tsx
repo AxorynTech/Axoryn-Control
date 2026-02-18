@@ -95,10 +95,10 @@ export default function PlanosScreen() {
                });
                
                if (!error) {
-                  Alert.alert("Recarga Confirmada! 🚀", `Você recebeu +${qtdParaAdicionar} consultas.`);
+                  Alert.alert(t('planos.recargaSucesso'), t('planos.recargaMsg', { qtd: qtdParaAdicionar }));
                } else {
                   console.error("Erro RPC Supabase:", error);
-                  Alert.alert("Atenção", "Pagamento aprovado, mas erro ao atualizar user_credits no banco.");
+                  Alert.alert(t('planos.atencao'), t('planos.erroCreditos'));
                }
             }
          }
@@ -107,7 +107,7 @@ export default function PlanosScreen() {
          // --- LÓGICA DE ASSINATURA ---
          if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
             await refresh(); // Atualiza o status premium no app
-            Alert.alert("Assinatura Ativa! 💎", "Seu plano Premium foi liberado com sucesso.");
+            Alert.alert(t('planos.assinaturaSucesso'), t('planos.assinaturaMsg'));
          }
       }
 
@@ -115,11 +115,11 @@ export default function PlanosScreen() {
       if (!e.userCancelled) {
         if (e.code === 'ProductNotAvailableForPurchaseError' || e.message.includes('not available')) {
             Alert.alert(
-                "Produto Indisponível", 
-                "O Google Play ainda não liberou este item. Verifique o convite de Testador."
+                t('planos.erroIndisponivel'), 
+                t('planos.erroIndisponivelMsg')
             );
         } else {
-            Alert.alert("Erro na compra", e.message);
+            Alert.alert(t('planos.erroCompra'), e.message);
         }
       }
     } finally {
@@ -130,12 +130,12 @@ export default function PlanosScreen() {
   // Helpers Visuais
   const obterInfoStatus = () => {
     switch (tipoPlano) {
-      case 'teste_gratis': return { label: "Período de Teste", cor: "#E67E22", icone: "time-outline" };
-      case 'mensal': return { label: "Plano Mensal", cor: "#2980B9", icone: "calendar-outline" };
-      case 'anual': return { label: "Plano Anual", cor: "#8E44AD", icone: "infinite-outline" };
-      case 'vitalicio': return { label: "Acesso Vitalício", cor: "#27AE60", icone: "ribbon-outline" };
-      case 'equipe': return { label: "Plano Corporativo (Equipe)", cor: "#2ECC71", icone: "people-outline" }; // ✅ Adicionado visual para equipe
-      default: return { label: "Plano Grátis / Expirado", cor: "#7F8C8D", icone: "alert-circle-outline" };
+      case 'teste_gratis': return { label: t('planos.periodoTeste'), cor: "#E67E22", icone: "time-outline" };
+      case 'mensal': return { label: t('planos.mensal'), cor: "#2980B9", icone: "calendar-outline" };
+      case 'anual': return { label: t('planos.anual'), cor: "#8E44AD", icone: "infinite-outline" };
+      case 'vitalicio': return { label: t('planos.vitalicio'), cor: "#27AE60", icone: "ribbon-outline" };
+      case 'equipe': return { label: t('planos.equipe'), cor: "#2ECC71", icone: "people-outline" }; // ✅ Adicionado visual para equipe
+      default: return { label: t('planos.expirado'), cor: "#7F8C8D", icone: "alert-circle-outline" };
     }
   };
 
@@ -171,7 +171,7 @@ export default function PlanosScreen() {
     >
       <View style={styles.header}>
         <Ionicons name="diamond" size={40} color="#2980B9" />
-        <Text style={styles.title}>{t('tabs.planos', { defaultValue: 'Loja Premium' })}</Text>
+        <Text style={styles.title}>{t('planos.titulo')}</Text>
       </View>
 
       <View style={[styles.statusCard, { borderColor: infoStatus.cor }]}>
@@ -180,7 +180,7 @@ export default function PlanosScreen() {
             <Ionicons name={infoStatus.icone as any} size={24} color="#FFF" />
           </View>
           <View style={styles.statusInfo}>
-            <Text style={styles.statusLabel}>Seu Plano Atual:</Text>
+            <Text style={styles.statusLabel}>{t('planos.seuPlano')}</Text>
             <Text style={[styles.statusValue, { color: infoStatus.cor }]}>{infoStatus.label}</Text>
           </View>
         </View>
@@ -191,10 +191,10 @@ export default function PlanosScreen() {
           <Ionicons name="hourglass-outline" size={18} color="#7F8C8D" />
           <Text style={styles.expirationText}>
             {tipoPlano === 'vitalicio' 
-              ? "Acesso ilimitado e vitalício" 
+              ? t('planos.acessoVitalicio') 
               : tipoPlano === 'equipe'
-              ? "Gerenciado pelo administrador da equipe"
-              : `Acesso válido por mais ${diasRestantes} dias`}
+              ? t('planos.gerenciadoEquipe')
+              : t('planos.acessoValido', { dias: diasRestantes })}
           </Text>
         </View>
       </View>
@@ -206,7 +206,7 @@ export default function PlanosScreen() {
           {assinaturas.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                 {isPremium ? "Alterar Assinatura" : "Desbloqueie o Premium"}
+                 {isPremium ? t('planos.alterarAssinatura') : t('planos.desbloquear')}
               </Text>
               <View style={styles.list}>
                 {assinaturas.map(p => <RenderPacote key={p.identifier} pkg={p} />)}
@@ -216,7 +216,7 @@ export default function PlanosScreen() {
 
           {recargas.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Pacotes de Consultas</Text>
+              <Text style={styles.sectionTitle}>{t('planos.pacotesConsultas')}</Text>
               <View style={styles.list}>
                 {recargas.map(p => <RenderPacote key={p.identifier} pkg={p} ehRecarga />)}
               </View>
@@ -226,7 +226,7 @@ export default function PlanosScreen() {
           {assinaturas.length === 0 && recargas.length === 0 && (
              <View style={{padding: 20, alignItems:'center'}}>
                 <Text style={{textAlign:'center', color:'#999'}}>
-                   Nenhum plano disponível no momento.
+                   {t('planos.nenhumPlano')}
                 </Text>
              </View>
           )}
@@ -237,13 +237,13 @@ export default function PlanosScreen() {
         <View style={styles.overlay}>
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color="#2980B9" />
-            <Text style={styles.loadingText}>Processando...</Text>
+            <Text style={styles.loadingText}>{t('planos.processando')}</Text>
           </View>
         </View>
       </Modal>
 
       <Text style={styles.footerNote}>
-        Pagamentos processados com segurança pela Google Play Store.
+        {t('planos.rodape')}
       </Text>
       <View style={{height: 40}} />
     </ScrollView>

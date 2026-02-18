@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 // import * as Clipboard from 'expo-clipboard'; // Descomente se configurou o native
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // ✅ Importado
 import {
     ActivityIndicator,
     Alert,
@@ -19,6 +20,7 @@ import { useAssinatura } from '../hooks/useAssinatura';
 import { supabase } from '../services/supabase';
 
 export default function EquipeScreen() {
+  const { t } = useTranslation(); // ✅ Hook de tradução
   const router = useRouter();
   const { isPremium } = useAssinatura();
   
@@ -88,7 +90,7 @@ export default function EquipeScreen() {
   }
 
   async function criarEquipe() {
-    if (!nomeEquipeInput.trim()) return Alert.alert("Erro", "Digite um nome para a equipe.");
+    if (!nomeEquipeInput.trim()) return Alert.alert(t('equipe.alertErro'), t('equipe.erroNome'));
     
     try {
       setLoading(true);
@@ -104,12 +106,12 @@ export default function EquipeScreen() {
 
       await supabase.from('profiles').update({ team_id: novaEquipe.id, email: user?.email }).eq('user_id', user?.id);
       
-      Alert.alert("Sucesso! 🎉", "Equipe criada.");
+      Alert.alert(t('equipe.alertSucesso'), t('equipe.alertCriada'));
       setNomeEquipeInput('');
       await carregarEquipe();
 
     } catch (error: any) {
-      Alert.alert("Erro ao criar", error.message);
+      Alert.alert(t('equipe.alertErro'), error.message);
     } finally {
       setLoading(false);
     }
@@ -117,8 +119,8 @@ export default function EquipeScreen() {
 
   async function entrarNaEquipe() {
     const codigoLimpo = idConviteInput.trim();
-    if (!codigoLimpo) return Alert.alert("Erro", "Cole o código da equipe.");
-    if (codigoLimpo.length < 10) return Alert.alert("Erro", "Código inválido.");
+    if (!codigoLimpo) return Alert.alert(t('equipe.alertErro'), t('equipe.erroCodigo'));
+    if (codigoLimpo.length < 10) return Alert.alert(t('equipe.alertErro'), t('equipe.erroCodigoInvalido'));
 
     try {
       setLoading(true);
@@ -128,7 +130,7 @@ export default function EquipeScreen() {
 
       const { data: equipe, error } = await supabase.from('teams').select('*').eq('id', codigoLimpo).single();
       
-      if (error || !equipe) return Alert.alert("Não encontrada", "Verifique o código.");
+      if (error || !equipe) return Alert.alert(t('equipe.erroNaoEncontrada'), t('equipe.erroVerifique'));
 
       const { error: updateError } = await supabase
         .from('profiles')
@@ -137,13 +139,13 @@ export default function EquipeScreen() {
 
       if (updateError) throw updateError;
       
-      Alert.alert("Sucesso! 🤝", `Você entrou na equipe: ${equipe.name}`);
+      Alert.alert(t('equipe.alertSucesso'), t('equipe.alertEntrou', { nome: equipe.name }));
       setIdConviteInput('');
       await carregarEquipe();
 
     } catch (error: any) {
       console.log("Erro ao entrar:", error);
-      Alert.alert("Erro", "Não foi possível entrar.");
+      Alert.alert(t('equipe.alertErro'), "Não foi possível entrar.");
     } finally {
       setLoading(false);
     }
@@ -152,12 +154,12 @@ export default function EquipeScreen() {
   // ✅ NOVA FUNÇÃO: EXCLUIR EQUIPE (PARA O DONO)
   async function excluirEquipe() {
     Alert.alert(
-        "Excluir Equipe ⚠️", 
-        "Tem certeza absoluta? A equipe será apagada e todos os membros removidos permanentemente.", 
+        t('equipe.alertExcluirTitulo'), 
+        t('equipe.alertExcluirMsg'), 
         [
-            { text: "Cancelar", style: "cancel" },
+            { text: t('common.cancelar', 'Cancelar'), style: "cancel" },
             { 
-                text: "Sim, Excluir", 
+                text: t('equipe.excluir'), // Traduzido: "Sim, Excluir"
                 style: "destructive", 
                 onPress: async () => {
                     try {
@@ -169,11 +171,11 @@ export default function EquipeScreen() {
 
                         setMinhaEquipe(null);
                         setMembros([]);
-                        Alert.alert("Encerrada", "Sua equipe foi excluída.");
+                        Alert.alert("Encerrada", t('equipe.alertExcluida'));
                         await carregarEquipe(); // Recarrega para garantir
                     } catch (e: any) { 
                         console.log(e);
-                        Alert.alert("Erro", "Falha ao excluir equipe: " + e.message);
+                        Alert.alert(t('equipe.alertErro'), "Falha ao excluir equipe: " + e.message);
                     } finally { 
                         setLoading(false); 
                     }
@@ -184,9 +186,9 @@ export default function EquipeScreen() {
   }
 
   async function sairDaEquipe() {
-    Alert.alert("Sair da Equipe", "Tem certeza?", [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Sair", style: "destructive", onPress: async () => {
+    Alert.alert(t('equipe.alertSairTitulo'), t('equipe.alertSairMsg'), [
+        { text: t('common.cancelar', 'Cancelar'), style: "cancel" },
+        { text: t('equipe.sair'), style: "destructive", onPress: async () => {
             const { data: { user } } = await supabase.auth.getUser();
             await supabase.from('profiles').update({ team_id: null }).eq('user_id', user?.id);
             carregarEquipe();
@@ -212,7 +214,7 @@ export default function EquipeScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.title}>Gestão de Equipe</Text>
+        <Text style={styles.title}>{t('equipe.titulo')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={carregarEquipe} />}>
@@ -222,14 +224,14 @@ export default function EquipeScreen() {
                     <View style={styles.teamHeader}>
                         <View style={styles.iconBox}><Ionicons name="people" size={32} color="#FFF" /></View>
                         <View style={{flex: 1}}>
-                            <Text style={styles.label}>Equipe Atual</Text>
+                            <Text style={styles.label}>{t('equipe.equipeAtual')}</Text>
                             <Text style={styles.teamName}>
-                                {minhaEquipe.name ? minhaEquipe.name : "Carregando nome..."}
+                                {minhaEquipe.name ? minhaEquipe.name : t('equipe.carregando')}
                             </Text>
                             {minhaEquipe.is_premium && (
                                 <View style={styles.badgePremium}>
                                     <Ionicons name="star" size={10} color="#FFF" />
-                                    <Text style={styles.badgeText}>PREMIUM</Text>
+                                    <Text style={styles.badgeText}>{t('equipe.premium')}</Text>
                                 </View>
                             )}
                         </View>
@@ -237,7 +239,7 @@ export default function EquipeScreen() {
                     
                     <View style={styles.divider} />
                     
-                    <Text style={styles.labelCode}>Código de Convite:</Text>
+                    <Text style={styles.labelCode}>{t('equipe.codigoConvite')}</Text>
                     <TouchableOpacity style={styles.codeBox} onPress={acaoBotaoCopiar}>
                         <Text style={styles.codeText} selectable>{minhaEquipe.id}</Text>
                         <Ionicons name="copy-outline" size={20} color="#666" />
@@ -246,19 +248,19 @@ export default function EquipeScreen() {
                     <View style={styles.rowButtons}>
                         <TouchableOpacity style={[styles.actionBtn, {backgroundColor:'#2980B9'}]} onPress={compartilhar}>
                             <Ionicons name="share-social" size={20} color="#FFF" />
-                            <Text style={styles.btnTextSmall}>Convidar</Text>
+                            <Text style={styles.btnTextSmall}>{t('equipe.convidar')}</Text>
                         </TouchableOpacity>
 
                         {/* ✅ BOTÃO INTELIGENTE: EXCLUIR (DONO) OU SAIR (MEMBRO) */}
                         {isOwner ? (
                             <TouchableOpacity style={[styles.actionBtn, {backgroundColor:'#C0392B'}]} onPress={excluirEquipe}>
                                 <Ionicons name="trash-outline" size={20} color="#FFF" />
-                                <Text style={styles.btnTextSmall}>Excluir</Text>
+                                <Text style={styles.btnTextSmall}>{t('equipe.excluir')}</Text>
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity style={[styles.actionBtn, {backgroundColor:'#E74C3C'}]} onPress={sairDaEquipe}>
                                 <Ionicons name="log-out-outline" size={20} color="#FFF" />
-                                <Text style={styles.btnTextSmall}>Sair</Text>
+                                <Text style={styles.btnTextSmall}>{t('equipe.sair')}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -266,7 +268,7 @@ export default function EquipeScreen() {
 
                 <View style={styles.membersSection}>
                     <View style={styles.membersHeader}>
-                        <Text style={styles.membersTitle}>Membros ({membros.length})</Text>
+                        <Text style={styles.membersTitle}>{t('equipe.membros')} ({membros.length})</Text>
                         <TouchableOpacity onPress={carregarEquipe}><Ionicons name="refresh" size={18} color="#2980B9" /></TouchableOpacity>
                     </View>
 
@@ -279,7 +281,7 @@ export default function EquipeScreen() {
                                 <Image source={{ uri: avatarUrl }} style={styles.memberAvatar} />
                                 <View style={{flex: 1}}>
                                     <Text style={styles.memberEmail} numberOfLines={1}>{membro.email || "Usuário"}</Text>
-                                    <Text style={styles.memberRole}>{isMemberOwner ? "👑 Líder" : "Membro"}</Text>
+                                    <Text style={styles.memberRole}>{isMemberOwner ? t('equipe.lider') : t('equipe.membro')}</Text>
                                 </View>
                             </View>
                         );
@@ -290,28 +292,28 @@ export default function EquipeScreen() {
             <>
                 {isPremium ? (
                     <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Criar Equipe 👑</Text>
+                        <Text style={styles.cardTitle}>{t('equipe.criarEquipe')}</Text>
                         <TextInput 
                             style={styles.input}
-                            placeholder="Nome da Equipe"
+                            placeholder={t('equipe.placeholderNome')}
                             value={nomeEquipeInput}
                             onChangeText={setNomeEquipeInput}
                         />
                         <TouchableOpacity style={styles.createBtn} onPress={criarEquipe}>
-                            <Text style={styles.btnText}>Criar Equipe</Text>
+                            <Text style={styles.btnText}>{t('equipe.btnCriar')}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
-                   <View style={styles.infoBox}><Text style={styles.infoText}>Seja Premium para criar equipes.</Text></View>
+                   <View style={styles.infoBox}><Text style={styles.infoText}>{t('equipe.sejaPremium')}</Text></View>
                 )}
 
                 <View style={[styles.card, { marginTop: 20 }]}>
-                    <Text style={styles.cardTitle}>Entrar em Equipe 👋</Text>
-                    <Text style={styles.cardDesc}>Cole o código exato abaixo:</Text>
+                    <Text style={styles.cardTitle}>{t('equipe.entrarEquipe')}</Text>
+                    <Text style={styles.cardDesc}>{t('equipe.descEntrar')}</Text>
                     
                     <TextInput 
                         style={styles.input}
-                        placeholder="Ex: 550e8400-e29b..."
+                        placeholder={t('equipe.placeholderCodigo')}
                         value={idConviteInput}
                         onChangeText={setIdConviteInput}
                         autoCapitalize="none" 
@@ -319,7 +321,7 @@ export default function EquipeScreen() {
                     />
                     
                     <TouchableOpacity style={styles.joinBtn} onPress={entrarNaEquipe}>
-                        <Text style={styles.joinText}>Entrar na Equipe</Text>
+                        <Text style={styles.joinText}>{t('equipe.btnEntrar')}</Text>
                     </TouchableOpacity>
                 </View>
             </>
