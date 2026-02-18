@@ -50,28 +50,76 @@
     "criterioSemAtraso": "No delays detected",
     "msgLimpo": "CLEAR. Client approved.",
     "msgNaoEncontrado": "No records found in the database.",
-    "tituloResultado": "Analysis Result"
+    "tituloResultado": "Analysis Result",
+    "tituloApp": "AXORYN INTELLIGENCE",
+    "tituloSection": "RISK ANALYSIS"
   },
   "termos": {
-    "tituloPrincipal": "Terms of Use and Legal Policy",
-    "item1Tit": "1. LICENSE GRANT AND SERVICE NATURE:",
-    "item1Txt": "AXORYN CONTROL grants the USER a revocable, non-exclusive, non-transferable license to use the software strictly as a data management tool. The app acts as a passive information repository. AXORYN CONTROL is NOT a financial institution, does not provide loans, does not process bank payments, and does not provide legal or accounting advice.",
-    "item2Tit": "2. LIABILITY AND LEGAL COMPLIANCE:",
-    "item2Txt": "The USER acknowledges being solely responsible for the accuracy, legality, and origin of the inserted data. The USER agrees to use the platform in strict compliance with local laws, including regulations on P2P lending, usury laws (interest rate caps), and tax obligations.",
-    "item3Tit": "3. PROHIBITED ACTIVITIES:",
-    "item3Txt": "It is strictly forbidden to use this platform for: a) Predatory lending or extortion; b) Money laundering or asset concealment; c) Harassment or threats in debt collection. AXORYN CONTROL reserves the right to suspend or ban any account suspected of violation without prior notice and will fully cooperate with government authorities.",
-    "item4Tit": "4. DISCLAIMER OF WARRANTIES:",
-    "item4Txt": "The service is provided \"as is\". The developers do not guarantee that the service will be uninterrupted or error-free. Under no circumstances shall AXORYN CONTROL be liable for financial losses, lost profits, third-party defaults, or security failures on the USER's device.",
-    "item5Tit": "5. PRIVACY AND DATA PROTECTION:",
-    "item5Txt": "We respect your privacy. Your data is processed for app functionality and is not sold to third parties. The USER agrees to data processing in accordance with international data protection standards.",
-    "item6Tit": "6. INTELLECTUAL PROPERTY:",
-    "item6Txt": "All design, source code, logos, and trademarks associated with AXORYN CONTROL are the exclusive property of the developers.",
-    "item7Tit": "7. INDEMNIFICATION:",
-    "item7Txt": "The USER agrees to indemnify and hold AXORYN CONTROL harmless from any claims, losses, liabilities, or expenses arising from the misuse of the platform or violation of these terms.",
-    "item8Tit": "8. CHANGES TO TERMS:",
-    "item8Txt": "We may update these terms at any time. Continued use of the application constitutes acceptance of the new terms.",
-    "conclusao": "By clicking \"I ACCEPT\", the USER confirms legal capacity to contract and fully agrees to these terms.",
-    "btnAceitar": "I READ AND ACCEPT"
+  "tituloPrincipal": "End User License Agreement (EULA)",
+  "btnAceitar": "I READ AND AGREE",
+  "intro": "Last updated: February 18, 2026. Please read carefully.",
+  "conclusao": "BY CLICKING 'I AGREE', YOU ACKNOWLEDGE THIS IS A BINDING CONTRACT AND YOU ARE OF LEGAL AGE TO SIGN IT.",
+
+  "item1Tit": "1. ACCEPTANCE OF TERMS",
+  "item1Txt": "By downloading, installing, or using Axoryn Control, you agree to be bound by these terms. If you do not agree, do not use the app.",
+  
+  "item2Tit": "2. NATURE OF SERVICE (NOT A BANK)",
+  "item2Txt": "Axoryn Control is a personal data organization software tool ('SaaS'). THE APP IS NOT A FINANCIAL INSTITUTION, BANK, OR LENDER. We do not grant loans, do not solicit funds, and do not offer financial advice.",
+  
+  "item3Tit": "3. ELIGIBILITY",
+  "item3Txt": "You must be at least 18 years old (or the legal age of majority in your jurisdiction) to use this Service.",
+  
+  "item4Tit": "4. PRIVACY & DATA (GDPR/CCPA)",
+  "item4Txt": "We collect minimal data for operation. You retain ownership of your client data. By inputting third-party data, you declare you have legal grounds (consent) to do so, holding Axoryn harmless.",
+  
+  "item5Tit": "5. PROHIBITED USE",
+  "item5Txt": "You agree not to use the App for: (a) Illegal predatory lending or loan sharking; (b) Money laundering; (c) Reverse engineering; (d) Harassment or abusive debt collection.",
+  
+  "item6Tit": "6. PAYMENTS & SUBSCRIPTIONS",
+  "item6Txt": "Premium transactions are processed by App Stores (Google Play/Apple Store). Cancellation must be done in store settings. We do not offer direct refunds.",
+  
+  "item7Tit": "7. INTELLECTUAL PROPERTY",
+  "item7Txt": "All code, design, and branding belong to Axoryn Tech. A limited, revocable license to use is granted.",
+  
+  "item8Tit": "8. DISCLAIMER OF WARRANTIES",
+  "item8Txt": "The software is provided 'as is', without warranties of uninterrupted or error-free operation.",
+  
+  "item9Tit": "9. LIMITATION OF LIABILITY",
+  "item9Txt": "Axoryn shall not be liable for indirect damages, lost profits, or data loss arising from the use of the app.",
+  
+  "item10Tit": "10. INDEMNIFICATION",
+  "item10Txt": "You agree to indemnify Axoryn against any claims arising from your misuse of the Service or violation of these Terms.",
+  
+  "item11Tit": "11. THIRD-PARTY LINKS",
+  "item11Txt": "The App may contain links to third-party sites. We are not responsible for the content or practices of these sites.",
+  
+  "item12Tit": "12. ACCOUNT SECURITY",
+  "item12Txt": "You are responsible for maintaining the confidentiality of your password. Notify us immediately of any unauthorized use.",
+  
+  "item13Tit": "13. SERVICE CHANGES",
+  "item13Txt": "We reserve the right to modify or discontinue the Service (or any part thereof) at any time, with or without notice.",
+  
+  "item14Tit": "14. TERMINATION",
+  "item14Txt": "We may terminate or suspend your access immediately, without prior notice, for any reason, including breach of Terms.",
+  
+  "item15Tit": "15. GOVERNING LAW",
+  "item15Txt": "These Terms shall be governed by the laws of the developer's headquarters country, without regard to conflict of law provisions.",
+  
+  "item16Tit": "16. DISPUTE RESOLUTION (ARBITRATION)",
+  "item16Txt": "Any dispute shall be resolved preferably by binding arbitration, with the user waiving class actions, except where prohibited by law.",
+  
+  "item17Tit": "17. APP STORE PROVISIONS",
+  "item17Txt": "You acknowledge that this agreement is between you and Axoryn, not with Google or Apple. Stores are not responsible for app support.",
+  
+  "item18Tit": "18. GLOBAL AVAILABILITY",
+  "item18Txt": "We do not represent that the Service is appropriate or available for use in all jurisdictions. You access it at your own risk.",
+  
+  "item19Tit": "19. SEVERABILITY",
+  "item19Txt": "If any provision of these Terms is held to be invalid, the remaining provisions shall remain in full force.",
+  
+  "item20Tit": "20. CONTACT",
+  "item20Txt": "Questions about these Terms should be sent via the official support channels within the application."
+
   },
   "index": {
     "verificando": "Checking subscription...",

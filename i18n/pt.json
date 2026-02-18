@@ -50,28 +50,76 @@
     "criterioSemAtraso": "Nenhum atraso detectado",
     "msgLimpo": "NADA CONSTA. Cliente liberado.",
     "msgNaoEncontrado": "Nenhum registro encontrado na base de dados.",
-    "tituloResultado": "Resultado da Análise"
+    "tituloResultado": "Resultado da Análise",
+    "tituloApp": "INTELIGÊNCIA AXORYN",
+    "tituloSection": "ANÁLISE DE RISCO"
   },
   "termos": {
-    "tituloPrincipal": "Termos de Uso e Política Legal",
-    "item1Tit": "1. CONCESSÃO DE LICENÇA E NATUREZA DO SERVIÇO:",
-    "item1Txt": "O AXORYN CONTROL concede ao USUÁRIO uma licença revogável, não exclusiva e intransferível para usar o software estritamente como ferramenta de gestão de dados.",
-    "item2Tit": "2. RESPONSABILIDADE E CONFORMIDADE LEGAL:",
-    "item2Txt": "O USUÁRIO reconhece ser o único responsável pela precisão e legalidade dos dados inseridos.",
-    "item3Tit": "3. ATIVIDADES PROIBIDAS:",
-    "item3Txt": "É estritamente proibido usar esta plataforma para agiotagem ou extorsão.",
-    "item4Tit": "4. ISENÇÃO DE GARANTIAS:",
-    "item4Txt": "O serviço é fornecido 'como está'.",
-    "item5Tit": "5. PRIVACIDADE:",
-    "item5Txt": "Respeitamos sua privacidade e não vendemos dados.",
-    "item6Tit": "6. PROPRIEDADE INTELECTUAL:",
-    "item6Txt": "Todo o código pertence aos desenvolvedores.",
-    "item7Tit": "7. INDENIZAÇÃO:",
-    "item7Txt": "O usuário concorda em indenizar o Axoryn por mau uso.",
-    "item8Tit": "8. ALTERAÇÕES:",
-    "item8Txt": "Podemos atualizar estes termos a qualquer momento.",
-    "conclusao": "Ao clicar em 'ACEITO', o USUÁRIO confirma concordar com os termos.",
-    "btnAceitar": "LI E ACEITO"
+  "tituloPrincipal": "Contrato de Licença de Usuário Final (EULA)",
+  "btnAceitar": "LI E CONCORDO COM TUDO",
+  "intro": "Última atualização: 18 de Fevereiro de 2026. Por favor, leia atentamente.",
+  "conclusao": "AO CLICAR EM 'LI E CONCORDO', VOCÊ RECONHECE QUE ESTE É UM CONTRATO VINCULATIVO E QUE VOCÊ TEM MAIORIDADE LEGAL PARA ASSINÁ-LO.",
+
+  "item1Tit": "1. ACEITAÇÃO DOS TERMOS",
+  "item1Txt": "Ao baixar, instalar ou usar o Axoryn Control, você concorda em ficar vinculado a estes termos. Se não concordar, não use o aplicativo.",
+  
+  "item2Tit": "2. NATUREZA DO SERVIÇO (NÃO SOMOS BANCO)",
+  "item2Txt": "O Axoryn Control é uma ferramenta de software para organização pessoal de dados ('SaaS'). O APLICATIVO NÃO É UMA INSTITUIÇÃO FINANCEIRA, BANCO OU CREDOR. Não realizamos empréstimos, não captamos recursos e não oferecemos consultoria financeira.",
+  
+  "item3Tit": "3. ELEGIBILIDADE",
+  "item3Txt": "Você deve ter pelo menos 18 anos (ou a maioridade legal em sua jurisdição) para usar este Serviço.",
+  
+  "item4Tit": "4. PRIVACIDADE E DADOS (LGPD/GDPR)",
+  "item4Txt": "Coletamos dados mínimos para funcionamento. Você mantém a propriedade dos dados de seus clientes. Ao inserir dados de terceiros, você declara ter base legal (consentimento) para fazê-lo, isentando a Axoryn de responsabilidade.",
+  
+  "item5Tit": "5. USO PROIBIDO",
+  "item5Txt": "Você concorda em não usar o App para: (a) Agiotagem ou empréstimos predatórios ilegais; (b) Lavagem de dinheiro; (c) Engenharia reversa; (d) Assédio ou cobranças abusivas.",
+  
+  "item6Tit": "6. PAGAMENTOS E ASSINATURAS",
+  "item6Txt": "As transações Premium são processadas pelas lojas de aplicativos (Google Play/Apple Store). O cancelamento deve ser feito nas configurações da loja. Não oferecemos reembolsos diretos.",
+  
+  "item7Tit": "7. PROPRIEDADE INTELECTUAL",
+  "item7Txt": "Todo o código, design e marca pertencem à Axoryn Tech. É concedida uma licença limitada e revogável de uso.",
+  
+  "item8Tit": "8. ISENÇÃO DE GARANTIAS",
+  "item8Txt": "O software é fornecido 'no estado em que se encontra', sem garantias de funcionamento ininterrupto ou livre de erros.",
+  
+  "item9Tit": "9. LIMITAÇÃO DE RESPONSABILIDADE",
+  "item9Txt": "A Axoryn não será responsável por danos indiretos, lucros cessantes ou perda de dados decorrentes do uso do app.",
+  
+  "item10Tit": "10. INDENIZAÇÃO",
+  "item10Txt": "Você concorda em indenizar a Axoryn contra quaisquer reclamações decorrentes do seu uso indevido do Serviço ou violação destes Termos.",
+  
+  "item11Tit": "11. LINKS DE TERCEIROS",
+  "item11Txt": "O App pode conter links para sites de terceiros. Não somos responsáveis pelo conteúdo ou práticas desses sites.",
+  
+  "item12Tit": "12. SEGURANÇA DA CONTA",
+  "item12Txt": "Você é responsável por manter a confidencialidade de sua senha. Notifique-nos imediatamente sobre qualquer uso não autorizado.",
+  
+  "item13Tit": "13. ALTERAÇÕES NO SERVIÇO",
+  "item13Txt": "Reservamo-nos o direito de modificar ou descontinuar o Serviço (ou qualquer parte dele) a qualquer momento, com ou sem aviso prévio.",
+  
+  "item14Tit": "14. TERMINAÇÃO",
+  "item14Txt": "Podemos encerrar ou suspender seu acesso imediatamente, sem aviso prévio, por qualquer motivo, incluindo violação dos Termos.",
+  
+  "item15Tit": "15. LEI APLICÁVEL",
+  "item15Txt": "Estes Termos serão regidos pelas leis do país sede do desenvolvedor, sem consideração aos conflitos de disposições legais.",
+  
+  "item16Tit": "16. RESOLUÇÃO DE DISPUTAS (ARBITRAGEM)",
+  "item16Txt": "Qualquer disputa será resolvida preferencialmente por arbitragem vinculativa, renunciando o usuário a ações coletivas (Class Action Waiver), exceto onde proibido por lei.",
+  
+  "item17Tit": "17. DISPOSIÇÕES DA LOJA DE APLICATIVOS",
+  "item17Txt": "Você reconhece que este acordo é entre você e a Axoryn, e não com a Google ou Apple. As lojas não são responsáveis pelo suporte do app.",
+  
+  "item18Tit": "18. DISPONIBILIDADE GLOBAL",
+  "item18Txt": "Não garantimos que o Serviço seja apropriado ou esteja disponível para uso em todas as jurisdições. Você acessa por sua própria conta e risco.",
+  
+  "item19Tit": "19. DIVISIBILIDADE",
+  "item19Txt": "Se qualquer disposição destes Termos for considerada inválida, as disposições restantes permanecerão em pleno vigor.",
+  
+  "item20Tit": "20. CONTATO",
+  "item20Txt": "Dúvidas sobre estes Termos devem ser enviadas através dos canais de suporte oficiais no aplicativo."
+
   },
   "index": {
     "verificando": "Verificando assinatura...",

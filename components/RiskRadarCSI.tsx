@@ -103,22 +103,27 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
       if (!msg) return "";
       const msgLower = msg.toLowerCase();
       
+      // MENSAGENS DE SUCESSO / SEM DÍVIDAS
       if (msgLower.includes('nenhum registro') || msgLower.includes('not found') || msgLower.includes('no record')) {
           return t('radar.msgNaoEncontrado');
       }
 
-      if (msgLower.includes('nada consta') || msgLower.includes('liberado') || msgLower.includes('limpo') || msgLower.includes('safe')) {
+      if (msgLower.includes('nada consta') || msgLower.includes('liberado') || msgLower.includes('limpo') || msgLower.includes('safe') || msgLower.includes('sem dívidas')) {
           return t('radar.msgLimpo');
       }
+
+      // MENSAGENS DE DÍVIDA / RESTRIÇÃO
       if (msgLower.includes('dupla') || (msgLower.includes('cpf') && msgLower.includes('celular'))) {
           return t('radar.msgRestricaoDupla');
       }
-      if (msgLower.includes('cpf') || msgLower.includes('documento')) {
+      if (msgLower.includes('cpf') || msgLower.includes('documento') || msgLower.includes('pendência')) {
           return t('radar.msgRestricaoDoc');
       }
       if (msgLower.includes('celular') || msgLower.includes('telefone') || msgLower.includes('whatsapp')) {
           return t('radar.msgRestricaoTel');
       }
+      
+      // Retorna a mensagem original se não houver tradução específica
       return msg;
   };
 
@@ -142,7 +147,7 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
       <View style={styles.header}>
         <View style={{flexDirection:'row', alignItems:'center'}}>
             <Ionicons name="shield-checkmark" size={compacto ? 18 : 22} color="#2980B9" />
-            <Text style={[styles.title, compacto && {fontSize: 12}]}>AXORYN INTELLIGENCE</Text>
+            <Text style={[styles.title, compacto && {fontSize: 12}]}>{t('radar.tituloApp')}</Text>
         </View>
         
         <TouchableOpacity 
@@ -187,7 +192,6 @@ export default function RiskRadarCSI({ initialCpf, initialTelefone, initialNome,
       ) : (
           <View style={[styles.resultCard, { borderTopColor: getCor(resultado.nivel) }]}>
               
-              {/* ✅ AQUI ESTÁ A CHAVE ATUALIZADA */}
               <Text style={styles.sectionTitle}>{t('radar.tituloResultado')}</Text>
 
               <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 10}}>
