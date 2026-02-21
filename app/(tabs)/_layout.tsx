@@ -1,4 +1,4 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -37,7 +37,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 2. RESUMO */}
+      {/* 2. RESUMO (Agora em segundo) */}
       <Tabs.Screen
         name="resumo"
         options={{
@@ -47,7 +47,16 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 3. PERFIL */}
+      {/* 3. PRODUTOS / ESTOQUE (Agora em terceiro, após Resumo) */}
+      <Tabs.Screen
+        name="produtos"
+        options={{
+          title: t('tabs.produtos', { defaultValue: 'Estoque' }),
+          tabBarIcon: ({ color }) => <Ionicons name="storefront" size={24} color={color} />,
+        }}
+      />
+
+      {/* 4. PERFIL */}
       <Tabs.Screen
         name="perfil"
         options={{
@@ -56,7 +65,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 4. PLANOS (Agora após o Perfil) */}
+      {/* 5. PLANOS */}
       <Tabs.Screen
         name="planos"
         options={{

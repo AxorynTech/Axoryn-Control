@@ -1,61 +1,79 @@
 import { Session } from '@supabase/supabase-js';
-import * as Notifications from 'expo-notifications'; // ✅ NOVO IMPORT
+import * as Notifications from 'expo-notifications';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
-import Purchases, { LOG_LEVEL } from 'react-native-purchases';
+import Purchases, { CustomerInfo, LOG_LEVEL } from 'react-native-purchases';
 import '../i18n';
 import { supabase } from '../services/supabase';
 
-// ✅ SUA CHAVE DO REVENUECAT (Já configurada)
+// ✅ SUA CHAVE DO REVENUECAT
 const API_KEY_GOOGLE = 'goog_eIEPHdCOVMCoYvxMxJwuJqtzqqw'; 
+const ENTITLEMENT_ID = 'pro'; 
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
-  const [isReady, setIsReady] = useState(false); // Só vira true quando TUDO estiver carregado
+  
+  // Estados de Carregamento
+  const [isReady, setIsReady] = useState(false); // App Geral pronto
+  const [isRevenueCatLoaded, setIsRevenueCatLoaded] = useState(false); // ✅ RevenueCat confirmou o status?
+  const [isPro, setIsPro] = useState(false); // Status da Assinatura
+  
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
     const inicializarApp = async () => {
       try {
-        // 1. Configura RevenueCat (Espera terminar OBRIGATORIAMENTE)
-        console.log("Iniciando RevenueCat...");
-        Purchases.setLogLevel(LOG_LEVEL.DEBUG); // Logs para ajudar a ver erros
+        console.log("🚀 Inicializando App...");
+        Purchases.setLogLevel(LOG_LEVEL.DEBUG);
 
+        // 1. Configurar RevenueCat
         if (Platform.OS === 'android') {
           await Purchases.configure({ apiKey: API_KEY_GOOGLE });
 
-          // ✅ NOVA CONFIGURAÇÃO DE CANAL ANDROID (ADICIONADO AQUI)
-          // Isso garante que o canal exista antes da notificação chegar
+          // Canal de Notificação
           await Notifications.setNotificationChannelAsync('resumo-diario', {
             name: 'Resumo Diário',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#FF231F7C',
           });
-          console.log("Canal de Notificação Android criado!");
-          
-        } else if (Platform.OS === 'ios') {
-          // await Purchases.configure({ apiKey: 'SUA_CHAVE_IOS' });
+        } 
+        
+        // 2. Verificar Assinatura (AWAIT é crucial aqui)
+        try {
+            const customerInfo = await Purchases.getCustomerInfo();
+            const usuarioPagante = typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== 'undefined';
+            setIsPro(usuarioPagante);
+            console.log("Status Assinatura Carregado:", usuarioPagante ? "PREMIUM" : "GRÁTIS");
+        } catch (e) {
+            console.log("Erro ao buscar info do cliente:", e);
+            setIsPro(false); // Em caso de erro, assume grátis por segurança
+        } finally {
+            setIsRevenueCatLoaded(true); // ✅ Agora temos certeza do status
         }
-        console.log("RevenueCat Configurado com Sucesso!");
 
-        // 2. Busca Sessão do Supabase
+        // 3. Busca Sessão do Supabase
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
 
       } catch (error) {
         console.error("ERRO FATAL na inicialização:", error);
       } finally {
-        // 3. Libera o App para aparecer na tela SÓ AGORA
         setIsReady(true);
       }
     };
 
     inicializarApp();
 
-    // Listener de Auth
+    // Listener para atualizações em tempo real (ex: comprou e voltou pro app)
+    Purchases.addCustomerInfoUpdateListener((info: CustomerInfo) => {
+        const isNowPro = typeof info.entitlements.active[ENTITLEMENT_ID] !== 'undefined';
+        setIsPro(isNowPro);
+        setIsRevenueCatLoaded(true);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (event === 'PASSWORD_RECOVERY') {
@@ -66,37 +84,48 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Proteção de Rotas
+  // --- PROTEÇÃO DE ROTAS (GATEKEEPER) ---
   useEffect(() => {
-    if (!isReady) return;
+    if (!isReady || !isRevenueCatLoaded) return;
 
     const inTabsGroup = segments[0] === '(tabs)';
     const inAuthGroup = segments[0] === 'auth';
     const inResetPassword = segments[0] === 'reset-password';
-    // Verifica se está na tela de equipe ou modal
     const inEquipe = segments[0] === 'equipe';
     const inModal = segments[0] === 'modal';
 
+    // Identifica se está tentando entrar na aba PRODUTOS
+    const isTryingToAccessStock = segments[0] === '(tabs)' && segments[1] === 'produtos';
+
     if (session) {
+      // Usuário Logado
       if (inAuthGroup) {
-        // Se logado tentar ir pra login, manda pra home
         router.replace('/(tabs)');
       } 
-      // Se não estiver em Tabs, Reset, Modal OU EQUIPE, manda para Tabs
-      // ADICIONEI "&& !inEquipe" AQUI PARA NÃO BLOQUEAR A TELA NOVA
+      
+      // ✅ DESATIVADO AQUI: Deixando a responsabilidade 100% para o useAssinatura dentro da tela produtos.tsx
+      // Isso resolve o problema de ser expulso mesmo tendo pago.
+      /*
+      else if (isTryingToAccessStock && !isPro) {
+        console.log("Bloqueando acesso ao estoque: Usuário não é PRO");
+        router.replace('/(tabs)/planos'); 
+      }
+      */
+
+      // Rota inválida
       else if (!inTabsGroup && !inResetPassword && !inModal && !inEquipe) {
         router.replace('/(tabs)');
       }
     } else {
-      // Se não tem sessão e tentar acessar abas protegidas, manda para Auth
+      // Usuário Deslogado
       if (inTabsGroup || inEquipe) {
         router.replace('/auth');
       }
     }
-  }, [session, isReady, segments]);
+  }, [session, isReady, isRevenueCatLoaded, isPro, segments]); 
 
-  // TELA DE CARREGAMENTO (Essencial para não dar erro de Singleton)
-  if (!isReady) {
+  // Tela de Loading (Exibida enquanto Supabase ou RevenueCat carregam)
+  if (!isReady || !isRevenueCatLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#2C3E50" />
@@ -114,16 +143,14 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />
           <Stack.Screen name="(tabs)" />
-          {/* <Stack.Screen name="paywall" />  <-- REMOVIDO */}
           <Stack.Screen name="reset-password" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           
-          {/* ✅ ADICIONADO: Rota da Equipe */}
           <Stack.Screen 
             name="equipe" 
             options={{ 
-                presentation: 'modal', // Abre deslizando de baixo pra cima (chique)
-                headerShown: false     // Esconde o header padrão feio
+                presentation: 'modal', 
+                headerShown: false     
             }} 
           />
         </Stack>
