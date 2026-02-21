@@ -133,12 +133,24 @@ export default function RootLayout() {
     );
   }
 
+  // ✅ ESTRUTURA MESTRE ATUALIZADA PARA FUNCIONAR PERFEITAMENTE NA WEB E MOBILE
   return (
-    <View style={{ flex: 1, backgroundColor: '#f0f0f0' }}>
+    <View style={{ 
+      flex: 1, 
+      backgroundColor: '#f0f0f0',
+      alignItems: 'center',       // Centraliza horizontalmente no PC
+      justifyContent: 'center',   // Centraliza verticalmente no PC
+      height: Platform.OS === 'web' ? '100vh' : '100%', // Usa a altura inteira da janela no PC
+    }}>
       <View style={{
-        flex: 1, width: '100%', maxWidth: Platform.OS === 'web' ? 500 : '100%',
-        alignSelf: 'center', backgroundColor: '#fff',
-        boxShadow: Platform.OS === 'web' ? '0px 0px 20px rgba(0,0,0,0.1)' : undefined,
+        flex: 1, 
+        width: '100%', 
+        maxWidth: Platform.OS === 'web' ? 500 : '100%', // Largura de celular
+        maxHeight: Platform.OS === 'web' ? 900 : '100%', // Altura máxima para não esticar infinitamente
+        backgroundColor: '#fff',
+        overflow: 'hidden', // IMPORTANTÍSSIMO: Força o scroll a acontecer apenas DENTRO do app, e não na janela do PC
+        boxShadow: Platform.OS === 'web' ? '0px 10px 30px rgba(0,0,0,0.15)' : undefined, // Uma sombra elegante no PC
+        borderRadius: Platform.OS === 'web' ? 12 : 0, // Bordas levemente arredondadas no PC
       }}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import i18n from 'i18next';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -41,6 +41,7 @@ export default function TelaProdutos() {
     carrinho, totalCarrinho, receitaTotal, comandasAbertas, historicoVendas,
     carregarDados, adicionarAoCarrinho, removerDoCarrinho, criarPedido,
     atualizarStatusComanda, receberComanda, cancelarPedido, realizarSangria,
+    editarSangria, // <-- NOVA FUNÇÃO PUXADA AQUI
     loading: loadingPDV 
   } = usePDV();
 
@@ -76,6 +77,14 @@ export default function TelaProdutos() {
     }, [isPremium, modo])
   );
 
+  // ✅ NOVO CÓDIGO: Redireciona para Planos se carregar e não for Premium
+  useEffect(() => {
+    if (!loadingAssinatura && !isPremium) {
+      // Usa o router que já estava instanciado no topo do seu componente
+      router.replace('/planos'); 
+    }
+  }, [loadingAssinatura, isPremium]);
+
   // ============================================================
   // 2. FUNÇÕES AUXILIARES (LÓGICA)
   // ============================================================
@@ -89,13 +98,46 @@ export default function TelaProdutos() {
     const valor = parseFloat(valorSangria.replace(',', '.'));
     if (!valor || valor <= 0) return Alert.alert(t('estoque.atencao'), 'Valor inválido');
     
-    const sucesso = await realizarSangria(valor, motivoSangria);
+    let sucesso = false;
+    
+    // Se tem um pedido selecionado e ele é SANGRIA, estamos no modo Edição
+    if (pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA') {
+        sucesso = await editarSangria(pedidoSelecionado.id, valor, motivoSangria);
+    } else {
+        // Senão, é uma nova Sangria
+        sucesso = await realizarSangria(valor, motivoSangria);
+    }
+
     if (sucesso) {
-        Alert.alert(t('estoque.sucesso'), t('estoque.msgSangriaSucesso'));
+        Alert.alert(t('estoque.sucesso'), 'Operação registrada com sucesso!');
         setModalSangria(false);
         setValorSangria('');
         setMotivoSangria('');
+        setPedidoSelecionado(null);
     }
+  };
+
+  const handleExcluirSangria = () => {
+    Alert.alert(
+        'Excluir Sangria',
+        'Tem certeza que deseja apagar este registro de saída do caixa?',
+        [
+            { text: t('estoque.nao', { defaultValue: 'Cancelar' }), style: 'cancel' },
+            { 
+              text: t('estoque.simExcluir', { defaultValue: 'Sim, Excluir' }), 
+              style: 'destructive', 
+              onPress: async () => {
+                if (pedidoSelecionado) {
+                    await cancelarPedido(pedidoSelecionado);
+                    setModalSangria(false);
+                    setPedidoSelecionado(null);
+                    setValorSangria('');
+                    setMotivoSangria('');
+                }
+              } 
+            }
+        ]
+    );
   };
 
   const handleGerarPDF = async () => {
@@ -285,7 +327,7 @@ export default function TelaProdutos() {
                     <Text style={{fontSize:24, color:'#FFF', fontWeight:'bold'}}>{t('relatorioPdf.moeda')} {receitaTotal.toFixed(2).replace('.', ',')}</Text>
                 </TouchableOpacity>
                 <View style={{flexDirection:'row', gap: 15}}>
-                    <TouchableOpacity onPress={() => setModalSangria(true)} style={{alignItems:'center'}}><View style={{backgroundColor:'#E74C3C', padding:8, borderRadius:20}}><Ionicons name="arrow-down" size={20} color="#FFF" /></View><Text style={{color:'#FFF', fontSize:8, marginTop:2}}>{t('estoque.sangria')}</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setPedidoSelecionado(null); setValorSangria(''); setMotivoSangria(''); setModalSangria(true); }} style={{alignItems:'center'}}><View style={{backgroundColor:'#E74C3C', padding:8, borderRadius:20}}><Ionicons name="arrow-down" size={20} color="#FFF" /></View><Text style={{color:'#FFF', fontSize:8, marginTop:2}}>{t('estoque.sangria')}</Text></TouchableOpacity>
                     <TouchableOpacity onPress={() => setModalRelatorio(true)} style={{alignItems:'center'}}><View style={{backgroundColor:'rgba(255,255,255,0.2)', padding:8, borderRadius:20}}><Ionicons name="document-text" size={20} color="#FFF" /></View><Text style={{color:'#FFF', fontSize:8, marginTop:2}}>{t('estoque.relatorios')}</Text></TouchableOpacity>
                 </View>
             </View>
@@ -326,13 +368,31 @@ export default function TelaProdutos() {
       <Modal visible={modalSangria} transparent animationType="fade">
         <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-                <Text style={[styles.modalTitulo, {color:'#E74C3C'}]}>{t('estoque.sangria')}</Text>
+                <Text style={[styles.modalTitulo, {color:'#E74C3C'}]}>
+                    {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? 'Editar Sangria' : t('estoque.sangria')}
+                </Text>
+                
                 <Text style={styles.label}>{t('estoque.valorSangria')}</Text>
                 <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={valorSangria} onChangeText={setValorSangria} />
+                
                 <Text style={styles.label}>{t('estoque.motivoSangria')}</Text>
                 <TextInput placeholder="..." style={styles.input} value={motivoSangria} onChangeText={setMotivoSangria} />
-                <TouchableOpacity onPress={handleSangria} style={[styles.btnGerarPDF, {backgroundColor:'#E74C3C', marginTop:10}]}><Text style={{color:'#FFF', fontWeight:'bold'}}>{t('estoque.confirmarSangria')}</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => setModalSangria(false)} style={{padding:15, alignItems:'center'}}><Text style={{color:'#777'}}>{t('estoque.cancelar')}</Text></TouchableOpacity>
+                
+                <TouchableOpacity onPress={handleSangria} style={[styles.btnGerarPDF, {backgroundColor:'#E74C3C', marginTop:10}]}>
+                    <Text style={{color:'#FFF', fontWeight:'bold'}}>
+                         {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? 'Salvar Alterações' : t('estoque.confirmarSangria')}
+                    </Text>
+                </TouchableOpacity>
+
+                {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' && (
+                    <TouchableOpacity onPress={handleExcluirSangria} style={[styles.btnGerarPDF, {backgroundColor:'#333', marginTop:10}]}>
+                        <Text style={{color:'#FFF', fontWeight:'bold'}}>Excluir Sangria</Text>
+                    </TouchableOpacity>
+                )}
+
+                <TouchableOpacity onPress={() => { setModalSangria(false); setPedidoSelecionado(null); }} style={{padding:15, alignItems:'center'}}>
+                    <Text style={{color:'#777'}}>{t('estoque.cancelar')}</Text>
+                </TouchableOpacity>
             </View>
         </View>
       </Modal>
@@ -420,7 +480,20 @@ export default function TelaProdutos() {
               </View>
               <ScrollView style={{flex:1, paddingHorizontal: 15}}>
                   {historicoVendas.map((venda) => (
-                      <TouchableOpacity key={venda.id} style={[styles.itemHistorico, venda.status === 'SANGRIA' && {borderLeftWidth:4, borderLeftColor:'#E74C3C'}]} onPress={() => { if(venda.status !== 'SANGRIA') { setPedidoSelecionado(venda); setModalDetalheVenda(true); } }}>
+                      <TouchableOpacity key={venda.id} style={[styles.itemHistorico, venda.status === 'SANGRIA' && {borderLeftWidth:4, borderLeftColor:'#E74C3C'}]} 
+                        onPress={() => { 
+                            setPedidoSelecionado(venda);
+                            if(venda.status === 'SANGRIA') { 
+                                // Abre o modal de Sangria no modo Edição
+                                setValorSangria(Math.abs(venda.total).toFixed(2).replace('.', ','));
+                                setMotivoSangria(venda.nome_cliente || '');
+                                setModalSangria(true);
+                            } else {
+                                // Abre o modal normal de vendas
+                                setModalDetalheVenda(true); 
+                            } 
+                        }}
+                      >
                           <View style={{flex:1}}>
                               <Text style={{fontWeight:'bold', fontSize:16, color: venda.status === 'SANGRIA' ? '#E74C3C' : '#333'}}>{venda.nome_cliente || t('estoque.balcao')}</Text>
                               <Text style={{fontSize:11, color:'#555', marginTop:2}} numberOfLines={1}>{venda.status === 'SANGRIA' ? 'Retirada de Caixa' : formatarResumoItens(venda.itens)}</Text>

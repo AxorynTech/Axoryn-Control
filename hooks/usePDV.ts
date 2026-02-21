@@ -197,6 +197,27 @@ export function usePDV() {
     }
   };
 
+  // --- NOVA FUNÇÃO: EDITAR SANGRIA ---
+  const editarSangria = async (id: number, novoValor: number, novoMotivo: string) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.from('pedidos').update({
+        nome_cliente: novoMotivo || 'SANGRIA / RETIRADA',
+        total: -Math.abs(novoValor), 
+      }).eq('id', id);
+
+      if (error) throw error;
+      carregarDados();
+      return true;
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Erro', 'Falha ao editar sangria.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const cancelarPedido = async (pedido: Pedido) => {
     try {
       setLoading(true);
@@ -258,6 +279,7 @@ export function usePDV() {
     atualizarStatusComanda,
     receberComanda,
     cancelarPedido,
-    realizarSangria 
+    realizarSangria,
+    editarSangria // <--- EXPORTADA AQUI
   };
 }

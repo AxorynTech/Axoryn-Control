@@ -72,10 +72,25 @@ export function useProdutos() {
     try {
       setLoading(true);
       const { error } = await supabase.from('produtos').delete().eq('id', id);
-      if (error) throw error;
+      
+      if (error) {
+        console.log("Erro Supabase Delete:", error);
+        throw error; // Lança o erro para cair no catch abaixo
+      }
+      
       setProdutos(prev => prev.filter(p => p.id !== id));
-    } catch (error) {
-      Alert.alert('Erro', 'Não foi possível excluir.');
+    } catch (error: any) {
+      console.log("Detalhes do erro:", error);
+      
+      // Código 23503 no PostgreSQL significa "Violação de Chave Estrangeira"
+      if (error?.code === '23503') {
+         Alert.alert(
+           'Ação Bloqueada', 
+           'Este produto não pode ser excluído porque já está vinculado a vendas ou comandas no histórico. Se não for mais vender, apenas zere o estoque.'
+         );
+      } else {
+         Alert.alert('Erro', `Não foi possível excluir: ${error?.message || 'Erro desconhecido'}`);
+      }
     } finally {
       setLoading(false);
     }
