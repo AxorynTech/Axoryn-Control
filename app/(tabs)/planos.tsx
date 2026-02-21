@@ -65,9 +65,11 @@ export default function PlanosScreen() {
     try {
       // 1. Identifica se é Recarga ou Assinatura pelo ID exato
       const idProduto = pkg.product.identifier.toLowerCase();
-      const ehRecarga = idProduto.includes('radar_creditos') || idProduto.includes('credito');
+      
+      // ✅ ATUALIZADO: Agora aceita 'consulta' para o iOS também
+      const ehRecarga = idProduto.includes('radar_creditos') || idProduto.includes('credito') || idProduto.includes('consulta');
 
-      // 2. Processa Pagamento na Loja (Google Play)
+      // 2. Processa Pagamento na Loja (Google Play / App Store)
       const { customerInfo } = await Purchases.purchasePackage(pkg);
 
       // 3. SE SUCESSO: Decide o que entregar
@@ -75,7 +77,7 @@ export default function PlanosScreen() {
          // --- LÓGICA DE RECARGA (CONSUMÍVEL) ---
          let qtdParaAdicionar = 0;
          
-         if (idProduto === 'radar_creditos_10') {
+         if (idProduto === 'radar_creditos_10' || idProduto.includes('10')) {
             qtdParaAdicionar = 10;
          } else if (idProduto.includes('20')) {
             qtdParaAdicionar = 20;
@@ -141,9 +143,9 @@ export default function PlanosScreen() {
 
   const infoStatus = obterInfoStatus();
 
-  // Filtros de Grupos
-  const assinaturas = pacotes.filter(p => p.product.identifier.toLowerCase().includes('axoryn_premium'));
-  const recargas = pacotes.filter(p => p.product.identifier.toLowerCase().includes('radar_creditos') || p.product.identifier.toLowerCase().includes('credito'));
+  // ✅ ATUALIZADO: Filtros de Grupos compatíveis com Google e Apple
+  const assinaturas = pacotes.filter(p => p.product.identifier.toLowerCase().includes('premium'));
+  const recargas = pacotes.filter(p => p.product.identifier.toLowerCase().includes('radar_creditos') || p.product.identifier.toLowerCase().includes('credito') || p.product.identifier.toLowerCase().includes('consulta'));
 
   const RenderPacote = ({ pkg, ehRecarga }: { pkg: PurchasesPackage, ehRecarga?: boolean }) => (
     <TouchableOpacity 

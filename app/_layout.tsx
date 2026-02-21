@@ -7,9 +7,10 @@ import Purchases, { CustomerInfo, LOG_LEVEL } from 'react-native-purchases';
 import '../i18n';
 import { supabase } from '../services/supabase';
 
-// ✅ SUA CHAVE DO REVENUECAT
+// ✅ SUAS CHAVES DO REVENUECAT
 const API_KEY_GOOGLE = 'goog_eIEPHdCOVMCoYvxMxJwuJqtzqqw'; 
-const ENTITLEMENT_ID = 'pro'; 
+const API_KEY_APPLE = 'appl_nXmhhjSlmnwXMisBlWPYfiyakAI'; // ⬅️ COLE A SUA CHAVE PÚBLICA DA APPLE AQUI
+const ENTITLEMENT_ID = 'premium'; // ✅ Ajustado de 'pro' para 'premium' para bater com os outros arquivos
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -40,6 +41,10 @@ export default function RootLayout() {
             lightColor: '#FF231F7C',
           });
         } 
+        // 👇 CONFIGURAÇÃO DO IOS ADICIONADA AQUI 👇
+        else if (Platform.OS === 'ios') {
+          await Purchases.configure({ apiKey: API_KEY_APPLE });
+        }
         
         // 2. Verificar Assinatura (AWAIT é crucial aqui)
         try {
