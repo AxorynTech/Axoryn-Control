@@ -15,11 +15,21 @@ export default function TabLayout() {
       tabBarActiveTintColor: '#2C3E50', // Azul Escuro
       tabBarInactiveTintColor: '#999999', // Cinza
       tabBarStyle: { 
-        // Mantida sua lógica de correção de altura e área segura
+        // --- SUA LÓGICA ORIGINAL (MOBILE) MANTIDA INTACTA ---
         height: 60 + (Platform.OS === 'ios' ? insets.bottom : insets.bottom + 10), 
         paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 0 : 10), 
         paddingTop: 10,
-        backgroundColor: '#FFF' 
+        backgroundColor: '#FFF',
+
+        // --- ✅ AJUSTE APENAS PARA O PC (WEB) ---
+        // Isso impede que o menu estique na tela inteira do computador
+        ...(Platform.OS === 'web' ? {
+            alignSelf: 'center',   // Centraliza o menu
+            width: '100%',         // Ocupa a largura disponível...
+            maxWidth: 600,         // ...mas trava em 600px (tamanho de celular/tablet)
+            borderTopWidth: 1,     // Garante a borda visível no PC
+            borderColor: '#EEE'
+        } : {})
       },
       tabBarLabelStyle: {
         marginBottom: 5,
@@ -37,7 +47,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 2. RESUMO (Agora em segundo) */}
+      {/* 2. RESUMO (Agora em segundo lugar) */}
       <Tabs.Screen
         name="resumo"
         options={{
@@ -47,7 +57,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 3. PRODUTOS / ESTOQUE (Agora em terceiro, após Resumo) */}
+      {/* 3. PRODUTOS / MEU COMÉRCIO (Agora em terceiro lugar) */}
       <Tabs.Screen
         name="produtos"
         options={{

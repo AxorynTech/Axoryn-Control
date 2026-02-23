@@ -1,6 +1,6 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { ItemPedido, Pedido } from '../types';
 
 export const gerarRelatorioPDF = async (
@@ -8,15 +8,15 @@ export const gerarRelatorioPDF = async (
   dataInicio: Date, 
   dataFim: Date,
   totalPeriodo: number,
-  t: any, // Função de tradução passada pelo componente
-  idioma: string = 'pt-BR' // Idioma atual para formatar datas
+  t: any, 
+  idioma: string = 'pt-BR'
 ) => {
-  // 1. Formatar Datas conforme o local
+  // 1. Formatar Datas
   const inicioFmt = dataInicio.toLocaleDateString(idioma);
   const fimFmt = dataFim.toLocaleDateString(idioma);
   const agoraFmt = new Date().toLocaleString(idioma);
 
-  // 2. Criar linhas da tabela (HTML Dinâmico)
+  // 2. Criar linhas da tabela
   const linhasTabela = pedidos.map(p => `
     <tr>
       <td>${new Date(p.criado_em).toLocaleDateString(idioma)} ${new Date(p.criado_em).toLocaleTimeString(idioma, {hour: '2-digit', minute:'2-digit'})}</td>
@@ -55,6 +55,11 @@ export const gerarRelatorioPDF = async (
         tr:nth-child(even) { background-color: #f9f9f9; }
         
         .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+        
+        /* Ocultar elementos desnecessários na impressão */
+        @media print {
+            .no-print { display: none; }
+        }
       </style>
     </head>
     <body>
@@ -96,12 +101,45 @@ export const gerarRelatorioPDF = async (
 
   try {
     if (Platform.OS === 'web') {
-      await Print.printAsync({ html });
+      // ✅ SOLUÇÃO ROBUSTA PARA WEB: Iframe invisível
+      const iframe = document.createElement('iframe');
+      
+      // Estilização para esconder o iframe
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      
+      document.body.appendChild(iframe);
+      
+      const doc = iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(html);
+        doc.close();
+        
+        // Foca e imprime
+        iframe.contentWindow?.focus();
+        
+        // Pequeno delay para garantir que o conteúdo carregou antes de imprimir
+        setTimeout(() => {
+            iframe.contentWindow?.print();
+            
+            // Remove o iframe do DOM após a impressão iniciar
+            setTimeout(() => {
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+            }, 1000);
+        }, 500);
+      }
     } else {
+      // ✅ SOLUÇÃO NATIVA (iOS e Android)
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
     }
   } catch (error) {
     console.error("Erro ao gerar PDF:", error);
+    Alert.alert(t('common.erro'), t('relatorio.erroPDF'));
   }
 };
