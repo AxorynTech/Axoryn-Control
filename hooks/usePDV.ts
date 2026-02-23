@@ -17,7 +17,6 @@ export function usePDV() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Buscar Comandas Abertas
       const { data: abertos, error: errAbertos } = await supabase
         .from('pedidos')
         .select('*, itens:itens_pedido(*, produto:produtos(*))') 
@@ -28,12 +27,12 @@ export function usePDV() {
       if (errAbertos) console.log("Erro comandas:", errAbertos);
       setComandasAbertas(abertos || []);
 
-      // 2. Buscar Histórico (PAGO e SANGRIA)
+      // ✅ Atualizado: Agora busca também o CAIXA_INICIAL para somar ao saldo
       const { data: historico, error: errPagos } = await supabase
         .from('pedidos')
         .select('*, itens:itens_pedido(*, produto:produtos(nome))')
         .eq('user_id', user.id)
-        .in('status', ['PAGO', 'SANGRIA']) 
+        .in('status', ['PAGO', 'SANGRIA', 'CAIXA_INICIAL']) 
         .order('criado_em', { ascending: false })
         .limit(50);
 
@@ -41,15 +40,9 @@ export function usePDV() {
 
       if (historico) {
         setHistoricoVendas(historico);
-        
-        // CORREÇÃO AQUI: Soma tudo (PAGO e SANGRIA)
-        // Como sangria é salva negativa (-50), ela desconta do total.
-        const total = historico
-            .reduce((acc, item) => acc + (item.total || 0), 0);
-            
+        const total = historico.reduce((acc, item) => acc + (item.total || 0), 0);
         setReceitaTotal(total);
       }
-
     } catch (error) {
       console.log("Erro ao carregar PDV", error);
     } finally {
@@ -57,15 +50,11 @@ export function usePDV() {
     }
   }, []);
 
-  // Adicionar item ao carrinho
   const adicionarAoCarrinho = (produto: Produto) => {
     setCarrinho(prev => {
       const existente = prev.find(i => i.produto_id === produto.id);
       
       const qtdAtual = existente ? existente.quantidade : 0;
-      if (qtdAtual + 1 > produto.estoque) {
-        Alert.alert("Estoque Baixo", `Só restam ${produto.estoque} unidades.`);
-      }
 
       if (existente) {
         return prev.map(i => i.produto_id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i);
@@ -85,7 +74,6 @@ export function usePDV() {
     setCarrinho(prev => prev.filter(i => i.produto_id !== produtoId));
   };
 
-  // Criar Pedido
   const criarPedido = async (nomeCliente: string, statusInicial: 'ABERTO' | 'PAGO', formaPagamento?: string) => {
     if (carrinho.length === 0) return Alert.alert('Vazio', 'Adicione itens ao carrinho.');
     
@@ -96,7 +84,6 @@ export function usePDV() {
 
       const total = carrinho.reduce((acc, item) => acc + (item.quantidade * item.preco_unitario), 0);
 
-      // 1. Criar Pedido
       const { data: pedido, error } = await supabase
         .from('pedidos')
         .insert({
@@ -111,7 +98,6 @@ export function usePDV() {
 
       if (error) throw error;
 
-      // 2. Inserir Itens
       const itensParaSalvar = carrinho.map(item => ({
         pedido_id: pedido.id,
         produto_id: item.produto_id,
@@ -122,7 +108,6 @@ export function usePDV() {
       const { error: erroItens } = await supabase.from('itens_pedido').insert(itensParaSalvar);
       if (erroItens) throw erroItens;
 
-      // 3. Baixar Estoque
       for (const item of carrinho) {
         const novoEstoque = (item.produto?.estoque || 0) - item.quantidade;
         await supabase.from('produtos').update({ estoque: novoEstoque }).eq('id', item.produto_id);
@@ -132,10 +117,76 @@ export function usePDV() {
       setCarrinho([]);
       carregarDados();
       return true;
-
     } catch (error) {
       console.log(error);
       Alert.alert('Erro', 'Falha ao processar pedido.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const adicionarItensComanda = async (pedidoId: number) => {
+    if (carrinho.length === 0) return false;
+    try {
+      setLoading(true);
+      
+      const itensParaSalvar = carrinho.map(item => ({
+        pedido_id: pedidoId,
+        produto_id: item.produto_id,
+        quantidade: item.quantidade,
+        preco_unitario: item.preco_unitario
+      }));
+
+      const { error: erroItens } = await supabase.from('itens_pedido').insert(itensParaSalvar);
+      if (erroItens) throw erroItens;
+
+      let valorAdicional = 0;
+      for (const item of carrinho) {
+        const novoEstoque = (item.produto?.estoque || 0) - item.quantidade;
+        await supabase.from('produtos').update({ estoque: novoEstoque }).eq('id', item.produto_id);
+        valorAdicional += (item.quantidade * item.preco_unitario);
+      }
+
+      const { data: pedidoAtual } = await supabase.from('pedidos').select('total').eq('id', pedidoId).single();
+      if (pedidoAtual) {
+        await supabase.from('pedidos').update({ total: pedidoAtual.total + valorAdicional }).eq('id', pedidoId);
+      }
+
+      Alert.alert('Sucesso', 'Novos itens salvos na comanda!');
+      setCarrinho([]);
+      carregarDados();
+      return true;
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Erro', 'Falha ao adicionar itens à comanda.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removerItemComanda = async (pedido: Pedido, itemParaRemover: any) => {
+    try {
+      setLoading(true);
+      const { data: prodAtual } = await supabase.from('produtos').select('estoque').eq('id', itemParaRemover.produto_id).single();
+      if (prodAtual) {
+          await supabase.from('produtos').update({ estoque: prodAtual.estoque + itemParaRemover.quantidade }).eq('id', itemParaRemover.produto_id);
+      }
+
+      const { error: errDel } = await supabase.from('itens_pedido').delete().eq('id', itemParaRemover.id);
+      if (errDel) throw errDel;
+
+      const novoTotal = pedido.total - (itemParaRemover.preco_unitario * itemParaRemover.quantidade);
+      const { error: errUpd } = await supabase.from('pedidos').update({ total: novoTotal }).eq('id', pedido.id);
+      if (errUpd) throw errUpd;
+
+      Alert.alert('Sucesso', 'Item removido da comanda.');
+      carregarDados();
+      return true;
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Erro', 'Não foi possível remover o item.');
       return false;
     } finally {
       setLoading(false);
@@ -169,7 +220,6 @@ export function usePDV() {
     }
   };
 
-  // --- NOVA FUNÇÃO: SANGRIA ---
   const realizarSangria = async (valor: number, motivo: string) => {
     try {
       setLoading(true);
@@ -178,15 +228,14 @@ export function usePDV() {
 
       const { error } = await supabase.from('pedidos').insert({
         user_id: user.id,
-        nome_cliente: motivo || 'SANGRIA / RETIRADA', // Usa o nome do cliente como motivo
+        nome_cliente: motivo || 'SANGRIA / RETIRADA', 
         status: 'SANGRIA',
-        total: -Math.abs(valor), // GARANTE QUE É NEGATIVO
+        total: -Math.abs(valor),
         forma_pagamento: 'DINHEIRO'
       });
 
       if (error) throw error;
-      
-      carregarDados(); // Recarrega para atualizar o saldo na tela
+      carregarDados(); 
       return true;
     } catch (error) {
       console.log(error);
@@ -197,7 +246,6 @@ export function usePDV() {
     }
   };
 
-  // --- NOVA FUNÇÃO: EDITAR SANGRIA ---
   const editarSangria = async (id: number, novoValor: number, novoMotivo: string) => {
     try {
       setLoading(true);
@@ -218,12 +266,39 @@ export function usePDV() {
     }
   };
 
+  // ✅ NOVA FUNÇÃO: Caixa Inicial (Fundo de Troco)
+  const registrarCaixaInicial = async (valor: number) => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { error } = await supabase.from('pedidos').insert({
+        user_id: user.id,
+        nome_cliente: 'CAIXA INICIAL / TROCO', 
+        status: 'CAIXA_INICIAL',
+        total: Math.abs(valor), // Adiciona positivo ao caixa
+        forma_pagamento: 'DINHEIRO'
+      });
+
+      if (error) throw error;
+      carregarDados(); 
+      return true;
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Erro', 'Falha ao registrar caixa inicial.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const cancelarPedido = async (pedido: Pedido) => {
     try {
       setLoading(true);
       
-      // 1. Devolver Itens ao Estoque (Apenas se não for Sangria)
-      if (pedido.status !== 'SANGRIA') {
+      // ✅ Atualizado: Ignora estorno de stock se for Sangria ou Caixa Inicial
+      if (pedido.status !== 'SANGRIA' && pedido.status !== 'CAIXA_INICIAL') {
           if (pedido.itens && pedido.itens.length > 0) {
             for (const item of pedido.itens) {
                const { data: prodAtual } = await supabase.from('produtos').select('estoque').eq('id', item.produto_id).single();
@@ -233,7 +308,6 @@ export function usePDV() {
                }
             }
           } else {
-            // Fallback para itens não carregados na memória
             const { data: itensDoBanco } = await supabase.from('itens_pedido').select('*').eq('pedido_id', pedido.id);
             if (itensDoBanco) {
                 for (const item of itensDoBanco) {
@@ -247,11 +321,10 @@ export function usePDV() {
           }
       }
 
-      // 2. Apagar Pedido
       const { error } = await supabase.from('pedidos').delete().eq('id', pedido.id);
       if (error) throw error;
 
-      Alert.alert('Cancelado', 'Registro excluído.');
+      Alert.alert('Cancelado', 'Registro excluído com sucesso.');
       carregarDados();
       return true;
     } catch (error) {
@@ -276,10 +349,13 @@ export function usePDV() {
     adicionarAoCarrinho, 
     removerDoCarrinho, 
     criarPedido,
+    adicionarItensComanda, 
+    removerItemComanda, 
     atualizarStatusComanda,
     receberComanda,
     cancelarPedido,
     realizarSangria,
-    editarSangria // <--- EXPORTADA AQUI
+    editarSangria,
+    registrarCaixaInicial // <--- EXPORTADO AQUI
   };
 }

@@ -19,29 +19,25 @@ import {
 } from 'react-native';
 
 // IMPORTS PROPRIOS
+import { useAssinatura } from '../../hooks/useAssinatura';
 import { usePDV } from '../../hooks/usePDV';
 import { useProdutos } from '../../hooks/useProdutos';
 import { ItemPedido, Pedido, Produto } from '../../types';
 import { gerarRelatorioPDF } from '../../utils/gerarRelatorio';
 
-// ✅ IMPORT DO HOOK DE SEGURANÇA
-import { useAssinatura } from '../../hooks/useAssinatura';
-
 export default function TelaProdutos() {
   const { t } = useTranslation();
-  const router = useRouter(); // <-- Adicionado para o router não dar erro se for usado depois
+  const router = useRouter(); 
   
-  // ============================================================
-  // 1. TODOS OS HOOKS AGRUPADOS AQUI (NUNCA MOVER DAQUI)
-  // ============================================================
   const { isPremium, loading: loadingAssinatura, refresh } = useAssinatura();
   
   const { produtos, loading: loadingEstoque, salvarProduto, excluirProduto, listarProdutos } = useProdutos();
   const { 
     carrinho, totalCarrinho, receitaTotal, comandasAbertas, historicoVendas,
     carregarDados, adicionarAoCarrinho, removerDoCarrinho, criarPedido,
+    adicionarItensComanda, removerItemComanda, 
     atualizarStatusComanda, receberComanda, cancelarPedido, realizarSangria,
-    editarSangria, // <-- NOVA FUNÇÃO PUXADA AQUI
+    editarSangria, registrarCaixaInicial,
     loading: loadingPDV 
   } = usePDV();
 
@@ -51,6 +47,13 @@ export default function TelaProdutos() {
   const [nomeCliente, setNomeCliente] = useState('');
   const [modalPagamento, setModalPagamento] = useState(false); 
   const [pedidoSelecionado, setPedidoSelecionado] = useState<Pedido | null>(null);
+  const [comandaEmEdicao, setComandaEmEdicao] = useState<Pedido | null>(null);
+
+  const [valorRecebido, setValorRecebido] = useState('');
+  const [pagamentoDinheiro, setPagamentoDinheiro] = useState(false); 
+  const [modalCaixaInicial, setModalCaixaInicial] = useState(false);
+  const [valorCaixaInicial, setValorCaixaInicial] = useState('');
+
   const [modalSangria, setModalSangria] = useState(false);
   const [valorSangria, setValorSangria] = useState('');
   const [motivoSangria, setMotivoSangria] = useState('');
@@ -63,13 +66,9 @@ export default function TelaProdutos() {
   const [dataFim, setDataFim] = useState(new Date());
   const [showPicker, setShowPicker] = useState<'inicio' | 'fim' | null>(null);
 
-  // Efeito executado sempre que a tela é aberta
   useFocusEffect(
     useCallback(() => {
-      // 1. Pede para o RevenueCat checar se está pago
       refresh();
-      
-      // 2. Se estiver pago, carrega o banco de dados
       if (isPremium) {
         if (modo === 'pdv') carregarDados();
         listarProdutos();
@@ -77,39 +76,56 @@ export default function TelaProdutos() {
     }, [isPremium, modo])
   );
 
-  // ✅ NOVO CÓDIGO: Redireciona para Planos se carregar e não for Premium
   useEffect(() => {
     if (!loadingAssinatura && !isPremium) {
-      // Usa o router que já estava instanciado no topo do seu componente
       router.replace('/planos'); 
     }
   }, [loadingAssinatura, isPremium]);
-
-  // ============================================================
-  // 2. FUNÇÕES AUXILIARES (LÓGICA)
-  // ============================================================
 
   const formatarResumoItens = (itens?: ItemPedido[]) => {
       if (!itens || itens.length === 0) return '';
       return itens.map(i => `${i.quantidade}x ${i.produto?.nome}`).join(', ');
   };
 
+  const vendasDeHoje = historicoVendas.filter(v => {
+      const dataVenda = new Date(v.criado_em).toLocaleDateString();
+      const hoje = new Date().toLocaleDateString();
+      return dataVenda === hoje;
+  });
+
+  const traduzirFormaPagamento = (forma: string) => {
+      if (forma === 'DINHEIRO') return t('estoque.dinheiro');
+      if (forma === 'PIX') return t('estoque.pix');
+      if (forma === 'CREDITO') return t('estoque.credito');
+      if (forma === 'DEBITO') return t('estoque.debito');
+      return forma;
+  };
+
+  const handleCaixaInicial = async () => {
+    const valor = parseFloat(valorCaixaInicial.replace(',', '.'));
+    if (!valor || valor <= 0) return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
+    
+    const sucesso = await registrarCaixaInicial(valor);
+    if (sucesso) {
+        Alert.alert(t('estoque.sucesso'), t('estoque.caixaInicialSucesso'));
+        setModalCaixaInicial(false);
+        setValorCaixaInicial('');
+    }
+  };
+
   const handleSangria = async () => {
     const valor = parseFloat(valorSangria.replace(',', '.'));
-    if (!valor || valor <= 0) return Alert.alert(t('estoque.atencao'), 'Valor inválido');
+    if (!valor || valor <= 0) return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
     
     let sucesso = false;
-    
-    // Se tem um pedido selecionado e ele é SANGRIA, estamos no modo Edição
     if (pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA') {
         sucesso = await editarSangria(pedidoSelecionado.id, valor, motivoSangria);
     } else {
-        // Senão, é uma nova Sangria
         sucesso = await realizarSangria(valor, motivoSangria);
     }
 
     if (sucesso) {
-        Alert.alert(t('estoque.sucesso'), 'Operação registrada com sucesso!');
+        Alert.alert(t('estoque.sucesso'), t('estoque.msgSangriaSucesso'));
         setModalSangria(false);
         setValorSangria('');
         setMotivoSangria('');
@@ -119,12 +135,12 @@ export default function TelaProdutos() {
 
   const handleExcluirSangria = () => {
     Alert.alert(
-        'Excluir Sangria',
-        'Tem certeza que deseja apagar este registro de saída do caixa?',
+        t('estoque.sangria'),
+        t('estoque.msgCancelar'),
         [
-            { text: t('estoque.nao', { defaultValue: 'Cancelar' }), style: 'cancel' },
+            { text: t('common.cancelar'), style: 'cancel' },
             { 
-              text: t('estoque.simExcluir', { defaultValue: 'Sim, Excluir' }), 
+              text: t('estoque.simExcluir'), 
               style: 'destructive', 
               onPress: async () => {
                 if (pedidoSelecionado) {
@@ -143,16 +159,11 @@ export default function TelaProdutos() {
   const handleGerarPDF = async () => {
     const inicio = new Date(dataInicio); inicio.setHours(0,0,0,0);
     const fim = new Date(dataFim); fim.setHours(23,59,59,999);
-
     const vendasFiltradas = historicoVendas.filter(v => {
         const dataVenda = new Date(v.criado_em);
         return dataVenda >= inicio && dataVenda <= fim;
     });
-
-    if (vendasFiltradas.length === 0) {
-        return Alert.alert(t('estoque.atencao'), t('estoque.nenhumaVendaPeriodo'));
-    }
-
+    if (vendasFiltradas.length === 0) return Alert.alert(t('estoque.atencao'), t('estoque.nenhumaVendaPeriodo'));
     const totalFiltrado = vendasFiltradas.reduce((acc, v) => acc + v.total, 0);
     await gerarRelatorioPDF(vendasFiltradas, inicio, fim, totalFiltrado, t, i18n.language);
   };
@@ -177,35 +188,58 @@ export default function TelaProdutos() {
 
   const salvarProdutoComTexto = async () => {
     const precoNumerico = parseFloat(precoInput.replace(',', '.'));
-    if (isNaN(precoNumerico)) return Alert.alert(t('estoque.atencao'), 'Preço inválido');
+    if (isNaN(precoNumerico)) return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
     await salvarProduto({ ...produtoEmEdicao, preco: precoNumerico });
     setModalProduto(false);
     listarProdutos();
   };
 
-  // ✅ NOVA FUNÇÃO: Excluir Produto do Estoque
   const handleExcluirProduto = (produto: Produto) => {
     Alert.alert(
-      t('estoque.confirmarExclusaoTitulo', { defaultValue: 'Excluir Produto' }),
-      t('estoque.confirmarExclusaoMsg', { nome: produto.nome, defaultValue: `Tem certeza que deseja excluir "${produto.nome}"?` }),
+      t('estoque.confirmarExclusaoTitulo'),
+      t('estoque.confirmarExclusaoMsg'),
       [
-        { text: t('estoque.cancelar', { defaultValue: 'Cancelar' }), style: 'cancel' },
+        { text: t('common.cancelar'), style: 'cancel' },
         { 
-          text: t('estoque.simExcluir', { defaultValue: 'Sim, excluir' }), 
+          text: t('estoque.simExcluir'), 
           style: 'destructive', 
           onPress: async () => {
             await excluirProduto(produto.id);
-            listarProdutos(); // Atualiza a lista após excluir
+            listarProdutos(); 
           } 
         }
       ]
     );
   };
 
-  const handleBotaoCarrinho = () => {
+  const handleBotaoCarrinho = async () => {
     if (carrinho.length === 0) return;
-    setPedidoSelecionado(null); 
-    setModalPagamento(true);
+    
+    if (comandaEmEdicao) {
+        const sucesso = await adicionarItensComanda(comandaEmEdicao.id);
+        if (sucesso) {
+            setComandaEmEdicao(null);
+            setAbaPDV('comandas');
+        }
+    } else {
+        setPedidoSelecionado(null); 
+        setPagamentoDinheiro(false);
+        setValorRecebido('');
+        setModalPagamento(true);
+    }
+  };
+
+  const handleRemoverItemDaComanda = (pedido: Pedido, item: any) => {
+      Alert.alert(t('estoque.removerItem'), t('estoque.confirmarRemocaoMsg', { nome: item.produto?.nome }), [
+          { text: t('common.cancelar'), style: 'cancel' },
+          { text: t('estoque.simRemover'), style: 'destructive', onPress: async () => {
+              const sucesso = await removerItemComanda(pedido, item);
+              if (sucesso) {
+                  setModalPagamento(false);
+                  setPedidoSelecionado(null);
+              }
+          }}
+      ]);
   };
 
   const processarAcao = async (tipo: 'DINHEIRO' | 'PIX' | 'CREDITO' | 'DEBITO' | 'COMANDA') => {
@@ -224,6 +258,8 @@ export default function TelaProdutos() {
     if (sucesso) {
         setModalPagamento(false);
         setNomeCliente('');
+        setValorRecebido('');
+        setPagamentoDinheiro(false);
         setPedidoSelecionado(null);
         if (tipo === 'COMANDA') setAbaPDV('comandas');
     }
@@ -234,7 +270,7 @@ export default function TelaProdutos() {
         t('estoque.cancelarPedido'),
         t('estoque.msgCancelar'),
         [
-            { text: t('estoque.nao'), style: 'cancel' },
+            { text: t('common.cancelar'), style: 'cancel' },
             { text: t('estoque.simExcluir'), style: 'destructive', onPress: async () => { await cancelarPedido(pedido); setModalPagamento(false); setModalDetalheVenda(false); } }
         ]
     );
@@ -242,6 +278,8 @@ export default function TelaProdutos() {
 
   const handleClickComanda = (pedido: Pedido) => {
       setPedidoSelecionado(pedido);
+      setValorRecebido('');
+      setPagamentoDinheiro(false);
       setModalPagamento(true);
   };
 
@@ -251,7 +289,10 @@ export default function TelaProdutos() {
       setModalDetalheVenda(true);
   };
 
-  // --- RENDERIZADORES DE ITENS ---
+  const totalAtualParaPagamento = pedidoSelecionado ? pedidoSelecionado.total : totalCarrinho;
+  const valorRecebidoNumero = parseFloat(valorRecebido.replace(',', '.')) || 0;
+  const valorDoTroco = valorRecebidoNumero > totalAtualParaPagamento ? (valorRecebidoNumero - totalAtualParaPagamento) : 0;
+
   const renderItemEstoque = ({ item }: { item: Produto }) => (
     <View style={styles.card}>
         <View style={{flex: 1}}>
@@ -259,7 +300,6 @@ export default function TelaProdutos() {
             <Text style={styles.preco}>{t('relatorioPdf.moeda')} {item.preco.toFixed(2).replace('.', ',')}</Text>
             <Text style={[styles.estoque, item.estoque <= 5 && {color:'#E74C3C'}]}>{t('estoque.estoqueLabel')}: {item.estoque}</Text>
         </View>
-        {/* ✅ BOTÕES DE AÇÃO: LÁPIS E LIXEIRA */}
         <View style={{flexDirection: 'row', gap: 15, alignItems: 'center'}}>
             <TouchableOpacity onPress={() => abrirModalProduto(item)}>
                  <Ionicons name="pencil" size={24} color="#2980B9" />
@@ -272,9 +312,18 @@ export default function TelaProdutos() {
   );
 
   const renderItemPDV = ({ item }: { item: Produto }) => (
-    <TouchableOpacity style={[styles.cardPDV, item.estoque <= 0 && {opacity: 0.5}]} onPress={() => item.estoque > 0 ? adicionarAoCarrinho(item) : null}>
-        <Text numberOfLines={2} style={styles.nomePDV}>{item.nome}</Text>
-        <Text style={styles.precoPDV}>{t('relatorioPdf.moeda')} {item.preco.toFixed(2).replace('.', ',')}</Text>
+    <TouchableOpacity 
+      style={[styles.card, {marginBottom: 8}, item.estoque <= 0 && {backgroundColor: '#F9EBEA'}]} 
+      onPress={() => adicionarAoCarrinho(item)}
+    >
+        <View style={{flex: 1}}>
+            <Text style={styles.nome}>{item.nome}</Text>
+            <Text style={styles.preco}>{t('relatorioPdf.moeda')} {item.preco.toFixed(2).replace('.', ',')}</Text>
+            <Text style={[styles.estoque, item.estoque <= 0 ? {color:'#E74C3C'} : {color:'#7F8C8D'}]}>{t('estoque.estoqueLabel')}: {item.estoque}</Text>
+        </View>
+        <View style={{justifyContent: 'center', paddingRight: 5}}>
+            <Ionicons name="add-circle" size={36} color="#27AE60" />
+        </View>
     </TouchableOpacity>
   );
 
@@ -294,10 +343,6 @@ export default function TelaProdutos() {
 
   const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(filtro.toLowerCase()));
 
-  // ============================================================
-  // 3. BLOQUEIO DA TELA (Renderiza apenas o Loading se não liberar)
-  // O redirecionamento real agora é feito pelo _layout.tsx
-  // ============================================================
   if (loadingAssinatura || !isPremium) {
     return (
       <View style={styles.loadingContainer}>
@@ -306,19 +351,14 @@ export default function TelaProdutos() {
     );
   }
 
-  // ============================================================
-  // 4. INTERFACE PRINCIPAL (SÓ APARECE SE FOR PRO E CARREGADO)
-  // ============================================================
   return (
     <View style={styles.container}>
       
-      {/* HEADER DE MODO */}
       <View style={styles.headerModo}>
           <TouchableOpacity style={[styles.tabModo, modo === 'estoque' && styles.tabAtiva]} onPress={() => setModo('estoque')}><Text style={[styles.txtModo, modo === 'estoque' && {color:'#2C3E50'}]}>{t('estoque.abaEstoque')}</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.tabModo, modo === 'pdv' && styles.tabAtiva]} onPress={() => setModo('pdv')}><Text style={[styles.txtModo, modo === 'pdv' && {color:'#2C3E50'}]}>{t('estoque.abaPdv')}</Text></TouchableOpacity>
       </View>
 
-      {/* --- MODO PDV --- */}
       {modo === 'pdv' && (
         <View style={{flex: 1}}>
             <View style={styles.painelReceita}>
@@ -326,7 +366,11 @@ export default function TelaProdutos() {
                     <Text style={{fontSize:12, color:'#FFF', opacity:0.8}}>{t('estoque.totalVendasHoje')}</Text>
                     <Text style={{fontSize:24, color:'#FFF', fontWeight:'bold'}}>{t('relatorioPdf.moeda')} {receitaTotal.toFixed(2).replace('.', ',')}</Text>
                 </TouchableOpacity>
-                <View style={{flexDirection:'row', gap: 15}}>
+                <View style={{flexDirection:'row', gap: 12}}>
+                    <TouchableOpacity onPress={() => setModalCaixaInicial(true)} style={{alignItems:'center'}}>
+                        <View style={{backgroundColor:'#2980B9', padding:8, borderRadius:20}}><Ionicons name="wallet" size={20} color="#FFF" /></View>
+                        <Text style={{color:'#FFF', fontSize:8, marginTop:2}}>{t('estoque.fundoTrocoMini')}</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => { setPedidoSelecionado(null); setValorSangria(''); setMotivoSangria(''); setModalSangria(true); }} style={{alignItems:'center'}}><View style={{backgroundColor:'#E74C3C', padding:8, borderRadius:20}}><Ionicons name="arrow-down" size={20} color="#FFF" /></View><Text style={{color:'#FFF', fontSize:8, marginTop:2}}>{t('estoque.sangria')}</Text></TouchableOpacity>
                     <TouchableOpacity onPress={() => setModalRelatorio(true)} style={{alignItems:'center'}}><View style={{backgroundColor:'rgba(255,255,255,0.2)', padding:8, borderRadius:20}}><Ionicons name="document-text" size={20} color="#FFF" /></View><Text style={{color:'#FFF', fontSize:8, marginTop:2}}>{t('estoque.relatorios')}</Text></TouchableOpacity>
                 </View>
@@ -338,24 +382,78 @@ export default function TelaProdutos() {
             </View>
 
             {abaPDV === 'nova' && (
-                <>
-                    <View style={styles.inputClienteArea}><Ionicons name="person" size={20} color="#777" /><TextInput placeholder={t('estoque.placeholderCliente')} style={{flex:1, marginLeft: 10}} value={nomeCliente} onChangeText={setNomeCliente} /></View>
-                    <View style={{flex: 1, backgroundColor: '#EAECEE', marginHorizontal: 10, borderRadius: 8}}>
-                        <FlatList data={produtosFiltrados} keyExtractor={item => item.id.toString()} renderItem={renderItemPDV} numColumns={3} contentContainerStyle={{padding: 5}} />
+                <ScrollView style={{flex: 1}}>
+                    {comandaEmEdicao && (
+                        <View style={{backgroundColor: '#F39C12', marginHorizontal: 10, marginBottom: 10, padding: 15, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                            <View>
+                                <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 16}}>{t('estoque.adicionandoComanda')}</Text>
+                                <Text style={{color: '#FFF', fontSize: 12}}>{t('estoque.clienteMesa')} {comandaEmEdicao.nome_cliente}</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setComandaEmEdicao(null)}>
+                                <Ionicons name="close-circle" size={28} color="#FFF" />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    <View style={styles.barraBusca}>
+                        <Ionicons name="search" size={20} color="#999" />
+                        <TextInput 
+                           placeholder={t('estoque.procurarProduto')} 
+                           style={{flex:1, marginLeft:10}} 
+                           value={filtro} 
+                           onChangeText={setFiltro} 
+                        />
                     </View>
+                    
+                    <Text style={styles.secaoTitulo}>{t('estoque.produtosDisponiveis')}</Text>
+                    
+                    <View style={{ paddingBottom: 10 }}>
+                        <FlatList 
+                          scrollEnabled={false}
+                          data={produtosFiltrados} 
+                          keyExtractor={item => item.id.toString()} 
+                          renderItem={renderItemPDV} 
+                        />
+                    </View>
+
                     <View style={styles.carrinhoArea}>
                         <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10}}><Text style={styles.tituloCarrinho}>{t('estoque.itens')} ({carrinho.length})</Text><Text style={{fontWeight:'bold', fontSize:16}}>{t('relatorioPdf.total')}: {t('relatorioPdf.moeda')} {totalCarrinho.toFixed(2).replace('.', ',')}</Text></View>
-                        <FlatList data={carrinho} keyExtractor={(item, index) => index.toString()} style={{maxHeight: 80, marginBottom: 10}} renderItem={({item}) => (<View style={styles.itemCarrinho}><Text style={{flex:1, fontSize:12}}>{item.produto?.nome} (x{item.quantidade})</Text><TouchableOpacity onPress={() => removerDoCarrinho(item.produto_id)}><Ionicons name="close-circle" size={18} color="#E74C3C" /></TouchableOpacity></View>)} />
-                        <TouchableOpacity style={[styles.btnFinalizar, totalCarrinho === 0 && {backgroundColor:'#CCC'}]} onPress={handleBotaoCarrinho} disabled={totalCarrinho === 0 || loadingPDV}><Text style={{color:'#FFF', fontWeight:'bold', textAlign:'center'}}>{t('estoque.concluirPedido')}</Text></TouchableOpacity>
+                        {carrinho.map((item, index) => (
+                           <View key={index} style={styles.itemCarrinho}><Text style={{flex:1, fontSize:12}}>{item.produto?.nome} (x{item.quantidade})</Text><TouchableOpacity onPress={() => removerDoCarrinho(item.produto_id)}><Ionicons name="close-circle" size={18} color="#E74C3C" /></TouchableOpacity></View>
+                        ))}
+                        <TouchableOpacity style={[styles.btnFinalizar, totalCarrinho === 0 && {backgroundColor:'#CCC'}]} onPress={handleBotaoCarrinho} disabled={totalCarrinho === 0 || loadingPDV}>
+                            <Text style={{color:'#FFF', fontWeight:'bold', textAlign:'center'}}>
+                                {comandaEmEdicao ? t('estoque.salvarNaComanda') : t('estoque.concluirPedido')}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
-                </>
+
+                    <View style={{padding: 10}}>
+                        <Text style={styles.secaoTitulo}>{t('estoque.resumoHoje')}</Text>
+                        {vendasDeHoje.length === 0 ? (
+                           <Text style={{textAlign:'center', color:'#999', marginVertical: 20}}>{t('estoque.nenhumaMovimentacaoHoje')}</Text>
+                        ) : (
+                           vendasDeHoje.map((venda) => (
+                              <TouchableOpacity key={venda.id} style={styles.itemResumoHoje} onPress={() => { handleClickHistorico(venda); }}>
+                                 <View style={{flex:1}}>
+                                    <Text style={{fontWeight:'bold', fontSize:14, color: venda.status === 'SANGRIA' ? '#E74C3C' : venda.status === 'CAIXA_INICIAL' ? '#2980B9' : '#333'}}>{venda.status === 'CAIXA_INICIAL' ? t('estoque.fundoTroco') : (venda.nome_cliente || t('estoque.cliente'))}</Text>
+                                    <Text style={{fontSize:10, color:'#777'}}>
+                                        {venda.status === 'SANGRIA' ? t('estoque.saidaCaixa') : venda.status === 'CAIXA_INICIAL' ? t('estoque.entradaCaixaTroco') : formatarResumoItens(venda.itens)}
+                                    </Text>
+                                 </View>
+                                 <Text style={{fontWeight:'bold', color: venda.total < 0 ? '#E74C3C' : '#27AE60'}}>{t('relatorioPdf.moeda')} {venda.total.toFixed(2).replace('.', ',')}</Text>
+                              </TouchableOpacity>
+                           ))
+                        )}
+                    </View>
+                    <View style={{height: 50}} />
+                </ScrollView>
             )}
 
             {abaPDV === 'comandas' && (<FlatList data={comandasAbertas} keyExtractor={item => item.id.toString()} renderItem={renderComanda} contentContainerStyle={{padding: 15}} ListEmptyComponent={<Text style={{textAlign:'center', marginTop:50, color:'#999'}}>{t('estoque.nenhumaComanda')}</Text>} />)}
         </View>
       )}
 
-      {/* --- MODO ESTOQUE --- */}
       {modo === 'estoque' && (
         <>
             <View style={styles.barraBusca}><Ionicons name="search" size={20} color="#999" /><TextInput placeholder={t('estoque.buscarProduto')} style={{flex:1, marginLeft:10}} value={filtro} onChangeText={setFiltro} /></View>
@@ -364,34 +462,32 @@ export default function TelaProdutos() {
         </>
       )}
 
-      {/* --- MODAIS --- */}
       <Modal visible={modalSangria} transparent animationType="fade">
         <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-                <Text style={[styles.modalTitulo, {color:'#E74C3C'}]}>
-                    {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? 'Editar Sangria' : t('estoque.sangria')}
-                </Text>
-                
+                <Text style={[styles.modalTitulo, {color:'#E74C3C'}]}>{pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? t('estoque.salvar') : t('estoque.sangria')}</Text>
                 <Text style={styles.label}>{t('estoque.valorSangria')}</Text>
-                <TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={valorSangria} onChangeText={setValorSangria} />
-                
+                <TextInput placeholder="0.00" keyboardType="numeric" style={styles.input} value={valorSangria} onChangeText={setValorSangria} />
                 <Text style={styles.label}>{t('estoque.motivoSangria')}</Text>
                 <TextInput placeholder="..." style={styles.input} value={motivoSangria} onChangeText={setMotivoSangria} />
-                
-                <TouchableOpacity onPress={handleSangria} style={[styles.btnGerarPDF, {backgroundColor:'#E74C3C', marginTop:10}]}>
-                    <Text style={{color:'#FFF', fontWeight:'bold'}}>
-                         {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? 'Salvar Alterações' : t('estoque.confirmarSangria')}
-                    </Text>
+                <TouchableOpacity onPress={handleSangria} style={[styles.btnGerarPDF, {backgroundColor:'#E74C3C', marginTop:10}]}><Text style={{color:'#FFF', fontWeight:'bold'}}>{pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? t('estoque.salvar') : t('estoque.confirmarSangria')}</Text></TouchableOpacity>
+                {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' && (<TouchableOpacity onPress={handleExcluirSangria} style={[styles.btnGerarPDF, {backgroundColor:'#333', marginTop:10}]}><Text style={{color:'#FFF', fontWeight:'bold'}}>{t('estoque.simExcluir')}</Text></TouchableOpacity>)}
+                <TouchableOpacity onPress={() => { setModalSangria(false); setPedidoSelecionado(null); }} style={{padding:15, alignItems:'center'}}><Text style={{color:'#777'}}>{t('common.cancelar')}</Text></TouchableOpacity>
+            </View>
+        </View>
+      </Modal>
+
+      <Modal visible={modalCaixaInicial} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+                <Text style={[styles.modalTitulo, {color:'#2980B9'}]}>{t('estoque.fundoTroco')}</Text>
+                <Text style={styles.label}>{t('estoque.valorTroco')} ({t('relatorioPdf.moeda')})</Text>
+                <TextInput placeholder="0.00" keyboardType="numeric" style={styles.input} value={valorCaixaInicial} onChangeText={setValorCaixaInicial} />
+                <TouchableOpacity onPress={handleCaixaInicial} style={[styles.btnGerarPDF, {backgroundColor:'#2980B9', marginTop:10}]}>
+                    <Text style={{color:'#FFF', fontWeight:'bold'}}>{t('estoque.registrarFundo')}</Text>
                 </TouchableOpacity>
-
-                {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' && (
-                    <TouchableOpacity onPress={handleExcluirSangria} style={[styles.btnGerarPDF, {backgroundColor:'#333', marginTop:10}]}>
-                        <Text style={{color:'#FFF', fontWeight:'bold'}}>Excluir Sangria</Text>
-                    </TouchableOpacity>
-                )}
-
-                <TouchableOpacity onPress={() => { setModalSangria(false); setPedidoSelecionado(null); }} style={{padding:15, alignItems:'center'}}>
-                    <Text style={{color:'#777'}}>{t('estoque.cancelar')}</Text>
+                <TouchableOpacity onPress={() => { setModalCaixaInicial(false); setValorCaixaInicial(''); }} style={{padding:15, alignItems:'center'}}>
+                    <Text style={{color:'#777'}}>{t('common.cancelar')}</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -400,30 +496,113 @@ export default function TelaProdutos() {
       <Modal visible={modalPagamento} transparent animationType="slide">
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
-                  <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
-                      <Text style={styles.modalTitulo}>{pedidoSelecionado ? pedidoSelecionado.nome_cliente : t('estoque.finalizarVenda')}</Text>
-                      {pedidoSelecionado && (<TouchableOpacity onPress={() => handleCancelarPedido(pedidoSelecionado)}><Ionicons name="trash-outline" size={24} color="#E74C3C" /></TouchableOpacity>)}
-                  </View>
-                  <View style={styles.listaItensModal}>
-                      <Text style={{fontSize:12, fontWeight:'bold', marginBottom:5}}>{t('estoque.itens')}:</Text>
-                      <ScrollView style={{maxHeight: 120}}>
-                        {pedidoSelecionado ? (pedidoSelecionado.itens?.map(item => (<View key={item.id} style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 4}}><Text style={{fontSize:13}}>• {item.produto?.nome} (x{item.quantidade})</Text><Text style={{fontSize:13}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text></View>))) 
-                        : (carrinho.map((item, idx) => (<View key={idx} style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 4}}><Text style={{fontSize:13}}>• {item.produto?.nome} (x{item.quantidade})</Text><Text style={{fontSize:13}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text></View>)))}
-                      </ScrollView>
-                  </View>
-                  <Text style={{textAlign:'center', marginBottom: 15, fontSize: 22, fontWeight:'bold', color: '#27AE60'}}>{t('relatorioPdf.total')}: {t('relatorioPdf.moeda')} {pedidoSelecionado ? pedidoSelecionado.total.toFixed(2).replace('.', ',') : totalCarrinho.toFixed(2).replace('.', ',')}</Text>
-                  {pedidoSelecionado && pedidoSelecionado.status === 'ABERTO' && (<TouchableOpacity style={[styles.btnPagamento, {backgroundColor:'#F39C12', marginBottom:15}]} onPress={() => { atualizarStatusComanda(pedidoSelecionado.id, 'ATENDIDO'); setModalPagamento(false); }}><Text style={styles.txtBtnPagamento}>{t('estoque.marcarAtendido')}</Text></TouchableOpacity>)}
-                  {!pedidoSelecionado && (<TouchableOpacity style={[styles.btnPagamento, {backgroundColor: '#3498DB', marginBottom: 15}]} onPress={() => processarAcao('COMANDA')}><Ionicons name="clipboard-outline" size={24} color="#FFF" style={{marginRight:10}} /><Text style={styles.txtBtnPagamento}>{t('estoque.abrirComanda')}</Text></TouchableOpacity>)}
-                  <Text style={{marginBottom: 10, textAlign:'center', color:'#777'}}>{t('estoque.baixarPagamento')}</Text>
-                  <View style={{flexDirection:'row', gap: 10, marginBottom: 10}}>
-                    <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#27AE60'}]} onPress={() => processarAcao('DINHEIRO')}><Ionicons name="cash" size={18} color="#FFF" style={{marginRight:5}} /><Text style={styles.txtBtnPagamento}>{t('estoque.dinheiro')}</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#8E44AD'}]} onPress={() => processarAcao('PIX')}><Ionicons name="qr-code" size={18} color="#FFF" style={{marginRight:5}} /><Text style={styles.txtBtnPagamento}>{t('estoque.pix')}</Text></TouchableOpacity>
-                  </View>
-                  <View style={{flexDirection:'row', gap: 10}}>
-                    <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#2980B9'}]} onPress={() => processarAcao('CREDITO')}><Ionicons name="card" size={18} color="#FFF" style={{marginRight:5}} /><Text style={styles.txtBtnPagamento}>{t('estoque.credito')}</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#34495E'}]} onPress={() => processarAcao('DEBITO')}><Ionicons name="card-outline" size={18} color="#FFF" style={{marginRight:5}} /><Text style={styles.txtBtnPagamento}>{t('estoque.debito')}</Text></TouchableOpacity>
-                  </View>
-                  <TouchableOpacity onPress={() => setModalPagamento(false)} style={{padding:15, alignItems:'center', marginTop:10}}><Text style={{color:'#777'}}>{t('estoque.cancelar')}</Text></TouchableOpacity>
+                  
+                  {pagamentoDinheiro ? (
+                      <View style={{marginTop: 10}}>
+                          <Text style={{textAlign:'center', marginBottom: 15, fontSize: 22, fontWeight:'bold', color: '#27AE60'}}>{t('relatorioPdf.total')}: {t('relatorioPdf.moeda')} {totalAtualParaPagamento.toFixed(2).replace('.', ',')}</Text>
+
+                          <Text style={{fontWeight: 'bold', color: '#555', marginBottom: 5}}>{t('estoque.valorRecebido')} ({t('relatorioPdf.moeda')}):</Text>
+                          <TextInput
+                              style={[styles.input, {fontSize: 24, textAlign: 'center', fontWeight: 'bold'}]}
+                              keyboardType="numeric"
+                              placeholder="0.00"
+                              value={valorRecebido}
+                              onChangeText={setValorRecebido}
+                              autoFocus={true}
+                          />
+
+                          <Text style={{textAlign:'center', marginBottom: 20, fontSize: 24, fontWeight:'bold', color: '#E74C3C'}}>
+                              {t('estoque.troco')} {t('relatorioPdf.moeda')} {valorDoTroco > 0 ? valorDoTroco.toFixed(2).replace('.', ',') : '0,00'}
+                          </Text>
+
+                          <TouchableOpacity style={[styles.btnPagamento, {backgroundColor: '#27AE60', marginBottom: 10}]} onPress={() => processarAcao('DINHEIRO')}>
+                              <Ionicons name="checkmark-circle" size={24} color="#FFF" style={{marginRight:10}} />
+                              <Text style={{color:'#FFF', fontWeight:'bold', fontSize: 16}}>{t('estoque.confirmarPagamento')}</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity onPress={() => { setPagamentoDinheiro(false); setValorRecebido(''); }} style={{padding:15, alignItems:'center'}}>
+                              <Text style={{color:'#777'}}>{t('estoque.voltarOpcoes')}</Text>
+                          </TouchableOpacity>
+                      </View>
+                  ) : (
+                      <View>
+                          <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+                              <Text style={styles.modalTitulo}>{pedidoSelecionado ? pedidoSelecionado.nome_cliente : t('estoque.finalizarVenda')}</Text>
+                              {pedidoSelecionado && (<TouchableOpacity onPress={() => handleCancelarPedido(pedidoSelecionado)}><Ionicons name="trash-outline" size={24} color="#E74C3C" /></TouchableOpacity>)}
+                          </View>
+
+                          {!pedidoSelecionado && (
+                              <View style={[styles.inputClienteArea, {marginHorizontal: 0, borderWidth: 1, borderColor: '#DDD', backgroundColor: '#F9F9F9'}]}>
+                                  <Ionicons name="person" size={20} color="#777" />
+                                  <TextInput 
+                                      placeholder={t('estoque.mesaOuNome')} 
+                                      style={{flex:1, marginLeft: 10}} 
+                                      value={nomeCliente} 
+                                      onChangeText={setNomeCliente} 
+                                  />
+                              </View>
+                          )}
+
+                          <View style={styles.listaItensModal}>
+                              <Text style={{fontSize:12, fontWeight:'bold', marginBottom:5}}>{t('estoque.itens')}:</Text>
+                              <ScrollView style={{maxHeight: 120}}>
+                                {pedidoSelecionado ? (
+                                    pedidoSelecionado.itens?.map(item => (
+                                        <View key={item.id} style={{flexDirection:'row', justifyContent:'space-between', alignItems: 'center', marginBottom: 6}}>
+                                            <View style={{flex: 1}}>
+                                                <Text style={{fontSize:13}}>• {item.produto?.nome} (x{item.quantidade})</Text>
+                                                <Text style={{fontSize:13, color: '#27AE60', fontWeight: 'bold'}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text>
+                                            </View>
+                                            {pedidoSelecionado.status === 'ABERTO' && (
+                                                <TouchableOpacity onPress={() => handleRemoverItemDaComanda(pedidoSelecionado, item)} style={{paddingHorizontal: 10, paddingVertical: 5}}>
+                                                    <Ionicons name="trash" size={20} color="#E74C3C" />
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                    ))
+                                ) : (
+                                    carrinho.map((item, idx) => (
+                                        <View key={idx} style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 4}}>
+                                            <Text style={{fontSize:13}}>• {item.produto?.nome} (x{item.quantidade})</Text>
+                                            <Text style={{fontSize:13}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text>
+                                        </View>
+                                    ))
+                                )}
+                              </ScrollView>
+                          </View>
+                          
+                          <Text style={{textAlign:'center', marginBottom: 15, fontSize: 22, fontWeight:'bold', color: '#27AE60'}}>{t('relatorioPdf.total')}: {t('relatorioPdf.moeda')} {totalAtualParaPagamento.toFixed(2).replace('.', ',')}</Text>
+
+                          {pedidoSelecionado && pedidoSelecionado.status === 'ABERTO' && (
+                              <View style={{flexDirection: 'row', gap: 10, marginBottom: 15}}>
+                                  <TouchableOpacity style={[styles.btnPagamento, {flex: 1, backgroundColor:'#F39C12'}]} onPress={() => { atualizarStatusComanda(pedidoSelecionado.id, 'ATENDIDO'); setModalPagamento(false); }}>
+                                      <Text style={styles.txtBtnPagamento}>{t('estoque.marcarAtendido')}</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity style={[styles.btnPagamento, {flex: 1, backgroundColor:'#3498DB'}]} onPress={() => { setComandaEmEdicao(pedidoSelecionado); setModalPagamento(false); setPedidoSelecionado(null); setAbaPDV('nova'); }}>
+                                      <Ionicons name="add-circle" size={18} color="#FFF" style={{marginRight:5}} />
+                                      <Text style={styles.txtBtnPagamento}>{t('estoque.maisItens')}</Text>
+                                  </TouchableOpacity>
+                              </View>
+                          )}
+                          
+                          {!pedidoSelecionado && (<TouchableOpacity style={[styles.btnPagamento, {backgroundColor: '#3498DB', marginBottom: 15}]} onPress={() => processarAcao('COMANDA')}><Ionicons name="clipboard-outline" size={24} color="#FFF" style={{marginRight:10}} /><Text style={styles.txtBtnPagamento}>{t('estoque.abrirComanda')}</Text></TouchableOpacity>)}
+                          
+                          <Text style={{marginBottom: 10, textAlign:'center', color:'#777'}}>{t('estoque.baixarPagamento')}</Text>
+                          <View style={{flexDirection:'row', gap: 10, marginBottom: 10}}>
+                            <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#27AE60'}]} onPress={() => setPagamentoDinheiro(true)}>
+                                <Ionicons name="cash" size={18} color="#FFF" style={{marginRight:5}} />
+                                <Text style={styles.txtBtnPagamento}>{t('estoque.dinheiro')}</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#8E44AD'}]} onPress={() => processarAcao('PIX')}><Ionicons name="qr-code" size={18} color="#FFF" style={{marginRight:5}} /><Text style={styles.txtBtnPagamento}>{t('estoque.pix')}</Text></TouchableOpacity>
+                          </View>
+                          <View style={{flexDirection:'row', gap: 10}}>
+                            <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#2980B9'}]} onPress={() => processarAcao('CREDITO')}><Ionicons name="card" size={18} color="#FFF" style={{marginRight:5}} /><Text style={styles.txtBtnPagamento}>{t('estoque.credito')}</Text></TouchableOpacity>
+                            <TouchableOpacity style={[styles.btnPagamento, {flex:1, backgroundColor: '#34495E'}]} onPress={() => processarAcao('DEBITO')}><Ionicons name="card-outline" size={18} color="#FFF" style={{marginRight:5}} /><Text style={styles.txtBtnPagamento}>{t('estoque.debito')}</Text></TouchableOpacity>
+                          </View>
+                          <TouchableOpacity onPress={() => { setModalPagamento(false); setValorRecebido(''); setPagamentoDinheiro(false); }} style={{padding:15, alignItems:'center', marginTop:10}}><Text style={{color:'#777'}}>{t('common.cancelar')}</Text></TouchableOpacity>
+                      </View>
+                  )}
               </View>
           </View>
       </Modal>
@@ -438,22 +617,17 @@ export default function TelaProdutos() {
                 {pedidoSelecionado && (
                     <>
                         <View style={{backgroundColor:'#F9F9F9', padding:10, borderRadius:8, marginBottom:10}}>
-                            <Text>{t('estoque.cliente')}: <Text style={{fontWeight:'bold'}}>{pedidoSelecionado.nome_cliente}</Text></Text>
-                            <Text>{t('estoque.pagamento')}: <Text style={{fontWeight:'bold'}}>{pedidoSelecionado.forma_pagamento}</Text></Text>
+                            <Text>{t('estoque.cliente')}: <Text style={{fontWeight:'bold'}}>{pedidoSelecionado.status === 'CAIXA_INICIAL' ? t('estoque.fundoTroco') : (pedidoSelecionado.nome_cliente || t('estoque.cliente'))}</Text></Text>
+                            <Text>{t('estoque.pagamento')}: <Text style={{fontWeight:'bold'}}>{traduzirFormaPagamento(pedidoSelecionado.forma_pagamento || '')}</Text></Text>
                             <Text>{t('estoque.data')}: {new Date(pedidoSelecionado.criado_em).toLocaleString()}</Text>
                         </View>
-                        {pedidoSelecionado.status !== 'SANGRIA' && (
-                            <>
-                                <Text style={{fontWeight:'bold', marginBottom:5}}>{t('estoque.itensVendidos')}:</Text>
-                                <ScrollView style={{maxHeight: 200}}>
-                                    {pedidoSelecionado.itens?.map((item) => (
-                                        <View key={item.id} style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 8, borderBottomWidth:1, borderBottomColor:'#EEE', paddingBottom:5}}><View><Text style={{fontWeight:'bold', color:'#333'}}>{item.produto?.nome}</Text><Text style={{fontSize:12, color:'#777'}}>Qtd: {item.quantidade} x {t('relatorioPdf.moeda')} {item.preco_unitario.toFixed(2)}</Text></View><Text style={{fontWeight:'bold'}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text></View>
-                                    ))}
-                                </ScrollView>
-                            </>
-                        )}
+                        <ScrollView style={{maxHeight: 200}}>
+                            {pedidoSelecionado.itens?.map((item) => (
+                                <View key={item.id} style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 8, borderBottomWidth:1, borderBottomColor:'#EEE', paddingBottom:5}}><View><Text style={{fontWeight:'bold', color:'#333'}}>{item.produto?.nome}</Text><Text style={{fontSize:12, color:'#777'}}>x{item.quantidade} - {t('relatorioPdf.moeda')} {item.preco_unitario.toFixed(2)}</Text></View><Text style={{fontWeight:'bold'}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text></View>
+                            ))}
+                        </ScrollView>
                         <View style={{height: 1, backgroundColor:'#EEE', marginVertical:10}} />
-                        <Text style={{textAlign:'right', fontWeight:'bold', fontSize:20, color: pedidoSelecionado.total < 0 ? '#E74C3C' : '#27AE60'}}>{t('relatorioPdf.total')}: {t('relatorioPdf.moeda')} {pedidoSelecionado.total.toFixed(2).replace('.', ',')}</Text>
+                        <Text style={{textAlign:'right', fontWeight:'bold', fontSize:20, color: '#27AE60'}}>{t('relatorioPdf.total')}: {t('relatorioPdf.moeda')} {pedidoSelecionado.total.toFixed(2).replace('.', ',')}</Text>
                     </>
                 )}
                 <TouchableOpacity onPress={() => setModalDetalheVenda(false)} style={{marginTop:20, alignItems:'center'}}><Text style={{color:'#2980B9'}}>{t('estoque.voltar')}</Text></TouchableOpacity>
@@ -475,29 +649,25 @@ export default function TelaProdutos() {
                   </View>
                   {showPicker && (<DateTimePicker value={showPicker === 'inicio' ? dataInicio : dataFim} mode="date" display="default" onChange={onChangeDate} maximumDate={new Date()} />)}
                   <TouchableOpacity onPress={handleGerarPDF} style={styles.btnGerarPDF}><Ionicons name="print-outline" size={24} color="#FFF" style={{marginRight: 10}} /><Text style={{color:'#FFF', fontWeight:'bold', fontSize:16}}>{t('estoque.gerarPdf')}</Text></TouchableOpacity>
-                  <View style={{height: 1, backgroundColor:'#DDD', marginVertical: 20}} />
-                  <Text style={{fontWeight:'bold', marginBottom:10, color:'#555'}}>{t('estoque.ultimasVendas')}</Text>
               </View>
               <ScrollView style={{flex:1, paddingHorizontal: 15}}>
                   {historicoVendas.map((venda) => (
-                      <TouchableOpacity key={venda.id} style={[styles.itemHistorico, venda.status === 'SANGRIA' && {borderLeftWidth:4, borderLeftColor:'#E74C3C'}]} 
+                      <TouchableOpacity key={venda.id} style={[styles.itemHistorico, venda.status === 'SANGRIA' && {borderLeftWidth:4, borderLeftColor:'#E74C3C'}, venda.status === 'CAIXA_INICIAL' && {borderLeftWidth:4, borderLeftColor:'#2980B9'}]} 
                         onPress={() => { 
                             setPedidoSelecionado(venda);
                             if(venda.status === 'SANGRIA') { 
-                                // Abre o modal de Sangria no modo Edição
                                 setValorSangria(Math.abs(venda.total).toFixed(2).replace('.', ','));
                                 setMotivoSangria(venda.nome_cliente || '');
                                 setModalSangria(true);
                             } else {
-                                // Abre o modal normal de vendas
                                 setModalDetalheVenda(true); 
                             } 
                         }}
                       >
                           <View style={{flex:1}}>
-                              <Text style={{fontWeight:'bold', fontSize:16, color: venda.status === 'SANGRIA' ? '#E74C3C' : '#333'}}>{venda.nome_cliente || t('estoque.balcao')}</Text>
-                              <Text style={{fontSize:11, color:'#555', marginTop:2}} numberOfLines={1}>{venda.status === 'SANGRIA' ? 'Retirada de Caixa' : formatarResumoItens(venda.itens)}</Text>
-                              <Text style={{fontSize:10, color:'#777', marginTop:2}}>{new Date(venda.criado_em).toLocaleDateString()} • {venda.forma_pagamento}</Text>
+                              <Text style={{fontWeight:'bold', fontSize:16, color: venda.status === 'SANGRIA' ? '#E74C3C' : venda.status === 'CAIXA_INICIAL' ? '#2980B9' : '#333'}}>{venda.status === 'CAIXA_INICIAL' ? t('estoque.fundoTroco') : (venda.nome_cliente || t('estoque.cliente'))}</Text>
+                              <Text style={{fontSize:11, color:'#555', marginTop:2}} numberOfLines={1}>{venda.status === 'SANGRIA' ? t('estoque.retiradaCaixa') : venda.status === 'CAIXA_INICIAL' ? t('estoque.entradaFundoTroco') : formatarResumoItens(venda.itens)}</Text>
+                              <Text style={{fontSize:10, color:'#777', marginTop:2}}>{new Date(venda.criado_em).toLocaleDateString()} • {traduzirFormaPagamento(venda.forma_pagamento || '')}</Text>
                           </View>
                           <Text style={{fontWeight:'bold', color: venda.status === 'SANGRIA' ? '#E74C3C' : '#27AE60', fontSize:16}}>{t('relatorioPdf.moeda')} {venda.total.toFixed(2).replace('.', ',')}</Text>
                       </TouchableOpacity>
@@ -511,13 +681,13 @@ export default function TelaProdutos() {
             <View style={styles.modalContent}>
                 <Text style={styles.modalTitulo}>{t('estoque.produtoTitulo')}</Text>
                 <Text style={styles.label}>{t('estoque.nomeLabel')}</Text>
-                <TextInput placeholder="Ex: Coca Cola" style={styles.input} value={produtoEmEdicao.nome} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, nome: t})} />
+                <TextInput placeholder="..." style={styles.input} value={produtoEmEdicao.nome} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, nome: t})} />
                 <View style={{flexDirection:'row', gap: 10}}>
-                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.precoLabel')}</Text><TextInput placeholder="0,00" keyboardType="numeric" style={styles.input} value={precoInput} onChangeText={setPrecoInput} /></View>
-                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.estoqueLabel')}</Text><TextInput placeholder="0" keyboardType='numeric' style={styles.input} value={produtoEmEdicao.estoque?.toString()} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, estoque: parseInt(t)})} /></View>
+                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.precoLabel')}</Text><TextInput placeholder="0.00" keyboardType="numeric" style={styles.input} value={precoInput} onChangeText={setPrecoInput} /></View>
+                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.estoqueLabel')}</Text><TextInput placeholder="0" keyboardType='numeric' style={styles.input} value={produtoEmEdicao.estoque?.toString()} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, estoque: parseInt(t)})}/></View>
                 </View>
                 <View style={{flexDirection:'row', justifyContent:'space-between'}}>
-                    <TouchableOpacity onPress={() => setModalProduto(false)} style={{padding:10}}><Text>{t('estoque.cancelar')}</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => setModalProduto(false)} style={{padding:10}}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
                     <TouchableOpacity onPress={salvarProdutoComTexto} style={{backgroundColor:'#2980B9', padding:10, borderRadius:5}}><Text style={{color:'#FFF'}}>{t('estoque.salvar')}</Text></TouchableOpacity>
                 </View>
             </View>
@@ -541,14 +711,15 @@ const styles = StyleSheet.create({
   cardPDV: { flex: 1, backgroundColor: '#FFF', margin: 3, padding: 10, borderRadius: 6, alignItems: 'center', elevation: 1, minHeight: 70, justifyContent: 'center' },
   nomePDV: { fontSize: 10, fontWeight: 'bold', textAlign: 'center', color: '#333' },
   precoPDV: { fontSize: 11, color: '#27AE60', fontWeight: 'bold' },
+  secaoTitulo: { fontSize: 14, fontWeight: 'bold', color: '#555', marginLeft: 10, marginVertical: 10 },
   cardComanda: { backgroundColor: '#FFF', padding: 15, marginHorizontal: 10, marginBottom: 8, borderRadius: 8, elevation: 1, borderLeftWidth: 4, borderLeftColor: '#F39C12' },
   clienteComanda: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   resumoItens: { fontSize: 12, color: '#555', marginVertical: 4, fontStyle: 'italic' },
   badgeStatus: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  itemHistorico: { backgroundColor: '#FFF', padding: 15, marginBottom: 5, borderRadius: 5, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  carrinhoArea: { backgroundColor: '#FFF', borderTopLeftRadius: 15, borderTopRightRadius: 15, padding: 15, elevation: 10 },
+  carrinhoArea: { backgroundColor: '#FFF', margin: 10, borderRadius: 15, padding: 15, elevation: 5 },
   tituloCarrinho: { fontWeight: 'bold', color: '#555' },
   itemCarrinho: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#EEE' },
+  itemResumoHoje: { backgroundColor: '#FFF', flexDirection: 'row', justifyContent: 'space-between', padding: 12, marginBottom: 5, borderRadius: 8, elevation: 1 },
   btnFinalizar: { backgroundColor: '#27AE60', padding: 12, borderRadius: 8, marginTop: 10 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', borderRadius: 10, padding: 20 },
@@ -567,4 +738,5 @@ const styles = StyleSheet.create({
   btnGerarPDF: { backgroundColor: '#E74C3C', flexDirection: 'row', padding: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   label: { fontSize: 12, color: '#555', marginBottom: 5, fontWeight: 'bold' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F6FA' },
+  itemHistorico: { backgroundColor: '#FFF', padding: 15, marginBottom: 5, borderRadius: 5, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

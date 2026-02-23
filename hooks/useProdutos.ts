@@ -15,9 +15,17 @@ export function useProdutos() {
   const listarProdutos = async () => {
     try {
       setLoading(true);
+      
+      // ✅ 1. Busca quem é o utilizador logado agora
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // ✅ 2. O FILTRO SALVADOR: .eq('user_id', user.id)
+      // Traz APENAS os produtos deste utilizador
       const { data, error } = await supabase
         .from('produtos')
         .select('*')
+        .eq('user_id', user.id) 
         .order('nome', { ascending: true });
 
       if (error) throw error;
@@ -39,14 +47,15 @@ export function useProdutos() {
       if (!user) return;
 
       if (prod.id) {
-        // ATUALIZAR
+        // ATUALIZAR (Garantindo que atualiza apenas se for dono do produto)
         const { error } = await supabase
           .from('produtos')
           .update({ nome: prod.nome, preco: prod.preco, estoque: prod.estoque })
-          .eq('id', prod.id);
+          .eq('id', prod.id)
+          .eq('user_id', user.id); 
         if (error) throw error;
       } else {
-        // CRIAR NOVO
+        // CRIAR NOVO (Salva com o carimbo do utilizador logado)
         const { error } = await supabase
           .from('produtos')
           .insert({ 
@@ -71,22 +80,30 @@ export function useProdutos() {
   const excluirProduto = async (id: number) => {
     try {
       setLoading(true);
-      const { error } = await supabase.from('produtos').delete().eq('id', id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // ✅ Garantia de Segurança: Só apaga se pertencer ao utilizador logado
+      const { error } = await supabase
+        .from('produtos')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id); 
       
       if (error) {
         console.log("Erro Supabase Delete:", error);
-        throw error; // Lança o erro para cair no catch abaixo
+        throw error;
       }
       
       setProdutos(prev => prev.filter(p => p.id !== id));
     } catch (error: any) {
       console.log("Detalhes do erro:", error);
       
-      // Código 23503 no PostgreSQL significa "Violação de Chave Estrangeira"
+      // Bloqueio de chave estrangeira
       if (error?.code === '23503') {
          Alert.alert(
            'Ação Bloqueada', 
-           'Este produto não pode ser excluído porque já está vinculado a vendas ou comandas no histórico. Se não for mais vender, apenas zere o estoque.'
+           'Este produto não pode ser excluído porque já tem histórico de vendas. Verifique a regra CASCADE no banco de dados.'
          );
       } else {
          Alert.alert('Erro', `Não foi possível excluir: ${error?.message || 'Erro desconhecido'}`);
