@@ -93,14 +93,6 @@ export default function TelaProdutos() {
       return dataVenda === hoje;
   });
 
-  const traduzirFormaPagamento = (forma: string) => {
-      if (forma === 'DINHEIRO') return t('estoque.dinheiro');
-      if (forma === 'PIX') return t('estoque.pix');
-      if (forma === 'CREDITO') return t('estoque.credito');
-      if (forma === 'DEBITO') return t('estoque.debito');
-      return forma;
-  };
-
   const handleCaixaInicial = async () => {
     const valor = parseFloat(valorCaixaInicial.replace(',', '.'));
     if (!valor || valor <= 0) return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
@@ -194,10 +186,11 @@ export default function TelaProdutos() {
     listarProdutos();
   };
 
+  // ✅ CORREÇÃO AQUI: Removemos o defaultValue para forçar a interpolação correta do nome
   const handleExcluirProduto = (produto: Produto) => {
     Alert.alert(
       t('estoque.confirmarExclusaoTitulo'),
-      t('estoque.confirmarExclusaoMsg'),
+      t('estoque.confirmarExclusaoMsg', { nome: produto.nome }), 
       [
         { text: t('common.cancelar'), style: 'cancel' },
         { 
@@ -229,17 +222,22 @@ export default function TelaProdutos() {
     }
   };
 
+  // ✅ CORREÇÃO AQUI TAMBÉM: Interpolação limpa
   const handleRemoverItemDaComanda = (pedido: Pedido, item: any) => {
-      Alert.alert(t('estoque.removerItem'), t('estoque.confirmarRemocaoMsg', { nome: item.produto?.nome }), [
-          { text: t('common.cancelar'), style: 'cancel' },
-          { text: t('estoque.simRemover'), style: 'destructive', onPress: async () => {
-              const sucesso = await removerItemComanda(pedido, item);
-              if (sucesso) {
-                  setModalPagamento(false);
-                  setPedidoSelecionado(null);
-              }
-          }}
-      ]);
+      Alert.alert(
+          t('estoque.removerItem'), 
+          t('estoque.confirmarRemocaoMsg', { nome: item.produto?.nome }), 
+          [
+            { text: t('common.cancelar'), style: 'cancel' },
+            { text: t('estoque.simRemover'), style: 'destructive', onPress: async () => {
+                const sucesso = await removerItemComanda(pedido, item);
+                if (sucesso) {
+                    setModalPagamento(false);
+                    setPedidoSelecionado(null);
+                }
+            }}
+          ]
+      );
   };
 
   const processarAcao = async (tipo: 'DINHEIRO' | 'PIX' | 'CREDITO' | 'DEBITO' | 'COMANDA') => {
@@ -465,13 +463,13 @@ export default function TelaProdutos() {
       <Modal visible={modalSangria} transparent animationType="fade">
         <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-                <Text style={[styles.modalTitulo, {color:'#E74C3C'}]}>{pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? t('estoque.salvar') : t('estoque.sangria')}</Text>
+                <Text style={[styles.modalTitulo, {color:'#E74C3C'}]}>{pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? t('estoque.editarSangria') : t('estoque.sangria')}</Text>
                 <Text style={styles.label}>{t('estoque.valorSangria')}</Text>
-                <TextInput placeholder="0.00" keyboardType="numeric" style={styles.input} value={valorSangria} onChangeText={setValorSangria} />
+                <TextInput placeholder={t('estoque.zeroNumerico')} keyboardType="numeric" style={styles.input} value={valorSangria} onChangeText={setValorSangria} />
                 <Text style={styles.label}>{t('estoque.motivoSangria')}</Text>
-                <TextInput placeholder="..." style={styles.input} value={motivoSangria} onChangeText={setMotivoSangria} />
+                <TextInput placeholder={t('estoque.motivoPlaceholder')} style={styles.input} value={motivoSangria} onChangeText={setMotivoSangria} />
                 <TouchableOpacity onPress={handleSangria} style={[styles.btnGerarPDF, {backgroundColor:'#E74C3C', marginTop:10}]}><Text style={{color:'#FFF', fontWeight:'bold'}}>{pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' ? t('estoque.salvar') : t('estoque.confirmarSangria')}</Text></TouchableOpacity>
-                {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' && (<TouchableOpacity onPress={handleExcluirSangria} style={[styles.btnGerarPDF, {backgroundColor:'#333', marginTop:10}]}><Text style={{color:'#FFF', fontWeight:'bold'}}>{t('estoque.simExcluir')}</Text></TouchableOpacity>)}
+                {pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA' && (<TouchableOpacity onPress={handleExcluirSangria} style={[styles.btnGerarPDF, {backgroundColor:'#333', marginTop:10}]}><Text style={{color:'#FFF', fontWeight:'bold'}}>{t('estoque.excluirSangria')}</Text></TouchableOpacity>)}
                 <TouchableOpacity onPress={() => { setModalSangria(false); setPedidoSelecionado(null); }} style={{padding:15, alignItems:'center'}}><Text style={{color:'#777'}}>{t('common.cancelar')}</Text></TouchableOpacity>
             </View>
         </View>
@@ -482,7 +480,7 @@ export default function TelaProdutos() {
             <View style={styles.modalContent}>
                 <Text style={[styles.modalTitulo, {color:'#2980B9'}]}>{t('estoque.fundoTroco')}</Text>
                 <Text style={styles.label}>{t('estoque.valorTroco')} ({t('relatorioPdf.moeda')})</Text>
-                <TextInput placeholder="0.00" keyboardType="numeric" style={styles.input} value={valorCaixaInicial} onChangeText={setValorCaixaInicial} />
+                <TextInput placeholder={t('estoque.zeroNumerico')} keyboardType="numeric" style={styles.input} value={valorCaixaInicial} onChangeText={setValorCaixaInicial} />
                 <TouchableOpacity onPress={handleCaixaInicial} style={[styles.btnGerarPDF, {backgroundColor:'#2980B9', marginTop:10}]}>
                     <Text style={{color:'#FFF', fontWeight:'bold'}}>{t('estoque.registrarFundo')}</Text>
                 </TouchableOpacity>
@@ -505,7 +503,7 @@ export default function TelaProdutos() {
                           <TextInput
                               style={[styles.input, {fontSize: 24, textAlign: 'center', fontWeight: 'bold'}]}
                               keyboardType="numeric"
-                              placeholder="0.00"
+                              placeholder={t('estoque.zeroNumerico')}
                               value={valorRecebido}
                               onChangeText={setValorRecebido}
                               autoFocus={true}
@@ -618,12 +616,12 @@ export default function TelaProdutos() {
                     <>
                         <View style={{backgroundColor:'#F9F9F9', padding:10, borderRadius:8, marginBottom:10}}>
                             <Text>{t('estoque.cliente')}: <Text style={{fontWeight:'bold'}}>{pedidoSelecionado.status === 'CAIXA_INICIAL' ? t('estoque.fundoTroco') : (pedidoSelecionado.nome_cliente || t('estoque.cliente'))}</Text></Text>
-                            <Text>{t('estoque.pagamento')}: <Text style={{fontWeight:'bold'}}>{traduzirFormaPagamento(pedidoSelecionado.forma_pagamento || '')}</Text></Text>
+                            <Text>{t('estoque.pagamento')}: <Text style={{fontWeight:'bold'}}>{pedidoSelecionado.forma_pagamento}</Text></Text>
                             <Text>{t('estoque.data')}: {new Date(pedidoSelecionado.criado_em).toLocaleString()}</Text>
                         </View>
                         <ScrollView style={{maxHeight: 200}}>
                             {pedidoSelecionado.itens?.map((item) => (
-                                <View key={item.id} style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 8, borderBottomWidth:1, borderBottomColor:'#EEE', paddingBottom:5}}><View><Text style={{fontWeight:'bold', color:'#333'}}>{item.produto?.nome}</Text><Text style={{fontSize:12, color:'#777'}}>x{item.quantidade} - {t('relatorioPdf.moeda')} {item.preco_unitario.toFixed(2)}</Text></View><Text style={{fontWeight:'bold'}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text></View>
+                                <View key={item.id} style={{flexDirection:'row', justifyContent:'space-between', marginBottom: 8, borderBottomWidth:1, borderBottomColor:'#EEE', paddingBottom:5}}><View><Text style={{fontWeight:'bold', color:'#333'}}>{item.produto?.nome}</Text><Text style={{fontSize:12, color:'#777'}}>{t('estoque.qtd')} {item.quantidade} x {t('relatorioPdf.moeda')} {item.preco_unitario.toFixed(2)}</Text></View><Text style={{fontWeight:'bold'}}>{t('relatorioPdf.moeda')} {(item.preco_unitario * item.quantidade).toFixed(2).replace('.', ',')}</Text></View>
                             ))}
                         </ScrollView>
                         <View style={{height: 1, backgroundColor:'#EEE', marginVertical:10}} />
@@ -665,9 +663,9 @@ export default function TelaProdutos() {
                         }}
                       >
                           <View style={{flex:1}}>
-                              <Text style={{fontWeight:'bold', fontSize:16, color: venda.status === 'SANGRIA' ? '#E74C3C' : venda.status === 'CAIXA_INICIAL' ? '#2980B9' : '#333'}}>{venda.status === 'CAIXA_INICIAL' ? t('estoque.fundoTroco') : (venda.nome_cliente || t('estoque.cliente'))}</Text>
+                              <Text style={{fontWeight:'bold', fontSize:16, color: venda.status === 'SANGRIA' ? '#E74C3C' : venda.status === 'CAIXA_INICIAL' ? '#2980B9' : '#333'}}>{venda.nome_cliente || t('estoque.balcao')}</Text>
                               <Text style={{fontSize:11, color:'#555', marginTop:2}} numberOfLines={1}>{venda.status === 'SANGRIA' ? t('estoque.retiradaCaixa') : venda.status === 'CAIXA_INICIAL' ? t('estoque.entradaFundoTroco') : formatarResumoItens(venda.itens)}</Text>
-                              <Text style={{fontSize:10, color:'#777', marginTop:2}}>{new Date(venda.criado_em).toLocaleDateString()} • {traduzirFormaPagamento(venda.forma_pagamento || '')}</Text>
+                              <Text style={{fontSize:10, color:'#777', marginTop:2}}>{new Date(venda.criado_em).toLocaleDateString()} • {venda.forma_pagamento}</Text>
                           </View>
                           <Text style={{fontWeight:'bold', color: venda.status === 'SANGRIA' ? '#E74C3C' : '#27AE60', fontSize:16}}>{t('relatorioPdf.moeda')} {venda.total.toFixed(2).replace('.', ',')}</Text>
                       </TouchableOpacity>
@@ -681,10 +679,10 @@ export default function TelaProdutos() {
             <View style={styles.modalContent}>
                 <Text style={styles.modalTitulo}>{t('estoque.produtoTitulo')}</Text>
                 <Text style={styles.label}>{t('estoque.nomeLabel')}</Text>
-                <TextInput placeholder="..." style={styles.input} value={produtoEmEdicao.nome} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, nome: t})} />
+                <TextInput placeholder={t('estoque.exemploProduto')} style={styles.input} value={produtoEmEdicao.nome} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, nome: t})} />
                 <View style={{flexDirection:'row', gap: 10}}>
-                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.precoLabel')}</Text><TextInput placeholder="0.00" keyboardType="numeric" style={styles.input} value={precoInput} onChangeText={setPrecoInput} /></View>
-                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.estoqueLabel')}</Text><TextInput placeholder="0" keyboardType='numeric' style={styles.input} value={produtoEmEdicao.estoque?.toString()} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, estoque: parseInt(t)})}/></View>
+                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.precoLabel')}</Text><TextInput placeholder={t('estoque.zeroNumerico')} keyboardType="numeric" style={styles.input} value={precoInput} onChangeText={setPrecoInput} /></View>
+                    <View style={{flex:1}}><Text style={styles.label}>{t('estoque.estoqueLabel')}</Text><TextInput placeholder={t('estoque.zeroQtd')} keyboardType='numeric' style={styles.input} value={produtoEmEdicao.estoque?.toString()} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, estoque: parseInt(t)})}/></View>
                 </View>
                 <View style={{flexDirection:'row', justifyContent:'space-between'}}>
                     <TouchableOpacity onPress={() => setModalProduto(false)} style={{padding:10}}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
