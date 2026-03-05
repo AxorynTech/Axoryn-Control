@@ -8,6 +8,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform, // ✅ ADICIONADO AQUI
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -94,23 +95,31 @@ export default function Perfil() {
     Linking.openURL(url).catch(() => Alert.alert("Erro", "WhatsApp não instalado."));
   };
 
-  // ✅ NOVA FUNÇÃO: Sair da Conta
+  // ✅ NOVA FUNÇÃO: Sair da Conta (Corrigida para Web e Celular)
   const handleSignOut = async () => {
-    Alert.alert(
-      t('perfil.confirmarSairTitulo', 'Sair'),
-      t('perfil.confirmarSairMsg', 'Deseja realmente sair da sua conta?'),
-      [
-        { text: t('comum.cancelar', 'Cancelar'), style: 'cancel' },
-        { 
-          text: t('comum.sair', 'Sair'), 
-          style: 'destructive', 
-          onPress: async () => {
-            await supabase.auth.signOut();
-            router.replace('/auth'); // Redireciona para login
-          } 
-        }
-      ]
-    );
+    if (Platform.OS === 'web') {
+      const confirmar = window.confirm(t('perfil.confirmarSairMsg', 'Deseja realmente sair da sua conta?'));
+      if (confirmar) {
+        await supabase.auth.signOut();
+        router.replace('/auth');
+      }
+    } else {
+      Alert.alert(
+        t('perfil.confirmarSairTitulo', 'Sair'),
+        t('perfil.confirmarSairMsg', 'Deseja realmente sair da sua conta?'),
+        [
+          { text: t('comum.cancelar', 'Cancelar'), style: 'cancel' },
+          { 
+            text: t('comum.sair', 'Sair'), 
+            style: 'destructive', 
+            onPress: async () => {
+              await supabase.auth.signOut();
+              router.replace('/auth'); // Redireciona para login
+            } 
+          }
+        ]
+      );
+    }
   };
 
   // Lógica de Ranking e Progressão (Cálculo de XP)

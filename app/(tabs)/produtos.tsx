@@ -125,27 +125,38 @@ export default function TelaProdutos() {
     }
   };
 
-  const handleExcluirSangria = () => {
-    Alert.alert(
-        t('estoque.sangria'),
-        t('estoque.msgCancelar'),
-        [
-            { text: t('common.cancelar'), style: 'cancel' },
-            { 
-              text: t('estoque.simExcluir'), 
-              style: 'destructive', 
-              onPress: async () => {
-                if (pedidoSelecionado) {
-                    await cancelarPedido(pedidoSelecionado);
-                    setModalSangria(false);
-                    setPedidoSelecionado(null);
-                    setValorSangria('');
-                    setMotivoSangria('');
+  const handleExcluirSangria = async () => {
+    if (Platform.OS === 'web') {
+        const confirmar = window.confirm(t('estoque.msgCancelar'));
+        if (confirmar && pedidoSelecionado) {
+            await cancelarPedido(pedidoSelecionado);
+            setModalSangria(false);
+            setPedidoSelecionado(null);
+            setValorSangria('');
+            setMotivoSangria('');
+        }
+    } else {
+        Alert.alert(
+            t('estoque.sangria'),
+            t('estoque.msgCancelar'),
+            [
+                { text: t('common.cancelar'), style: 'cancel' },
+                { 
+                  text: t('estoque.simExcluir'), 
+                  style: 'destructive', 
+                  onPress: async () => {
+                    if (pedidoSelecionado) {
+                        await cancelarPedido(pedidoSelecionado);
+                        setModalSangria(false);
+                        setPedidoSelecionado(null);
+                        setValorSangria('');
+                        setMotivoSangria('');
+                    }
+                  } 
                 }
-              } 
-            }
-        ]
-    );
+            ]
+        );
+    }
   };
 
   const handleGerarPDF = async () => {
@@ -187,22 +198,30 @@ export default function TelaProdutos() {
   };
 
   // ✅ CORREÇÃO AQUI: Removemos o defaultValue para forçar a interpolação correta do nome
-  const handleExcluirProduto = (produto: Produto) => {
-    Alert.alert(
-      t('estoque.confirmarExclusaoTitulo'),
-      t('estoque.confirmarExclusaoMsg', { nome: produto.nome }), 
-      [
-        { text: t('common.cancelar'), style: 'cancel' },
-        { 
-          text: t('estoque.simExcluir'), 
-          style: 'destructive', 
-          onPress: async () => {
+  const handleExcluirProduto = async (produto: Produto) => {
+    if (Platform.OS === 'web') {
+        const confirmar = window.confirm(t('estoque.confirmarExclusaoMsg', { nome: produto.nome }));
+        if (confirmar) {
             await excluirProduto(produto.id);
-            listarProdutos(); 
-          } 
+            listarProdutos();
         }
-      ]
-    );
+    } else {
+        Alert.alert(
+          t('estoque.confirmarExclusaoTitulo'),
+          t('estoque.confirmarExclusaoMsg', { nome: produto.nome }), 
+          [
+            { text: t('common.cancelar'), style: 'cancel' },
+            { 
+              text: t('estoque.simExcluir'), 
+              style: 'destructive', 
+              onPress: async () => {
+                await excluirProduto(produto.id);
+                listarProdutos(); 
+              } 
+            }
+          ]
+        );
+    }
   };
 
   const handleBotaoCarrinho = async () => {
@@ -223,21 +242,32 @@ export default function TelaProdutos() {
   };
 
   // ✅ CORREÇÃO AQUI TAMBÉM: Interpolação limpa
-  const handleRemoverItemDaComanda = (pedido: Pedido, item: any) => {
-      Alert.alert(
-          t('estoque.removerItem'), 
-          t('estoque.confirmarRemocaoMsg', { nome: item.produto?.nome }), 
-          [
-            { text: t('common.cancelar'), style: 'cancel' },
-            { text: t('estoque.simRemover'), style: 'destructive', onPress: async () => {
-                const sucesso = await removerItemComanda(pedido, item);
-                if (sucesso) {
-                    setModalPagamento(false);
-                    setPedidoSelecionado(null);
-                }
-            }}
-          ]
-      );
+  const handleRemoverItemDaComanda = async (pedido: Pedido, item: any) => {
+      if (Platform.OS === 'web') {
+          const confirmar = window.confirm(t('estoque.confirmarRemocaoMsg', { nome: item.produto?.nome }));
+          if (confirmar) {
+              const sucesso = await removerItemComanda(pedido, item);
+              if (sucesso) {
+                  setModalPagamento(false);
+                  setPedidoSelecionado(null);
+              }
+          }
+      } else {
+          Alert.alert(
+              t('estoque.removerItem'), 
+              t('estoque.confirmarRemocaoMsg', { nome: item.produto?.nome }), 
+              [
+                { text: t('common.cancelar'), style: 'cancel' },
+                { text: t('estoque.simRemover'), style: 'destructive', onPress: async () => {
+                    const sucesso = await removerItemComanda(pedido, item);
+                    if (sucesso) {
+                        setModalPagamento(false);
+                        setPedidoSelecionado(null);
+                    }
+                }}
+              ]
+          );
+      }
   };
 
   const processarAcao = async (tipo: 'DINHEIRO' | 'PIX' | 'CREDITO' | 'DEBITO' | 'COMANDA') => {
@@ -263,15 +293,24 @@ export default function TelaProdutos() {
     }
   };
 
-  const handleCancelarPedido = (pedido: Pedido) => {
-    Alert.alert(
-        t('estoque.cancelarPedido'),
-        t('estoque.msgCancelar'),
-        [
-            { text: t('common.cancelar'), style: 'cancel' },
-            { text: t('estoque.simExcluir'), style: 'destructive', onPress: async () => { await cancelarPedido(pedido); setModalPagamento(false); setModalDetalheVenda(false); } }
-        ]
-    );
+  const handleCancelarPedido = async (pedido: Pedido) => {
+    if (Platform.OS === 'web') {
+        const confirmar = window.confirm(t('estoque.msgCancelar'));
+        if (confirmar) {
+            await cancelarPedido(pedido); 
+            setModalPagamento(false); 
+            setModalDetalheVenda(false);
+        }
+    } else {
+        Alert.alert(
+            t('estoque.cancelarPedido'),
+            t('estoque.msgCancelar'),
+            [
+                { text: t('common.cancelar'), style: 'cancel' },
+                { text: t('estoque.simExcluir'), style: 'destructive', onPress: async () => { await cancelarPedido(pedido); setModalPagamento(false); setModalDetalheVenda(false); } }
+            ]
+        );
+    }
   };
 
   const handleClickComanda = (pedido: Pedido) => {

@@ -1,12 +1,14 @@
-import { supabase } from '@/services/supabase'; // Ajuste o caminho se necessário (ex: '../../services/supabase')
+import { supabase } from '@/services/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router'; // ✅ IMPORTANTE: Hook para detectar foco na aba
+import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,6 +17,7 @@ import {
   View
 } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
+import ModalTermos from '../../components/ModalTermos';
 import { useAssinatura } from '../../hooks/useAssinatura';
 
 const ENTITLEMENT_ID = 'premium';
@@ -22,29 +25,24 @@ const ENTITLEMENT_ID = 'premium';
 export default function PlanosScreen() {
   const { t } = useTranslation();
   
-  // Hook de Assinatura (Gerencia Status Premium)
   const { isPremium, diasRestantes, tipoPlano, refresh, loading: loadingStatus } = useAssinatura();
   
   const [pacotes, setPacotes] = useState<PurchasesPackage[]>([]);
   const [loadingPlanos, setLoadingPlanos] = useState(true);
   const [processando, setProcessando] = useState(false);
+  
+  const [modalTermosVisivel, setModalTermosVisivel] = useState(false);
 
-  // ✅ CORREÇÃO: Usa useFocusEffect para atualizar sempre que a aba abrir
   useFocusEffect(
     useCallback(() => {
-      // 1. Atualiza o status da assinatura (recalcula dias)
       refresh();
-      
-      // 2. Carrega as ofertas da loja
       carregarOfertas();
     }, [])
   );
 
   const carregarOfertas = async () => {
     try {
-      // Pega as ofertas configuradas no painel do RevenueCat
       const offerings = await Purchases.getOfferings();
-      
       if (offerings.current && offerings.current.availablePackages.length > 0) {
         setPacotes(offerings.current.availablePackages);
       } else {
@@ -57,26 +55,18 @@ export default function PlanosScreen() {
     }
   };
 
-  // --- FUNÇÃO DE COMPRA ---
   const comprar = async (pkg: PurchasesPackage) => {
     if (processando) return;
     setProcessando(true);
     
     try {
-      // 1. Identifica se é Recarga ou Assinatura pelo ID exato
       const idProduto = pkg.product.identifier.toLowerCase();
-      
-      // ✅ ATUALIZADO: Agora aceita 'consulta' para o iOS também
       const ehRecarga = idProduto.includes('radar_creditos') || idProduto.includes('credito') || idProduto.includes('consulta');
 
-      // 2. Processa Pagamento na Loja (Google Play / App Store)
       const { customerInfo } = await Purchases.purchasePackage(pkg);
 
-      // 3. SE SUCESSO: Decide o que entregar
       if (ehRecarga) {
-         // --- LÓGICA DE RECARGA (CONSUMÍVEL) ---
          let qtdParaAdicionar = 0;
-         
          if (idProduto === 'radar_creditos_10' || idProduto.includes('10')) {
             qtdParaAdicionar = 10;
          } else if (idProduto.includes('20')) {
@@ -84,13 +74,12 @@ export default function PlanosScreen() {
          } else if (idProduto.includes('50')) {
             qtdParaAdicionar = 50;
          } else {
-            qtdParaAdicionar = 10; // Fallback
+            qtdParaAdicionar = 10;
          }
 
          if (qtdParaAdicionar > 0) {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-               // Chama a função RPC que agora aponta para a tabela 'user_credits'
                const { error } = await supabase.rpc('somar_consultas', { 
                   user_uuid: user.id, 
                   qtd: qtdParaAdicionar 
@@ -104,15 +93,12 @@ export default function PlanosScreen() {
                }
             }
          }
-
       } else {
-         // --- LÓGICA DE ASSINATURA ---
          if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
-            await refresh(); // Atualiza o status premium no app
+            await refresh();
             Alert.alert(t('planos.assinaturaSucesso'), t('planos.assinaturaMsg'));
          }
       }
-
     } catch (e: any) {
       if (!e.userCancelled) {
         if (e.code === 'ProductNotAvailableForPurchaseError' || e.message.includes('not available')) {
@@ -129,41 +115,69 @@ export default function PlanosScreen() {
     }
   };
 
-  // Helpers Visuais
   const obterInfoStatus = () => {
     switch (tipoPlano) {
       case 'teste_gratis': return { label: t('planos.periodoTeste'), cor: "#E67E22", icone: "time-outline" };
       case 'mensal': return { label: t('planos.mensal'), cor: "#2980B9", icone: "calendar-outline" };
       case 'anual': return { label: t('planos.anual'), cor: "#8E44AD", icone: "infinite-outline" };
       case 'vitalicio': return { label: t('planos.vitalicio'), cor: "#27AE60", icone: "ribbon-outline" };
-      case 'equipe': return { label: t('planos.equipe'), cor: "#2ECC71", icone: "people-outline" }; // ✅ Adicionado visual para equipe
+      case 'equipe': return { label: t('planos.equipe'), cor: "#2ECC71", icone: "people-outline" };
       default: return { label: t('planos.expirado'), cor: "#7F8C8D", icone: "alert-circle-outline" };
     }
   };
 
   const infoStatus = obterInfoStatus();
 
-  // ✅ ATUALIZADO: Filtros de Grupos compatíveis com Google e Apple
   const assinaturas = pacotes.filter(p => p.product.identifier.toLowerCase().includes('premium'));
   const recargas = pacotes.filter(p => p.product.identifier.toLowerCase().includes('radar_creditos') || p.product.identifier.toLowerCase().includes('credito') || p.product.identifier.toLowerCase().includes('consulta'));
 
-  const RenderPacote = ({ pkg, ehRecarga }: { pkg: PurchasesPackage, ehRecarga?: boolean }) => (
-    <TouchableOpacity 
-      key={pkg.identifier} 
-      style={[styles.card, ehRecarga && styles.cardRecarga]} 
-      onPress={() => comprar(pkg)}
-      disabled={processando}
-    >
-      <View style={styles.cardInfo}>
-        <Text style={styles.pkgTitle}>{pkg.product.title}</Text>
-        <Text style={styles.pkgDesc}>{pkg.product.description}</Text>
-      </View>
-      <View style={styles.priceTag}>
-        <Text style={[styles.pkgPrice, ehRecarga && {color: '#27AE60'}]}>{pkg.product.priceString}</Text>
-        <Ionicons name={ehRecarga ? "add-circle" : "chevron-forward"} size={20} color={ehRecarga ? "#27AE60" : "#2980B9"} />
-      </View>
-    </TouchableOpacity>
-  );
+  const RenderPacote = ({ pkg, ehRecarga }: { pkg: PurchasesPackage, ehRecarga?: boolean }) => {
+    const id = pkg.product.identifier.toLowerCase();
+    const isAnual = id.includes('anual') || id.includes('annual') || pkg.packageType === 'ANNUAL';
+    const isMensal = id.includes('mensal') || id.includes('monthly') || pkg.packageType === 'MONTHLY';
+
+    return (
+      <TouchableOpacity 
+        key={pkg.identifier} 
+        style={[styles.card, ehRecarga && styles.cardRecarga]} 
+        onPress={() => comprar(pkg)}
+        disabled={processando}
+      >
+        <View style={styles.cardInfo}>
+          <Text style={styles.pkgTitle}>{pkg.product.title}</Text>
+          <Text style={styles.pkgDesc}>{pkg.product.description}</Text>
+          
+          {/* ✅ Benefícios listados DIRETAMENTE DENTRO DA OPÇÃO DO PLANO */}
+          {!ehRecarga && (
+            <View style={styles.benefitsListInline}>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficio1')}</Text>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficio2')}</Text>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficio3')}</Text>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficio4')}</Text>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficio5')}</Text>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficio6')}</Text>
+              <Text style={[styles.benefitItemInline, { color: '#2980B9', fontWeight: 'bold', marginTop: 6 }]}>
+                ⭐ {isAnual ? t('planos.duracaoAnual') : (isMensal ? t('planos.duracaoMensal') : t('planos.duracaoPremium'))}
+              </Text>
+            </View>
+          )}
+
+          {ehRecarga && (
+            <View style={styles.benefitsListInline}>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficioRecarga1')}</Text>
+              <Text style={styles.benefitItemInline}>✓ {t('planos.beneficioRecarga2')}</Text>
+            </View>
+          )}
+        </View>
+        
+        {/* Adicionado alignItems flex-start para o botão de seta/preço não ficar esticado se a lista for longa */}
+        <View style={[styles.priceTag, { alignSelf: 'flex-start', marginTop: 5 }]}>
+          <Text style={[styles.pkgPrice, ehRecarga && {color: '#27AE60'}]}>{pkg.product.priceString}</Text>
+          <Ionicons name={ehRecarga ? "add-circle" : "chevron-forward"} size={20} color={ehRecarga ? "#27AE60" : "#2980B9"} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <ScrollView 
@@ -210,6 +224,7 @@ export default function PlanosScreen() {
               <Text style={styles.sectionTitle}>
                  {isPremium ? t('planos.alterarAssinatura') : t('planos.desbloquear')}
               </Text>
+
               <View style={styles.list}>
                 {assinaturas.map(p => <RenderPacote key={p.identifier} pkg={p} />)}
               </View>
@@ -232,6 +247,21 @@ export default function PlanosScreen() {
                 </Text>
              </View>
           )}
+
+          <View style={styles.legalSection}>
+             <Text style={styles.legalText}>
+                {t('planos.textoLegal')}
+             </Text>
+             <View style={styles.legalLinksRow}>
+                <TouchableOpacity onPress={() => setModalTermosVisivel(true)}>
+                   <Text style={styles.legalLink}>{t('auth.termos')}</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalDot}> • </Text>
+                <TouchableOpacity onPress={() => Linking.openURL('https://axoryntech.com.br/privacy')}>
+                   <Text style={styles.legalLink}>{t('planos.privacidade')}</Text>
+                </TouchableOpacity>
+             </View>
+          </View>
         </>
       )}
 
@@ -244,8 +274,14 @@ export default function PlanosScreen() {
         </View>
       </Modal>
 
-      <Text style={styles.footerNote}>
-        {t('planos.rodape')}
+      <ModalTermos 
+        visivel={modalTermosVisivel} 
+        fechar={() => setModalTermosVisivel(false)} 
+        aceitar={() => setModalTermosVisivel(false)} 
+      />
+
+      <Text style={[styles.footerNote, { paddingBottom: 20, textAlign: 'justify' }]}>
+        {Platform.OS === 'ios' ? t('planos.rodapeIos') : t('planos.rodape')}
       </Text>
       <View style={{height: 40}} />
     </ScrollView>
@@ -272,10 +308,20 @@ const styles = StyleSheet.create({
   expirationText: { fontSize: 13, color: '#7F8C8D', fontWeight: '500' },
   section: { marginBottom: 25 },
   sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#7F8C8D', marginBottom: 12, textTransform: 'uppercase' },
+  
+  legalSection: { marginTop: 10, paddingHorizontal: 10 },
+  legalText: { fontSize: 11, color: '#95A5A6', textAlign: 'center', marginBottom: 10 },
+  legalLinksRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  legalLink: { fontSize: 12, color: '#2980B9', textDecorationLine: 'underline' },
+  legalDot: { fontSize: 12, color: '#95A5A6', marginHorizontal: 5 },
+  
+  benefitsListInline: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F0F2F5' },
+  benefitItemInline: { fontSize: 12, color: '#27AE60', marginBottom: 6, fontWeight: '500' },
+
   list: { gap: 12 },
   card: { 
     backgroundColor: '#FFF', padding: 16, borderRadius: 12, 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', // Alinhamento flex-start para não quebrar a UI
     borderWidth: 1, borderColor: '#EAECEE'
   },
   cardRecarga: { borderColor: '#D5F5E3', backgroundColor: '#EAFAF1' },

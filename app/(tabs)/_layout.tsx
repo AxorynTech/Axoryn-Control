@@ -28,7 +28,9 @@ export default function TabLayout() {
             width: '100%',         // Ocupa a largura disponível...
             maxWidth: 600,         // ...mas trava em 600px (tamanho de celular/tablet)
             borderTopWidth: 1,     // Garante a borda visível no PC
-            borderColor: '#EEE'
+            borderColor: '#EEE',
+            height: 70,            // ✅ NOVA LINHA: Força uma altura generosa e fixa no navegador
+            paddingBottom: 10      // ✅ NOVA LINHA: Impede o texto/ícone de colar no fundo e ser cortado
         } : {})
       },
       tabBarLabelStyle: {

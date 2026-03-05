@@ -2,7 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function ModalTermos({ visivel, fechar, aceitar }: any) {
+// ✅ ADICIONADA A PROP 'somenteLeitura' AQUI
+export default function ModalTermos({ visivel, fechar, aceitar, somenteLeitura }: any) {
   const { t } = useTranslation();
 
   const renderItem = (numero: number) => {
@@ -14,7 +15,6 @@ export default function ModalTermos({ visivel, fechar, aceitar }: any) {
     // @ts-ignore
     const texto = t(textoKey);
     
-    // Se a tradução não existir (retornar a própria chave), esconde o item
     if (titulo === tituloKey || !titulo) return null;
 
     return (
@@ -25,7 +25,6 @@ export default function ModalTermos({ visivel, fechar, aceitar }: any) {
     );
   };
 
-  // Cria um array de 1 a 30 para tentar renderizar até 30 cláusulas
   const listaItens = Array.from({ length: 30 }, (_, i) => i + 1);
 
   return (
@@ -40,20 +39,33 @@ export default function ModalTermos({ visivel, fechar, aceitar }: any) {
                 
                 {listaItens.map((num) => renderItem(num))}
 
-                <Text style={styles.conclusao}>
-                    {t('termos.conclusao')}
-                </Text>
+                {/* ✅ Só mostra a conclusão se NÃO for somente leitura */}
+                {!somenteLeitura && (
+                  <Text style={styles.conclusao}>
+                      {t('termos.conclusao')}
+                  </Text>
+                )}
             </View>
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity onPress={fechar} style={styles.btnRecusar}>
-              <Text style={[styles.txtBtn, styles.txtRecusar]}>{t('common.cancelar')}</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity onPress={aceitar} style={styles.btnAceitar}>
-              <Text style={[styles.txtBtn, styles.txtAceitar]}>{t('termos.btnAceitar')}</Text>
-            </TouchableOpacity>
+            {/* ✅ Se for somente leitura (no ecrã de planos), mostra apenas "FECHAR" */}
+            {somenteLeitura ? (
+               <TouchableOpacity onPress={fechar} style={[styles.btnAceitar, { backgroundColor: '#34495E' }]}>
+                 <Text style={[styles.txtBtn, styles.txtAceitar]}>FECHAR</Text>
+               </TouchableOpacity>
+            ) : (
+               /* ✅ Se for no Auth, mostra "Cancelar" e "Li e Concordo" */
+               <>
+                 <TouchableOpacity onPress={fechar} style={styles.btnRecusar}>
+                   <Text style={[styles.txtBtn, styles.txtRecusar]}>{t('common.cancelar')}</Text>
+                 </TouchableOpacity>
+                 
+                 <TouchableOpacity onPress={aceitar} style={styles.btnAceitar}>
+                   <Text style={[styles.txtBtn, styles.txtAceitar]}>{t('termos.btnAceitar')}</Text>
+                 </TouchableOpacity>
+               </>
+            )}
           </View>
         </View>
       </View>
