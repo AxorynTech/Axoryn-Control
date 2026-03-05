@@ -15,26 +15,34 @@ export default function TabLayout() {
       tabBarActiveTintColor: '#2C3E50', // Azul Escuro
       tabBarInactiveTintColor: '#999999', // Cinza
       tabBarStyle: { 
-        // --- SUA LÓGICA ORIGINAL (MOBILE) MANTIDA INTACTA ---
-        height: 60 + (Platform.OS === 'ios' ? insets.bottom : insets.bottom + 10), 
-        paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 0 : 10), 
-        paddingTop: 10,
         backgroundColor: '#FFF',
-
-        // --- ✅ AJUSTE APENAS PARA O PC (WEB) ---
-        // Isso impede que o menu estique na tela inteira do computador
-        ...(Platform.OS === 'web' ? {
-            alignSelf: 'center',   // Centraliza o menu
-            width: '100%',         // Ocupa a largura disponível...
-            maxWidth: 600,         // ...mas trava em 600px (tamanho de celular/tablet)
-            borderTopWidth: 1,     // Garante a borda visível no PC
-            borderColor: '#EEE',
-            height: 70,            // ✅ NOVA LINHA: Força uma altura generosa e fixa no navegador
-            paddingBottom: 10      // ✅ NOVA LINHA: Impede o texto/ícone de colar no fundo e ser cortado
-        } : {})
+        ...(Platform.OS === 'web' 
+          ? {
+              // ✅ REGRAS EXCLUSIVAS PARA A WEB (COMPUTADOR)
+              height: 70,             // Altura fixa e segura
+              paddingBottom: 5,       // Margem inferior pequena para não espremer o texto
+              paddingTop: 5,          // Margem superior pequena
+              alignSelf: 'center',
+              width: '100%',
+              maxWidth: 600,
+              borderTopWidth: 1,
+              borderColor: '#EEE',
+            } 
+          : {
+              // 📱 REGRAS ORIGINAIS PARA O MOBILE (ANDROID E IOS INTACTOS)
+              height: 60 + (Platform.OS === 'ios' ? insets.bottom : insets.bottom + 10), 
+              paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 0 : 10), 
+              paddingTop: 10,
+            }
+        )
+      },
+      tabBarItemStyle: {
+        // Centraliza os itens na Web para evitar que fiquem colados ao fundo e sejam cortados
+        ...(Platform.OS === 'web' ? { justifyContent: 'center', paddingBottom: 5 } : {})
       },
       tabBarLabelStyle: {
-        marginBottom: 5,
+        // Na Web tiramos a margem inferior para o texto não ser empurrado para fora
+        marginBottom: Platform.OS === 'web' ? 0 : 5,
         fontSize: 10,
         fontWeight: 'bold'
       }
