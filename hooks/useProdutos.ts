@@ -50,7 +50,12 @@ export function useProdutos() {
         // ATUALIZAR (Garantindo que atualiza apenas se for dono do produto)
         const { error } = await supabase
           .from('produtos')
-          .update({ nome: prod.nome, preco: prod.preco, estoque: prod.estoque })
+          .update({ 
+            nome: prod.nome, 
+            preco: prod.preco, 
+            estoque: prod.estoque,
+            codigo_barras: prod.codigo_barras // ✅ ADICIONADO AQUI PARA ATUALIZAR
+          })
           .eq('id', prod.id)
           .eq('user_id', user.id); 
         if (error) throw error;
@@ -62,7 +67,8 @@ export function useProdutos() {
             user_id: user.id,
             nome: prod.nome, 
             preco: prod.preco, 
-            estoque: prod.estoque || 0 
+            estoque: prod.estoque || 0,
+            codigo_barras: prod.codigo_barras // ✅ ADICIONADO AQUI PARA CRIAR
           });
         if (error) throw error;
       }
