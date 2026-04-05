@@ -58,10 +58,8 @@ export function useClientes() {
         indicacao: cli.indicacao,
         reputacao: cli.reputacao,
         segmento: cli.segmento, 
-        // ⬇️ INJETADO: Puxa os links das fotos do banco ⬇️
         foto_com_documento: cli.foto_com_documento,
         foto_apenas_documento: cli.foto_apenas_documento,
-        // ⬆️ FIM DA INJEÇÃO ⬆️
         contratos: (cli.contratos || []).map((c: any) => ({
           id: c.id,
           capital: c.capital,
@@ -180,10 +178,8 @@ export function useClientes() {
       const { error } = await supabase.from('clientes').insert([{
         nome: dados.nome, whatsapp: dados.whatsapp, cpf: dados.cpf, endereco: dados.endereco, indicacao: dados.indicacao,
         reputacao: dados.reputacao || 'NEUTRA', segmento: dados.segmento,
-        // ⬇️ INJETADO: Salva as fotos no banco de dados ⬇️
         foto_com_documento: (dados as any).foto_com_documento,
         foto_apenas_documento: (dados as any).foto_apenas_documento
-        // ⬆️ FIM DA INJEÇÃO ⬆️
       }]);
       if (error) throw error;
       await fetchData(); 
@@ -197,10 +193,8 @@ export function useClientes() {
         const { error } = await supabase.from('clientes').update({
             nome: dados.nome, whatsapp: dados.whatsapp, cpf: dados.cpf, endereco: dados.endereco, indicacao: dados.indicacao, 
             reputacao: dados.reputacao, segmento: dados.segmento,
-            // ⬇️ INJETADO: Permite salvar/atualizar as fotos durante a edição ⬇️
             foto_com_documento: (dados as any).foto_com_documento,
             foto_apenas_documento: (dados as any).foto_apenas_documento
-            // ⬆️ FIM DA INJEÇÃO ⬆️
         }).eq('id', cliente.id);
         if (error) throw error;
         await fetchData();
@@ -408,9 +402,14 @@ export function useClientes() {
 
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
     try {
-      const vJuro = (contrato.lucroJurosPorParcela && contrato.lucroJurosPorParcela > 0)
-         ? contrato.lucroJurosPorParcela
-         : (contrato.capital * (contrato.taxa / 100));
+      // ⬇️ CORREÇÃO BLINDADA: JUROS SEMPRE BASEADO NO CAPITAL ATUAL ⬇️
+      let vJuro = 0;
+      if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
+          vJuro = contrato.lucroJurosPorParcela || 0;
+      } else {
+          vJuro = contrato.capital * (contrato.taxa / 100);
+      }
+      // ⬆️ FIM DA CORREÇÃO ⬆️
 
       let vMulta = 0;
       if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
@@ -627,8 +626,131 @@ export function useClientes() {
         Alert.alert(t('common.sucesso'), "Acordo realizado!");
     } catch(e) { Alert.alert(t('common.erro'), "Falha no acordo"); }
   }, [clientes, paraBancoISO, refreshCliente, t]);
+
+  const abaterEmprestimo = useCallback(async (nomeCliente: string, contrato: Contrato, valorPago: number, multaPaga: number, dataPagamento: string) => {
+    try {
+        // ⬇️ CORREÇÃO BLINDADA: JUROS SEMPRE BASEADO NO CAPITAL ATUAL ⬇️
+        let jurosAtual = 0;
+        if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
+            jurosAtual = contrato.lucroJurosPorParcela || 0;
+        } else {
+            jurosAtual = contrato.capital * (contrato.taxa / 100);
+        }
+        // ⬆️ FIM DA CORREÇÃO ⬆️
+        
+        const dividaTotal = contrato.capital + jurosAtual;
+        const novoCapital = dividaTotal - valorPago;
+
+        if (novoCapital <= 0) return Alert.alert(t('common.erro'), "O valor quita o contrato. Use a opção 'Quitar'.");
+
+        const lucroRegistrado = valorPago >= jurosAtual ? jurosAtual : valorPago;
+
+        let h = [...(contrato.movimentacoes || [])];
+        let msg = `Abatimento Parcial: Recebido R$ ${valorPago.toFixed(2)}`;
+        if (multaPaga > 0) msg += ` + Multa R$ ${multaPaga.toFixed(2)}`;
+        msg += ` | Novo Capital Base: R$ ${novoCapital.toFixed(2)} em ${dataPagamento}`;
+        h.unshift(msg);
+
+        const d = lerDataLocal(contrato.proximoVencimento || dataPagamento);
+        if (['MENSAL', 'PARCELADO'].includes(contrato.frequencia || '')) d.setMonth(d.getMonth() + 1);
+        else if (contrato.frequencia === 'QUINZENAL') d.setDate(d.getDate() + 15);
+        else if (contrato.frequencia === 'SEMANAL') d.setDate(d.getDate() + 7);
+        else if (contrato.frequencia === 'DIARIO') {
+            d.setDate(d.getDate() + 1);
+            const diasSemana = (contrato as any).diasSemanaDiario;
+            const excecoes = (contrato as any).datasExcluidas ? String((contrato as any).datasExcluidas).split(',') : [];
+            const allowed = diasSemana ? String(diasSemana).split(',').map(Number) : [0,1,2,3,4,5,6];
+            let tries = 0;
+            while (tries < 30) {
+                const dateString = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth()+1).padStart(2, '0') + '/' + d.getFullYear();
+                if (!allowed.includes(d.getDay()) || excecoes.includes(dateString)) {
+                    d.setDate(d.getDate() + 1);
+                    tries++;
+                } else { break; }
+            }
+        }
+
+        const updates: any = {
+            capital: novoCapital,
+            lucro_total: (contrato.lucroTotal || 0) + lucroRegistrado,
+            multas_pagas: (contrato.multasPagas || 0) + multaPaga,
+            proximo_vencimento: paraBancoISO(d.toLocaleDateString(i18n.language)),
+            movimentacoes: h
+        };
+
+        if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
+            const parcelasRestantes = (contrato.totalParcelas || 1) - (contrato.parcelasPagas || 0);
+            if (parcelasRestantes > 0) {
+                const novoJurosTotal = novoCapital * (contrato.taxa / 100);
+                updates.lucro_juros_por_parcela = novoJurosTotal / parcelasRestantes;
+                updates.valor_parcela = (novoCapital + novoJurosTotal) / parcelasRestantes;
+            }
+        } else {
+            updates.lucro_juros_por_parcela = novoCapital * (contrato.taxa / 100);
+        }
+
+        const { error } = await supabase.from('contratos').update(updates).eq('id', contrato.id);
+        if (error) throw error;
+
+        const idCarteira = await garantirCarteira();
+        const userId = await getUserId();
+        if (idCarteira && userId) {
+            const totalEntrada = valorPago + multaPaga;
+            if (totalEntrada > 0) {
+                await supabase.from('fluxo_pessoal').insert([{
+                    tipo: 'ENTRADA',
+                    valor: totalEntrada,
+                    descricao: `Abatimento - ${nomeCliente}`,
+                    data_movimento: paraBancoISO(dataPagamento),
+                    conta_id: idCarteira,
+                    user_id: userId
+                }]);
+            }
+        }
+
+        const cliente = clientes.find(c => c.nome === nomeCliente);
+        if(cliente?.id) await refreshCliente(cliente.id);
+
+        Alert.alert(t('common.sucesso'), `Abatimento concluído!\nO Novo Capital Base é R$ ${novoCapital.toFixed(2)} e o vencimento foi atualizado.`);
+    } catch (e) { Alert.alert(t('common.erro'), "Falha ao abater valor."); }
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
   
-  const editarContrato = useCallback(async (nomeCliente: string, id: number, dados: any) => { Alert.alert(t('fluxo.aviso'), "Edição rápida indisponível."); }, [t]);
+  const editarContrato = useCallback(async (nomeCliente: string, id: number, dados: any) => { 
+      try {
+          let dataInicioDB = dados.dataInicio;
+          if (dataInicioDB && dataInicioDB.includes('/')) {
+              dataInicioDB = paraBancoISO(dataInicioDB);
+          }
+          let vencimentoDB = dados.proximoVencimento;
+          if (vencimentoDB && vencimentoDB.includes('/')) {
+              vencimentoDB = paraBancoISO(vencimentoDB);
+          }
+
+          const updates: any = {
+              capital: dados.capital,
+              taxa: dados.taxa,
+              lucro_total: dados.lucroTotal,
+              data_inicio: dataInicioDB,
+              proximo_vencimento: vencimentoDB,
+              garantia: dados.garantia,
+              valor_multa_diaria: dados.valorMultaDiaria
+          };
+
+          if (dados.valorParcela !== undefined) updates.valor_parcela = dados.valorParcela;
+          if (dados.totalParcelas !== undefined) updates.total_parcelas = dados.totalParcelas;
+          if (dados.parcelasPagas !== undefined) updates.parcelas_pagas = dados.parcelasPagas;
+
+          const { error } = await supabase.from('contratos').update(updates).eq('id', id);
+          if (error) throw error;
+          
+          const cliente = clientes.find(c => c.nome === nomeCliente);
+          if (cliente?.id) await refreshCliente(cliente.id);
+          
+          Alert.alert(t('common.sucesso'), "Empréstimo atualizado com sucesso!");
+      } catch (e) { 
+          Alert.alert(t('common.erro'), "Falha ao editar empréstimo."); 
+      }
+  }, [clientes, paraBancoISO, refreshCliente, t]);
   
   const excluirContrato = useCallback(async (id: number) => { 
       const { error } = await supabase.from('contratos').delete().eq('id', id);
@@ -642,6 +764,6 @@ export function useClientes() {
     adicionarCliente, editarCliente, excluirCliente,
     adicionarContrato, editarContrato, excluirContrato,
     acaoRenovarQuitar, pagarParcela, criarAcordo, importarDados,
-    alternarBloqueio 
+    alternarBloqueio, abaterEmprestimo 
   };
 }

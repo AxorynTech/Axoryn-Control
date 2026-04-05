@@ -34,14 +34,19 @@ export const verificarAcesso = async () => {
       }
     }
 
-    // --- 3. REGRA TESTE GRÁTIS (30 Dias) ---
+    // --- 3. REGRA TESTE GRÁTIS COM DATA DE CORTE ---
     const dataCriacao = new Date(user.created_at);
     const hoje = new Date();
     const diferenca = hoje.getTime() - dataCriacao.getTime();
-    const dias = diferenca / (1000 * 3600 * 24);
+    const diasUsados = diferenca / (1000 * 3600 * 24);
 
-    if (dias <= 30) {
-      console.log(`🎁 Acesso TESTE (${Math.floor(dias)} dias usados)`);
+    // ⬇️ INJETADO: Lógica de Data de Corte (Grandfathering) ⬇️
+    const dataCorte = new Date(2026, 3, 15); // 15/04/2026 (Mês 3 = Abril)
+    const limiteDias = dataCriacao < dataCorte ? 30 : 14;
+    // ⬆️ FIM DA INJEÇÃO ⬆️
+
+    if (diasUsados <= limiteDias) {
+      console.log(`🎁 Acesso TESTE (${Math.floor(diasUsados)}/${limiteDias} dias usados)`);
       return true;
     }
 

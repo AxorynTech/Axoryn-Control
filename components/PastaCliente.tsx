@@ -21,6 +21,8 @@ import { Cliente, Contrato } from '../types';
 import RiskRadarCSI from './RiskRadarCSI';
 
 import ModalEditarEmprestimo from './ModalEditarEmprestimo';
+// ⬇️ INJETADO: IMPORTANDO O NOVO MODAL ⬇️
+import ModalAbaterEmprestimo from './ModalAbaterEmprestimo';
 
 type Props = {
   cliente: Cliente;
@@ -35,13 +37,15 @@ type Props = {
   aoNegociar: (c: Contrato) => void;
   aoPagarParcela: (c: Contrato) => void;
   aoAlternarBloqueio: (c: Cliente) => void;
+  // ⬇️ INJETADO: A NOVA FUNÇÃO OPCIONAL DE ABATER ⬇️
+  aoAbaterEmprestimo?: (nomeCliente: string, c: Contrato, valorCap: number, valorJur: number, data: string) => void;
 };
 
 export default function PastaCliente({ 
   cliente, expandido, aoExpandir, aoNovoEmprestimo, 
   aoEditarCliente, aoExcluirCliente, aoEditarContrato, aoExcluirContrato, 
   aoRenovarOuQuitar, aoNegociar, aoPagarParcela,
-  aoAlternarBloqueio 
+  aoAlternarBloqueio, aoAbaterEmprestimo
 }: Props) {
 
   const { t } = useTranslation();
@@ -55,6 +59,10 @@ export default function PastaCliente({
 
   const [modalEditarContratoVisivel, setModalEditarContratoVisivel] = useState(false);
   const [contratoSendoEditado, setContratoSendoEditado] = useState<Contrato | null>(null);
+
+  // ⬇️ INJETADO: ESTADOS DO MODAL DE ABATIMENTO ⬇️
+  const [modalAbaterVisivel, setModalAbaterVisivel] = useState(false);
+  const [contratoParaAbater, setContratoParaAbater] = useState<Contrato | null>(null);
 
   useEffect(() => {
       const carregarMiniaturaRosto = async () => {
@@ -160,15 +168,39 @@ export default function PastaCliente({
 
   const salvarEdicaoContrato = async (dadosAtualizados: Partial<Contrato>) => {
       if (!contratoSendoEditado) return;
+      const contratoCache = { ...contratoSendoEditado, ...dadosAtualizados };
+      setModalEditarContratoVisivel(false);
+      setContratoSendoEditado(null);
       
-      try {
-          await aoEditarContrato({ ...contratoSendoEditado, ...dadosAtualizados });
-          setModalEditarContratoVisivel(false);
-          setContratoSendoEditado(null);
-      } catch (error) {
-          console.log("Erro ao salvar edição", error);
-      }
+      setTimeout(async () => {
+          try {
+              await aoEditarContrato(contratoCache);
+          } catch (error) {
+              console.log("Erro ao salvar edição", error);
+          }
+      }, 500);
   };
+
+  // ⬇️ INJETADO: AÇÕES DE ABRIR E SALVAR O ABATIMENTO ⬇️
+  const abrirAbatimento = (contrato: Contrato) => {
+      setContratoParaAbater(contrato);
+      setModalAbaterVisivel(true);
+  };
+
+  const salvarAbatimento = async (valorCap: number, valorJur: number, data: string) => {
+      if (!contratoParaAbater) return;
+      setModalAbaterVisivel(false);
+      setContratoParaAbater(null);
+
+      setTimeout(async () => {
+          if (aoAbaterEmprestimo) {
+              await aoAbaterEmprestimo(cliente.nome, contratoParaAbater, valorCap, valorJur, data);
+          } else {
+              Alert.alert("Aviso", "Função de abater não está conectada na tela principal.");
+          }
+      }, 500);
+  };
+  // ⬆️ FIM DA INJEÇÃO ⬆️
 
   const gerarPDF = async (con: Contrato) => {
     try {
@@ -365,6 +397,15 @@ export default function PastaCliente({
           salvar={salvarEdicaoContrato}
       />
 
+      {/* ⬇️ INJETADO: O COMPONENTE DO MODAL DE ABATER ⬇️ */}
+      <ModalAbaterEmprestimo
+          visivel={modalAbaterVisivel}
+          contrato={contratoParaAbater}
+          fechar={() => { setModalAbaterVisivel(false); setContratoParaAbater(null); }}
+          salvar={salvarAbatimento}
+      />
+      {/* ⬆️ FIM DA INJEÇÃO ⬆️ */}
+
       <TouchableOpacity onPress={aoExpandir} style={styles.header}>
         <View style={styles.linhaTitulo}>
             <View style={{flexDirection:'row', alignItems:'center', flex: 1}}>
@@ -517,6 +558,10 @@ export default function PastaCliente({
                     <>
                       <TouchableOpacity onPress={() => aoRenovarOuQuitar('RENOVAR', con)} style={styles.btnRenovar}><Text style={styles.txtBtn}>{t('pastaCliente.renovar')}</Text></TouchableOpacity>
                       <TouchableOpacity onPress={() => aoRenovarOuQuitar('QUITAR', con)} style={styles.btnQuitar}><Text style={styles.txtBtn}>{t('pastaCliente.quitar')}</Text></TouchableOpacity>
+                      
+                      {/* ⬇️ INJETADO: O BOTÃO VERDE DE ABATER ⬇️ */}
+                      <TouchableOpacity onPress={() => abrirAbatimento(con)} style={styles.btnAbater}><Text style={styles.txtBtn}>ABATER</Text></TouchableOpacity>
+                      {/* ⬆️ FIM DA INJEÇÃO ⬆️ */}
                     </>
                   ) : (
                     <TouchableOpacity onPress={() => aoPagarParcela(con)} style={styles.btnParcela}><Text style={styles.txtBtn}>{t('pastaCliente.pagarParcela')} {((con.parcelasPagas||0)+1)}/{con.totalParcelas}</Text></TouchableOpacity>
@@ -576,6 +621,8 @@ const styles = StyleSheet.create({
   botoesCon: { flexDirection: 'row', marginTop: 10, gap: 8 },
   btnRenovar: { flex: 1, backgroundColor: '#2980B9', padding: 10, borderRadius: 6, alignItems: 'center' }, 
   btnQuitar: { flex: 1, backgroundColor: '#E74C3C', padding: 10, borderRadius: 6, alignItems: 'center' }, 
+  // ⬇️ INJETADO: Estilo do botão abater ⬇️
+  btnAbater: { flex: 1, backgroundColor: '#16A085', padding: 10, borderRadius: 6, alignItems: 'center' }, 
   btnParcela: { flex: 1, backgroundColor: '#8E44AD', padding: 10, borderRadius: 6, alignItems: 'center' },
   btnLixo: { padding: 10, justifyContent: 'center' },
   txtBtn: { color: '#FFF', fontWeight: 'bold', fontSize: 11 },

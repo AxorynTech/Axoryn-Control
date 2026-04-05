@@ -158,7 +158,14 @@ export function useAssinatura() {
       if (!dataVencimentoFinal) {
         const dataCadastro = new Date(user.created_at);
         const vencimentoTeste = new Date(dataCadastro);
-        vencimentoTeste.setDate(dataCadastro.getDate() + 30);
+        
+        // ⬇️ INJETADO: Lógica de Data de Corte (Grandfathering) ⬇️
+        // Data de corte: 15/04/2026 (Ano, Mês base 0=Jan 3=Abr, Dia)
+        const dataCorte = new Date(2026, 3, 15); 
+        const diasTeste = dataCadastro < dataCorte ? 30 : 14;
+        
+        vencimentoTeste.setDate(dataCadastro.getDate() + diasTeste);
+        // ⬆️ FIM DA INJEÇÃO ⬆️
 
         if (hoje < vencimentoTeste) {
           dataVencimentoFinal = vencimentoTeste;

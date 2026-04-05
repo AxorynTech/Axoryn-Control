@@ -5,20 +5,15 @@ import { ActivityIndicator, Alert, Linking, Modal, ScrollView, StyleSheet, Text,
 import { supabase } from '../services/supabase';
 import { Cliente } from '../types';
 
-import { useFluxoPessoal } from '../hooks/useFluxoPessoal';
-
-import ModalAcao from './ModalAcao';
-import ModalParcelamento from './ModalParcelamento';
-
 type Props = {
   clientes: Cliente[];
+  // ⬇️ INJETADO: A nova função que avisa a tela principal para mudar de aba ⬇️
+  aoAbrirCliente?: (clienteNome: string) => void;
 };
 
-export default function ListaCobranca({ clientes }: Props) {
+export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
   const { t } = useTranslation();
   
-  const { adicionarMovimento, contas } = useFluxoPessoal();
-
   const [modalConfig, setModalConfig] = useState(false);
   const [salvando, setSalvando] = useState(false);
   
@@ -26,16 +21,6 @@ export default function ListaCobranca({ clientes }: Props) {
   const [chavePix, setChavePix] = useState('');
   const [textoAtraso, setTextoAtraso] = useState('Olá {nome}, constou aqui que seu pagamento de R$ {valor} venceu dia {data}. Podemos regularizar hoje?');
   const [textoHoje, setTextoHoje] = useState('Olá {nome}, lembrete do vencimento hoje ({data}). Valor: R$ {valor}. Aguardo confirmação!');
-
-  // ESTADOS GERAIS DE AÇÃO
-  const [modalAcoes, setModalAcoes] = useState(false);
-  const [itemSelecionado, setItemSelecionado] = useState<any>(null);
-  const [processandoAcao, setProcessandoAcao] = useState(false);
-
-  // ESTADOS PARA OS MODAIS
-  const [modalAcaoVisivel, setModalAcaoVisivel] = useState(false);
-  const [tipoAcao, setTipoAcao] = useState<'QUITAR' | 'RENOVAR'>('QUITAR');
-  const [modalParcelamentoVisivel, setModalParcelamentoVisivel] = useState(false);
 
   // BUSCAR CONFIGURAÇÕES DO BANCO AO ABRIR A TELA
   useEffect(() => {
@@ -124,84 +109,6 @@ export default function ListaCobranca({ clientes }: Props) {
     Linking.openURL(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`);
   };
 
-  const abrirAcoes = (item: any) => {
-      setItemSelecionado(item);
-      setModalAcoes(true);
-  };
-
-  // FUNÇÕES DE CONFIRMAÇÃO DOS MODAIS
-  const handleConfirmarModalAcao = async (dataInformada: string) => {
-    if (!itemSelecionado) return;
-    setProcessandoAcao(true);
-
-    const partes = dataInformada.split('/');
-    const dataFormatadaBanco = partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : new Date().toISOString().split('T')[0];
-
-    if (tipoAcao === 'QUITAR') {
-        const { error } = await supabase.from('contratos').update({ status: 'QUITADO' }).eq('id', itemSelecionado.contrato.id);
-        if (!error) {
-            if (contas && contas.length > 0) {
-                await adicionarMovimento({
-                    conta_id: contas[0].id,
-                    valor: itemSelecionado.valorCobrar,
-                    descricao: `Quitação - ${itemSelecionado.cliente}`,
-                    data: dataFormatadaBanco,
-                    tipo: 'ENTRADA'
-                });
-            }
-            Alert.alert("Sucesso", "Contrato quitado e lançado no caixa!");
-        } else {
-            Alert.alert("Erro", "Falha ao quitar contrato.");
-        }
-    } else if (tipoAcao === 'RENOVAR') {
-        const { error } = await supabase.from('contratos').update({ proximoVencimento: dataFormatadaBanco }).eq('id', itemSelecionado.contrato.id);
-        if (!error) {
-            if (contas && contas.length > 0) {
-                const valorJuros = itemSelecionado.contrato.capital * (itemSelecionado.contrato.taxa / 100);
-                await adicionarMovimento({
-                    conta_id: contas[0].id,
-                    valor: valorJuros,
-                    descricao: `Renovação (Juros) - ${itemSelecionado.cliente}`,
-                    data: dataFormatadaBanco,
-                    tipo: 'ENTRADA'
-                });
-            }
-            Alert.alert("Sucesso", "Renovado com sucesso e juros lançados no caixa!");
-        } else {
-            Alert.alert("Erro", "Falha ao renovar contrato.");
-        }
-    }
-    
-    setProcessandoAcao(false);
-    setModalAcaoVisivel(false);
-  };
-
-  const handleConfirmarParcelamento = async (valorTotal: number, qtdParcelas: number, dataPrimeira: string, multaDiaria: number) => {
-    if (!itemSelecionado) return;
-    setProcessandoAcao(true);
-
-    const partes = dataPrimeira.split('/');
-    const dataFormatadaBanco = partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : dataPrimeira;
-
-    const { error } = await supabase.from('contratos').update({
-        status: 'PARCELADO',
-        valorParcela: valorTotal / qtdParcelas,
-        totalParcelas: qtdParcelas,
-        parcelasPagas: 0,
-        proximoVencimento: dataFormatadaBanco,
-        taxa: multaDiaria
-    }).eq('id', itemSelecionado.contrato.id);
-
-    setProcessandoAcao(false);
-
-    if (!error) {
-        Alert.alert("Sucesso", "Contrato parcelado/negociado com sucesso!");
-        setModalParcelamentoVisivel(false);
-    } else {
-        Alert.alert("Erro", "Falha ao parcelar contrato.");
-    }
-  };
-
   let listaVencidos: any[] = [];
   let listaHoje: any[] = [];
   let totalAtrasado = 0;
@@ -278,12 +185,15 @@ export default function ListaCobranca({ clientes }: Props) {
       </View>
 
       <View style={{marginTop: 10, borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 10}}>
+          {/* ⬇️ O NOVO BOTÃO DE TELETRANSPORTE PARA A CARTEIRA ⬇️ */}
           <TouchableOpacity 
-              style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECF0F1', padding: 10, borderRadius: 8}}
-              onPress={() => abrirAcoes(item)}
+              style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EBF5FB', padding: 10, borderRadius: 8}}
+              onPress={() => {
+                  if (aoAbrirCliente) aoAbrirCliente(item.cliente);
+              }}
           >
-              <Ionicons name="options-outline" size={18} color="#2C3E50" />
-              <Text style={{marginLeft: 5, color: '#2C3E50', fontWeight: 'bold'}}>Gerenciar Contrato</Text>
+              <Ionicons name="folder-open" size={18} color="#2980B9" />
+              <Text style={{marginLeft: 5, color: '#2980B9', fontWeight: 'bold'}}>Abrir Pasta na Carteira</Text>
           </TouchableOpacity>
       </View>
     </View>
@@ -392,46 +302,6 @@ export default function ListaCobranca({ clientes }: Props) {
           </View>
       </Modal>
 
-      <Modal visible={modalAcoes} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                  <Text style={[styles.modalTitulo, {marginBottom: 20}]}>Ações: {itemSelecionado?.cliente}</Text>
-                  
-                  <TouchableOpacity style={[styles.btnAcao, {backgroundColor: '#27AE60'}]} onPress={() => { setTipoAcao('QUITAR'); setModalAcaoVisivel(true); setModalAcoes(false); }}>
-                      <Ionicons name="checkmark-done-circle" size={24} color="#FFF" />
-                      <Text style={styles.txtBtnAcao}>Quitar Contrato</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={[styles.btnAcao, {backgroundColor: '#2980B9'}]} onPress={() => { setTipoAcao('RENOVAR'); setModalAcaoVisivel(true); setModalAcoes(false); }}>
-                      <Ionicons name="refresh-circle" size={24} color="#FFF" />
-                      <Text style={styles.txtBtnAcao}>Renovar Contrato</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={[styles.btnAcao, {backgroundColor: '#8E44AD'}]} onPress={() => { setModalParcelamentoVisivel(true); setModalAcoes(false); }}>
-                      <Ionicons name="list" size={24} color="#FFF" />
-                      <Text style={styles.txtBtnAcao}>Parcelar / Negociar</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={() => setModalAcoes(false)} style={{marginTop: 15, alignItems: 'center', padding: 10}}>
-                      <Text style={{color: '#7F8C8D', fontWeight: 'bold'}}>Cancelar</Text>
-                  </TouchableOpacity>
-              </View>
-          </View>
-      </Modal>
-
-      <ModalAcao 
-        visivel={modalAcaoVisivel}
-        tipo={tipoAcao}
-        fechar={() => setModalAcaoVisivel(false)}
-        confirmar={handleConfirmarModalAcao}
-      />
-
-      <ModalParcelamento 
-        visivel={modalParcelamentoVisivel}
-        fechar={() => setModalParcelamentoVisivel(false)}
-        confirmar={handleConfirmarParcelamento}
-      />
-
     </ScrollView>
   );
 }
@@ -462,7 +332,5 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: 'bold', color: '#34495E', marginBottom: 5, marginTop: 10 },
   infoText: { fontSize: 11, color: '#7F8C8D', marginBottom: 10, backgroundColor: '#F4F6F6', padding: 8, borderRadius: 5 },
   input: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, color: '#333' },
-  btnSalvarConfig: { backgroundColor: '#27AE60', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 15 },
-  btnAcao: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 10 },
-  txtBtnAcao: { color: '#FFF', fontWeight: 'bold', fontSize: 16, marginLeft: 10 }
+  btnSalvarConfig: { backgroundColor: '#27AE60', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 15 }
 });

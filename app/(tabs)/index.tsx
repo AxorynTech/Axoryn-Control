@@ -60,7 +60,8 @@ export default function VertoApp() {
     adicionarCliente, editarCliente, excluirCliente, 
     adicionarContrato, editarContrato, excluirContrato, acaoRenovarQuitar, 
     criarAcordo, pagarParcela,
-    alternarBloqueio
+    alternarBloqueio, 
+    abaterEmprestimo // ⬇️ INJETADO: Puxando a função do hook ⬇️
   } = useClientes();
 
   const [aba, setAba] = useState('carteira');
@@ -244,6 +245,7 @@ export default function VertoApp() {
                   aoNegociar={(con) => setModalParcelamento({visivel:true, contrato:con, cliente:cli.nome})}
                   aoPagarParcela={(con) => setModalPagarParcela({visivel:true, contrato:con, clienteNome:cli.nome})}
                   aoAlternarBloqueio={alternarBloqueio}
+                  aoAbaterEmprestimo={abaterEmprestimo} // ⬇️ INJETADO: Plugando a função na pasta do cliente ⬇️
                 />
               ))}
             </>
@@ -252,7 +254,19 @@ export default function VertoApp() {
           {aba === 'pessoal' && <TelaFluxoPessoal />}
 
           {aba === 'cadastro' && <TelaCadastro aoSalvar={salvarNovoCliente} />}
-          {aba === 'cobranca' && <ListaCobranca clientes={clientes} />}
+          
+          {/* ⬇️ A MÁGICA ESTÁ AQUI: Pluga a função que muda a aba e abre a pasta! ⬇️ */}
+          {aba === 'cobranca' && (
+            <ListaCobranca 
+              clientes={clientes} 
+              aoAbrirCliente={(nome) => {
+                setAba('carteira');
+                setPastasAbertas({ ...pastasAbertas, [nome]: true });
+              }}
+            />
+          )}
+          {/* ⬆️ FIM DA EDIÇÃO ⬆️ */}
+
         </ScrollView>
       </KeyboardAvoidingView>
 

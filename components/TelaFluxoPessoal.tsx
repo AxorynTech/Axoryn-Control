@@ -28,6 +28,10 @@ export default function TelaFluxoPessoal() {
   const [contaSelecionada, setContaSelecionada] = useState<number | null>(null);
   const [visivel, setVisivel] = useState(true);
 
+  // ⬇️ INJETADO: Estados para a Seleção Múltipla ⬇️
+  const [modoSelecao, setModoSelecao] = useState(false);
+  const [selecionados, setSelecionados] = useState<number[]>([]);
+
   // Modais
   const [modalMovimento, setModalMovimento] = useState(false);
   const [modalNovaConta, setModalNovaConta] = useState(false);
@@ -226,6 +230,32 @@ export default function TelaFluxoPessoal() {
     }
   };
 
+  // ⬇️ INJETADO: Função para Excluir Múltiplos Registros ⬇️
+  const handleExcluirMultiplos = () => {
+      if (selecionados.length === 0) return;
+      
+      const titulo = t('fluxo.excluirMultiplosTitulo', { defaultValue: 'Excluir Selecionados' });
+      const msg = t('fluxo.excluirMultiplosMsg', { defaultValue: `Tem certeza que deseja excluir ${selecionados.length} lançamentos?` });
+
+      if (Platform.OS === 'web') {
+          if (window.confirm(`${titulo}\n\n${msg}`)) {
+              Promise.all(selecionados.map(id => excluirMovimento(id))).then(() => {
+                  setSelecionados([]);
+                  setModoSelecao(false);
+              });
+          }
+      } else {
+          Alert.alert(titulo, msg, [
+              { text: t('common.cancelar'), style: 'cancel' },
+              { text: t('fluxo.btnApagar', { defaultValue: 'Apagar Tudo' }), style: 'destructive', onPress: async () => {
+                  await Promise.all(selecionados.map(id => excluirMovimento(id)));
+                  setSelecionados([]);
+                  setModoSelecao(false);
+              }}
+          ]);
+      }
+  };
+
   const limparForm = () => {
     setIdEdicao(null); setValor(''); setDescricao(''); 
     setContaIdForm(contaSelecionada || null);
@@ -316,7 +346,7 @@ export default function TelaFluxoPessoal() {
       </View>
 
       {/* 4. LISTA DE MOVIMENTAÇÕES */}
-      <View style={{ marginTop: 15, paddingHorizontal: 15, paddingBottom: 20 }}>
+      <View style={{ marginTop: 15, paddingHorizontal: 15, paddingBottom: 100 }}>
         {!contaSelecionada ? (
             <View style={{ alignItems: 'center', marginTop: 40, opacity: 0.5 }}>
                 <Ionicons name="pie-chart-outline" size={50} color="#95A5A6" />
@@ -327,8 +357,45 @@ export default function TelaFluxoPessoal() {
         ) : (
             <>
                 {listaExibida.map((item) => (
-                <TouchableOpacity key={item.id} onPress={() => abrirEdicao(item)} style={styles.item}>
+                // ⬇️ INJETADO: A Nova Lógica de Toque Longo e Seleção Múltipla ⬇️
+                <TouchableOpacity 
+                    key={item.id} 
+                    onLongPress={() => {
+                        if (!modoSelecao) {
+                            setModoSelecao(true);
+                            setSelecionados([item.id]);
+                        }
+                    }}
+                    onPress={() => {
+                        if (modoSelecao) {
+                            if (selecionados.includes(item.id)) {
+                                const novaLista = selecionados.filter(id => id !== item.id);
+                                setSelecionados(novaLista);
+                                if (novaLista.length === 0) setModoSelecao(false);
+                            } else {
+                                setSelecionados([...selecionados, item.id]);
+                            }
+                        } else {
+                            abrirEdicao(item);
+                        }
+                    }} 
+                    style={[
+                        styles.item, 
+                        selecionados.includes(item.id) && { backgroundColor: '#EBF5FB', borderColor: '#2980B9', borderWidth: 1 }
+                    ]}
+                >
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    {modoSelecao && (
+                        <View style={{ marginRight: 10 }}>
+                            <Ionicons 
+                                name={selecionados.includes(item.id) ? "checkmark-circle" : "ellipse-outline"} 
+                                size={24} 
+                                color={selecionados.includes(item.id) ? "#2980B9" : "#BDC3C7"} 
+                            />
+                        </View>
+                    )}
+                    {/* ⬆️ FIM DA INJEÇÃO DA SELEÇÃO ⬆️ */}
+
                     <View style={[styles.bola, { backgroundColor: item.tipo === 'ENTRADA' ? '#D5F5E3' : '#FADBD8' }]}>
                         <Ionicons name={item.tipo === 'ENTRADA' ? "arrow-up" : "arrow-down"} size={18} color={item.tipo === 'ENTRADA' ? '#27AE60' : '#E74C3C'} />
                     </View>
@@ -358,6 +425,19 @@ export default function TelaFluxoPessoal() {
             </>
         )}
       </View>
+
+      {/* --- INJETADO: BARRA FLUTUANTE DE SELEÇÃO MÚLTIPLA --- */}
+      {modoSelecao && (
+          <View style={styles.barraSelecao}>
+              <TouchableOpacity onPress={() => { setModoSelecao(false); setSelecionados([]); }} style={{flexDirection:'row', alignItems:'center'}}>
+                  <Ionicons name="close" size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={{color:'#FFF', fontWeight:'bold', fontSize: 16}}>{selecionados.length} selecionados</Text>
+              <TouchableOpacity onPress={handleExcluirMultiplos}>
+                  <Ionicons name="trash" size={24} color="#E74C3C" />
+              </TouchableOpacity>
+          </View>
+      )}
 
       {/* MODAL NOVA CONTA (Atualizado com KeyboardAvoidingView) */}
       <Modal visible={modalNovaConta} transparent animationType="fade">
@@ -567,5 +647,8 @@ const styles = StyleSheet.create({
   btnSave: { backgroundColor: '#2C3E50', padding: 15, borderRadius: 8, flex: 1, alignItems: 'center' },
   labelInput: { fontSize: 12, color: '#666', marginBottom: 5, fontWeight: 'bold', alignSelf:'flex-start' },
   badgeConta: { padding: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: '#EEE', marginRight: 8, marginBottom: 8 },
-  badgeContaAtivo: { backgroundColor: '#2980B9' }
+  badgeContaAtivo: { backgroundColor: '#2980B9' },
+
+  // ⬇️ INJETADO: Estilos da barra de seleção múltipla ⬇️
+  barraSelecao: { position: 'absolute', bottom: 20, left: 20, right: 20, backgroundColor: '#2C3E50', padding: 15, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', elevation: 5, zIndex: 999 }
 });
