@@ -4,11 +4,12 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Linking,
   Modal,
-  Platform, // ✅ ADICIONADO AQUI
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,11 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+
+import * as ImagePicker from 'expo-image-picker';
+// ⬇️ CORREÇÃO INJETADA: IMPORTANDO DA PASTA LEGACY COMO O EXPO PEDIU ⬇️
+import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import ModalDadosPessoais from '../../components/ModalDadosPessoais';
 import { useAssinatura } from '../../hooks/useAssinatura';
@@ -26,18 +32,18 @@ export default function Perfil() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   
-  // Hooks de Assinatura e Clientes
   const { loading: loadingAssinatura, isPremium, refresh: refreshAssinatura } = useAssinatura();
   const { clientes, fetchData: recarregarClientes, loading: loadingClientes } = useClientes();
 
-  // Estados locais
   const [email, setEmail] = useState('');
   const [modalDadosVisivel, setModalDadosVisivel] = useState(false);
   const [modalIdiomaVisivel, setModalIdiomaVisivel] = useState(false);
   const [consultasCount, setConsultasCount] = useState(0);
   const [posicao, setPosicao] = useState<number | null>(null);
 
-  // Configuração Visual baseada no Status
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
   let textoBadge = t('perfil.usuarioRegistrado');
   if (isPremium) {
       textoBadge = t('perfil.contaVerificada');   
@@ -50,15 +56,19 @@ export default function Perfil() {
   );
 
   const carregarDados = async () => {
-    // 1. Pega e-mail do usuário logado
     const { data: { user } } = await supabase.auth.getUser();
     if (user?.email) setEmail(user.email);
 
-    // 2. Atualiza dados de Clientes e Assinatura
+    if (user) {
+        try {
+            const { data: profileData } = await supabase.from('profiles').select('avatar_url').eq('user_id', user.id).single();
+            if (profileData?.avatar_url) setAvatarUrl(profileData.avatar_url);
+        } catch (e) { console.log("Erro ao carregar avatar", e); }
+    }
+
     await recarregarClientes();
     await refreshAssinatura();
 
-    // 3. Estatísticas de Consultas e Ranking via RPC
     try {
         if (user) {
             const { count, error } = await supabase
@@ -75,7 +85,66 @@ export default function Perfil() {
     }
   };
 
-  // Funções de Gerenciamento
+  const escolherEEnviarFoto = async () => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+          Alert.alert('Permissão negada', 'Precisamos de acesso à sua galeria para mudar a foto.');
+          return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false, 
+          quality: 0.3, 
+      });
+
+      if (!result.canceled && result.assets[0]) {
+          setUploadingAvatar(true);
+          try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) throw new Error('Usuário não logado');
+
+              const asset = result.assets[0];
+              const uri = asset.uri;
+              
+              const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+              const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+
+              // 🛠️ MANTIDO: O uso do readAsStringAsync agora funcionará pois o import está no /legacy 🛠️
+              const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+              const arrayBuffer = decode(base64);
+
+              const { error: uploadError } = await supabase.storage
+                  .from('avatars')
+                  .upload(fileName, arrayBuffer, { 
+                    upsert: true,
+                    contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`
+                  });
+
+              if (uploadError) throw uploadError;
+
+              const { data: { publicUrl } } = supabase.storage
+                  .from('avatars')
+                  .getPublicUrl(fileName);
+
+              const { error: updateError } = await supabase
+                  .from('profiles')
+                  .update({ avatar_url: publicUrl })
+                  .eq('user_id', user.id);
+              
+              if (updateError) throw updateError;
+              
+              setAvatarUrl(publicUrl);
+              Alert.alert('Sucesso', 'Foto de perfil atualizada!');
+          } catch (error: any) {
+              console.log('Erro detalhado:', error);
+              Alert.alert('Atenção', `Não foi possível salvar: ${error.message}`);
+          } finally {
+              setUploadingAvatar(false);
+          }
+      }
+  };
+
   const mudarIdioma = async (lang: string) => {
     await AsyncStorage.setItem('user-language', lang);
     await i18n.changeLanguage(lang);
@@ -95,7 +164,6 @@ export default function Perfil() {
     Linking.openURL(url).catch(() => Alert.alert("Erro", "WhatsApp não instalado."));
   };
 
-  // ✅ NOVA FUNÇÃO: Sair da Conta (Corrigida para Web e Celular)
   const handleSignOut = async () => {
     if (Platform.OS === 'web') {
       const confirmar = window.confirm(t('perfil.confirmarSairMsg', 'Deseja realmente sair da sua conta?'));
@@ -114,7 +182,7 @@ export default function Perfil() {
             style: 'destructive', 
             onPress: async () => {
               await supabase.auth.signOut();
-              router.replace('/auth'); // Redireciona para login
+              router.replace('/auth'); 
             } 
           }
         ]
@@ -122,7 +190,6 @@ export default function Perfil() {
     }
   };
 
-  // Lógica de Ranking e Progressão (Cálculo de XP)
   const numClientes = clientes.length;
   const numContratos = clientes.reduce((total, cli) => total + (cli.contratos ? cli.contratos.length : 0), 0);
   const scoreTotal = (numClientes * 10) + (numContratos * 5) + (consultasCount * 2);
@@ -151,10 +218,20 @@ export default function Perfil() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={loadingAssinatura || loadingClientes} onRefresh={carregarDados} />}
     >
-      {/* HEADER: Avatar e Identificação */}
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
-          <Image source={{ uri: 'https://ui-avatars.com/api/?background=E0E0E0&color=555&size=128&name=' + email }} style={styles.avatar} />
+          <TouchableOpacity onPress={escolherEEnviarFoto} disabled={uploadingAvatar} activeOpacity={0.8}>
+              <Image 
+                  source={{ uri: avatarUrl ? avatarUrl : 'https://ui-avatars.com/api/?background=E0E0E0&color=555&size=128&name=' + email }} 
+                  style={styles.avatar} 
+              />
+              {uploadingAvatar && (
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 45, justifyContent: 'center', alignItems: 'center' }]}>
+                      <ActivityIndicator color="#FFF" />
+                  </View>
+              )}
+          </TouchableOpacity>
+          
           {isPremium && (
             <View style={styles.badge}>
               <Ionicons name="checkmark" size={14} color="#FFF" />
@@ -167,7 +244,6 @@ export default function Perfil() {
         </View>
       </View>
 
-      {/* SEÇÃO 1: Ranking e Performance */}
       <View style={styles.section}>
          <Text style={styles.sectionTitle}>{t('perfil.rankingGlobal')}</Text>
          <View style={styles.cardRank}>
@@ -214,11 +290,9 @@ export default function Perfil() {
          </View>
       </View>
 
-      {/* SEÇÃO 2: Configurações e Ajuda */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('perfil.opcoes')}</Text>
         
-        {/* Idioma */}
         <TouchableOpacity style={styles.menuItem} onPress={() => setModalIdiomaVisivel(true)}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#5D6D7E' }]}>
             <Ionicons name="language" size={20} color="#fff" />
@@ -230,7 +304,6 @@ export default function Perfil() {
           </View>
         </TouchableOpacity>
 
-        {/* Meus Dados */}
         <TouchableOpacity style={styles.menuItem} onPress={() => setModalDadosVisivel(true)}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#3498DB' }]}>
             <Ionicons name="person" size={20} color="#fff" />
@@ -239,7 +312,6 @@ export default function Perfil() {
           <Ionicons name="chevron-forward" size={20} color="#CCC" />
         </TouchableOpacity>
 
-        {/* ✅ NOVO: BOTÃO DE MINHA EQUIPE */}
         <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/equipe')}>
             <View style={[styles.menuIconConfig, { backgroundColor: '#8E44AD' }]}>
                 <Ionicons name="people" size={20} color="#fff" />
@@ -248,7 +320,6 @@ export default function Perfil() {
             <Ionicons name="chevron-forward" size={20} color="#CCC" />
         </TouchableOpacity>
 
-        {/* Suporte */}
         <TouchableOpacity style={styles.menuItem} onPress={abrirSuporte}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#2ECC71' }]}>
             <Ionicons name="help" size={20} color="#fff" />
@@ -257,7 +328,6 @@ export default function Perfil() {
           <Ionicons name="chevron-forward" size={20} color="#CCC" />
         </TouchableOpacity>
 
-        {/* Sair da Conta */}
         <TouchableOpacity style={[styles.menuItem, { marginTop: 10 }]} onPress={handleSignOut}>
           <View style={[styles.menuIconConfig, { backgroundColor: '#E74C3C' }]}>
             <Ionicons name="log-out-outline" size={20} color="#fff" />
@@ -269,7 +339,6 @@ export default function Perfil() {
 
       <Text style={styles.version}>v1.0.4</Text>
 
-      {/* MODAIS */}
       <ModalDadosPessoais visivel={modalDadosVisivel} fechar={() => setModalDadosVisivel(false)} />
       
       <Modal animationType="slide" transparent={true} visible={modalIdiomaVisivel}>
@@ -305,10 +374,8 @@ const styles = StyleSheet.create({
   email: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 5 },
   tagRole: { backgroundColor: '#F0F2F5', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 15 },
   roleText: { fontSize: 12, fontWeight: '600', color: '#666' },
-  
   section: { marginTop: 25, paddingHorizontal: 20 },
   sectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#999', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  
   cardRank: { backgroundColor: '#FFF', borderRadius: 12, padding: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
   headerRank: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   iconRankBox: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
@@ -316,21 +383,17 @@ const styles = StyleSheet.create({
   txtNivel: { fontSize: 20, fontWeight: 'bold' },
   scoreTotal: { fontSize: 28, fontWeight: 'bold' },
   scoreLabel: { fontSize: 10, color: '#BDC3C7', textTransform: 'uppercase', fontWeight: 'bold', textAlign:'right' },
-  
   barraContainer: { height: 8, backgroundColor: '#F0F2F5', borderRadius: 4, overflow: 'hidden', marginBottom: 20 },
   barraFill: { height: '100%', borderRadius: 4 },
-  
   gridStats: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#F0F2F5', paddingTop: 15 },
   itemStat: { flex: 1, alignItems: 'center' },
   valorStat: { fontSize: 18, fontWeight: 'bold', color: '#34495E' },
   labelStat: { fontSize: 11, color: '#7F8C8D', marginTop: 2 },
-  
   menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: '#F0F0F0' },
   menuIconConfig: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   menuText: { flex: 1, fontSize: 15, color: '#333', fontWeight: '500' },
   currentLang: { fontSize: 14, color: '#888', marginRight: 8, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center' },
-
   version: { textAlign: 'center', color: '#CCC', marginTop: 30, marginBottom: 20, fontSize: 12 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
@@ -341,4 +404,4 @@ const styles = StyleSheet.create({
   selectedOption: { borderColor: '#2980B9', backgroundColor: 'rgba(41, 128, 185, 0.1)' },
   flag: { fontSize: 24, marginRight: 12 },
   languageText: { flex: 1, fontSize: 16, color: '#333' },
-});
+}); 

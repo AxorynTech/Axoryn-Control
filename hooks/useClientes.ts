@@ -9,11 +9,9 @@ export function useClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // --- HELPERS DE DATA (Memorizados para performance) ---
   const lerDataLocal = useCallback((dataStr: string) => {
      if(!dataStr) return new Date();
      
-     // Se estiver em Inglês ('en' ou 'en-US'), assume MM/DD/AAAA
      if (i18n.language.startsWith('en')) {
         const partes = dataStr.split('/');
         const mes = Number(partes[0]);
@@ -22,7 +20,6 @@ export function useClientes() {
         return new Date(ano, mes - 1, dia);
      } 
      
-     // Padrão PT/ES: DD/MM/AAAA
      const partes = dataStr.split('/');
      const dia = Number(partes[0]);
      const mes = Number(partes[1]);
@@ -44,15 +41,12 @@ export function useClientes() {
     if (!dataISO) return '';
     if (dataISO.includes('-')) {
        const [ano, mes, dia] = dataISO.split('-');
-       // Se for inglês, retorna MM/DD/AAAA
        if (i18n.language.startsWith('en')) return `${mes}/${dia}/${ano}`;
-       // Senão, DD/MM/AAAA
        return `${dia}/${mes}/${ano}`;
     }
     return dataISO;
   }, [i18n.language]);
 
-  // Processa os dados brutos do banco (Memorizado)
   const processarClienteRaw = useCallback((cli: any): Cliente => {
       return {
         id: cli.id,
@@ -64,6 +58,10 @@ export function useClientes() {
         indicacao: cli.indicacao,
         reputacao: cli.reputacao,
         segmento: cli.segmento, 
+        // ⬇️ INJETADO: Puxa os links das fotos do banco ⬇️
+        foto_com_documento: cli.foto_com_documento,
+        foto_apenas_documento: cli.foto_apenas_documento,
+        // ⬆️ FIM DA INJEÇÃO ⬆️
         contratos: (cli.contratos || []).map((c: any) => ({
           id: c.id,
           capital: c.capital,
@@ -78,6 +76,8 @@ export function useClientes() {
           proximoVencimento: formatarDataDoBanco(c.proximo_vencimento),
           valorMultaDiaria: c.valor_multa_diaria,
           diasDiario: c.dias_diario,
+          diasSemanaDiario: c.dias_semana_diario,
+          datasExcluidas: c.datas_excluidas, 
           totalParcelas: c.total_parcelas,
           parcelasPagas: c.parcelas_pagas,
           valorParcela: c.valor_parcela,
@@ -105,10 +105,8 @@ export function useClientes() {
     }
   }, [processarClienteRaw]);
 
-  // Executa uma vez ao montar ou se fetchData mudar (o que não acontece pois está memorizado)
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Recarrega APENAS um cliente (Performance)
   const refreshCliente = useCallback(async (clienteId: string) => {
       try {
           const { data, error } = await supabase
@@ -158,8 +156,6 @@ export function useClientes() {
     return null;
   };
 
-  // --- OTIMIZAÇÃO: useMemo nos Totais ---
-  // Só recalcula quando 'clientes' mudar, e não a cada render.
   const totais = useMemo(() => {
     let capitalTotal = 0, lucro = 0, multas = 0, vendas = 0;
     clientes.forEach(cli => {
@@ -179,12 +175,15 @@ export function useClientes() {
     return { capital: capitalTotal, lucro, multas, vendas };
   }, [clientes]);
 
-  // --- AÇÕES (Todas memorizadas com useCallback) ---
   const adicionarCliente = useCallback(async (dados: Partial<Cliente>) => {
     try {
       const { error } = await supabase.from('clientes').insert([{
         nome: dados.nome, whatsapp: dados.whatsapp, cpf: dados.cpf, endereco: dados.endereco, indicacao: dados.indicacao,
-        reputacao: dados.reputacao || 'NEUTRA', segmento: dados.segmento
+        reputacao: dados.reputacao || 'NEUTRA', segmento: dados.segmento,
+        // ⬇️ INJETADO: Salva as fotos no banco de dados ⬇️
+        foto_com_documento: (dados as any).foto_com_documento,
+        foto_apenas_documento: (dados as any).foto_apenas_documento
+        // ⬆️ FIM DA INJEÇÃO ⬆️
       }]);
       if (error) throw error;
       await fetchData(); 
@@ -197,7 +196,11 @@ export function useClientes() {
     try {
         const { error } = await supabase.from('clientes').update({
             nome: dados.nome, whatsapp: dados.whatsapp, cpf: dados.cpf, endereco: dados.endereco, indicacao: dados.indicacao, 
-            reputacao: dados.reputacao, segmento: dados.segmento
+            reputacao: dados.reputacao, segmento: dados.segmento,
+            // ⬇️ INJETADO: Permite salvar/atualizar as fotos durante a edição ⬇️
+            foto_com_documento: (dados as any).foto_com_documento,
+            foto_apenas_documento: (dados as any).foto_apenas_documento
+            // ⬆️ FIM DA INJEÇÃO ⬆️
         }).eq('id', cliente.id);
         if (error) throw error;
         await fetchData();
@@ -276,7 +279,6 @@ export function useClientes() {
             return paraBancoISO(d.toLocaleDateString(i18n.language)); 
         };
 
-        // --- CÁLCULO BLINDADO DO JUROS ---
         let valorJurosExato = 0;
 
         if (novoContrato.valorJuros && Number(novoContrato.valorJuros) > 0) {
@@ -315,33 +317,63 @@ export function useClientes() {
             contratoDB.movimentacoes = [t('historico.criadoParcelado', { data: dataBaseStr, tipo: descHist, qtd: parc, valor: valorParc.toFixed(2) })];
         
         } else if (freq === 'SEMANAL') {
+            const qtd = novoContrato.qtdSemanas || novoContrato.totalParcelas || 4; 
             const total = novoContrato.capital + valorJurosExato;
-            const parc = total / 4;
+            const parc = total / qtd; 
             contratoDB.status = 'PARCELADO';
-            contratoDB.total_parcelas = 4;
+            contratoDB.total_parcelas = qtd; 
             contratoDB.valor_parcela = parc;
-            contratoDB.lucro_juros_por_parcela = valorJurosExato / 4;
+            contratoDB.lucro_juros_por_parcela = valorJurosExato / qtd; 
             contratoDB.proximo_vencimento = addDias(dataBaseStr, 7);
             contratoDB.movimentacoes = [t('historico.criadoSemanal', { data: dataBaseStr, tipo: descHist, valor: parc.toFixed(2) })];
         
+        } else if (freq === 'QUINZENAL') {
+            const qtd = novoContrato.qtdQuinzenas || novoContrato.totalParcelas || 2;
+            const total = novoContrato.capital + valorJurosExato;
+            const parc = total / qtd;
+            contratoDB.status = 'PARCELADO';
+            contratoDB.total_parcelas = qtd;
+            contratoDB.valor_parcela = parc;
+            contratoDB.lucro_juros_por_parcela = valorJurosExato / qtd;
+            contratoDB.proximo_vencimento = addDias(dataBaseStr, 15);
+            contratoDB.movimentacoes = [`Criado Quinzenal - ${qtd} parcelas de R$ ${parc.toFixed(2)}`];
+
         } else if (freq === 'DIARIO' && novoContrato.diasDiario) {
             const dias = parseInt(novoContrato.diasDiario);
             const total = novoContrato.capital + valorJurosExato;
             const parc = total / dias;
             contratoDB.status = 'PARCELADO';
             contratoDB.dias_diario = dias;
+            contratoDB.dias_semana_diario = novoContrato.diasSemanaDiario; 
+            
+            contratoDB.datas_excluidas = novoContrato.datasExcluidas; 
+            
             contratoDB.total_parcelas = dias;
             contratoDB.valor_parcela = parc;
             contratoDB.lucro_juros_por_parcela = valorJurosExato / dias;
-            contratoDB.proximo_vencimento = addDias(dataBaseStr, 1);
+            
+            let nextDate = lerDataLocal(dataBaseStr);
+            nextDate.setDate(nextDate.getDate() + 1);
+            
+            const excecoes = novoContrato.datasExcluidas ? String(novoContrato.datasExcluidas).split(',') : [];
+            const allowed = novoContrato.diasSemanaDiario ? String(novoContrato.diasSemanaDiario).split(',').map(Number) : [0,1,2,3,4,5,6];
+
+            let tries = 0;
+            while (tries < 30) {
+                const dateString = String(nextDate.getDate()).padStart(2, '0') + '/' + String(nextDate.getMonth()+1).padStart(2, '0') + '/' + nextDate.getFullYear();
+                
+                if (!allowed.includes(nextDate.getDay()) || excecoes.includes(dateString)) {
+                    nextDate.setDate(nextDate.getDate() + 1);
+                    tries++;
+                } else {
+                    break;
+                }
+            }
+            contratoDB.proximo_vencimento = paraBancoISO(nextDate.toLocaleDateString(i18n.language));
             contratoDB.movimentacoes = [t('historico.criadoDiario', { data: dataBaseStr, tipo: descHist, dias: dias, valor: parc.toFixed(2) })];
         
         } else {
-            // MENSAL
-            // --- AQUI ESTÁ A CORREÇÃO PRINCIPAL ---
-            // Salvamos o valor exato no campo de juros por parcela
             contratoDB.lucro_juros_por_parcela = valorJurosExato; 
-            
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
             contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: novoContrato.capital.toFixed(2) })];
         }
@@ -376,9 +408,6 @@ export function useClientes() {
 
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
     try {
-      // --- CÁLCULO DE RENOVAÇÃO BLINDADO ---
-      // Se tiver lucroJurosPorParcela (que salvamos acima), usa ele.
-      // Caso contrário (contratos antigos), usa a conta de %
       const vJuro = (contrato.lucroJurosPorParcela && contrato.lucroJurosPorParcela > 0)
          ? contrato.lucroJurosPorParcela
          : (contrato.capital * (contrato.taxa / 100));
@@ -403,8 +432,27 @@ export function useClientes() {
       if (tipo === 'RENOVAR') {
           const d = lerDataLocal(contrato.proximoVencimento || dataInformada);
           if (['MENSAL', 'PARCELADO'].includes(contrato.frequencia || '')) d.setMonth(d.getMonth() + 1);
+          else if (contrato.frequencia === 'QUINZENAL') d.setDate(d.getDate() + 15);
           else if (contrato.frequencia === 'SEMANAL') d.setDate(d.getDate() + 7);
-          else if (contrato.frequencia === 'DIARIO') d.setDate(d.getDate() + 1);
+          else if (contrato.frequencia === 'DIARIO') {
+              d.setDate(d.getDate() + 1);
+              
+              const diasSemana = (contrato as any).diasSemanaDiario;
+              const excecoes = (contrato as any).datasExcluidas ? String((contrato as any).datasExcluidas).split(',') : [];
+              const allowed = diasSemana ? String(diasSemana).split(',').map(Number) : [0,1,2,3,4,5,6];
+
+              let tries = 0;
+              while (tries < 30) {
+                  const dateString = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth()+1).padStart(2, '0') + '/' + d.getFullYear();
+                  
+                  if (!allowed.includes(d.getDay()) || excecoes.includes(dateString)) {
+                      d.setDate(d.getDate() + 1);
+                      tries++;
+                  } else {
+                      break;
+                  }
+              }
+          }
 
           let msg = t('historico.renovacao', { data: dataInformada, juros: vJuro.toFixed(2) });
           if(vMulta > 0) msg += ` + ${t('historico.comMulta', { valor: vMulta.toFixed(2) })}`;
@@ -505,8 +553,27 @@ export function useClientes() {
        } else {
          updates.capital = novoSaldo;
          const d = lerDataLocal(contrato.proximoVencimento || dataPagamento); 
-         if (contrato.frequencia === 'SEMANAL') d.setDate(d.getDate() + 7);
-         else if (contrato.frequencia === 'DIARIO') d.setDate(d.getDate() + 1);
+         if (contrato.frequencia === 'QUINZENAL') d.setDate(d.getDate() + 15);
+         else if (contrato.frequencia === 'SEMANAL') d.setDate(d.getDate() + 7);
+         else if (contrato.frequencia === 'DIARIO') {
+             d.setDate(d.getDate() + 1);
+             
+             const diasSemana = (contrato as any).diasSemanaDiario;
+             const excecoes = (contrato as any).datasExcluidas ? String((contrato as any).datasExcluidas).split(',') : [];
+             const allowed = diasSemana ? String(diasSemana).split(',').map(Number) : [0,1,2,3,4,5,6];
+
+             let tries = 0;
+             while (tries < 30) {
+                 const dateString = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth()+1).padStart(2, '0') + '/' + d.getFullYear();
+                 
+                 if (!allowed.includes(d.getDay()) || excecoes.includes(dateString)) {
+                     d.setDate(d.getDate() + 1);
+                     tries++;
+                 } else {
+                     break;
+                 }
+             }
+         }
          else d.setMonth(d.getMonth() + 1);
          updates.proximo_vencimento = paraBancoISO(d.toLocaleDateString(i18n.language));
        }

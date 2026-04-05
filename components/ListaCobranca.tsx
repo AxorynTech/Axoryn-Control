@@ -1,27 +1,101 @@
 ﻿import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
-import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ActivityIndicator, Alert, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../services/supabase';
 import { Cliente } from '../types';
+
+import { useFluxoPessoal } from '../hooks/useFluxoPessoal';
+
+import ModalAcao from './ModalAcao';
+import ModalParcelamento from './ModalParcelamento';
 
 type Props = {
   clientes: Cliente[];
 };
 
 export default function ListaCobranca({ clientes }: Props) {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation();
   
-  // Função que converte qualquer data (do Banco ou do App) para data real
+  const { adicionarMovimento, contas } = useFluxoPessoal();
+
+  const [modalConfig, setModalConfig] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  
+  // Estados para as configurações
+  const [chavePix, setChavePix] = useState('');
+  const [textoAtraso, setTextoAtraso] = useState('Olá {nome}, constou aqui que seu pagamento de R$ {valor} venceu dia {data}. Podemos regularizar hoje?');
+  const [textoHoje, setTextoHoje] = useState('Olá {nome}, lembrete do vencimento hoje ({data}). Valor: R$ {valor}. Aguardo confirmação!');
+
+  // ESTADOS GERAIS DE AÇÃO
+  const [modalAcoes, setModalAcoes] = useState(false);
+  const [itemSelecionado, setItemSelecionado] = useState<any>(null);
+  const [processandoAcao, setProcessandoAcao] = useState(false);
+
+  // ESTADOS PARA OS MODAIS
+  const [modalAcaoVisivel, setModalAcaoVisivel] = useState(false);
+  const [tipoAcao, setTipoAcao] = useState<'QUITAR' | 'RENOVAR'>('QUITAR');
+  const [modalParcelamentoVisivel, setModalParcelamentoVisivel] = useState(false);
+
+  // BUSCAR CONFIGURAÇÕES DO BANCO AO ABRIR A TELA
+  useEffect(() => {
+    const carregarConfiguracoes = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('pix_key, msg_atraso, msg_hoje')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        if (data.pix_key) setChavePix(data.pix_key);
+        if (data.msg_atraso) setTextoAtraso(data.msg_atraso);
+        if (data.msg_hoje) setTextoHoje(data.msg_hoje);
+      }
+    };
+
+    carregarConfiguracoes();
+  }, []);
+
+  // SALVAR CONFIGURAÇÕES NO BANCO
+  const salvarConfiguracoes = async () => {
+    setSalvando(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      Alert.alert("Erro", "Usuário não autenticado.");
+      setSalvando(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        pix_key: chavePix,
+        msg_atraso: textoAtraso,
+        msg_hoje: textoHoje
+      })
+      .eq('user_id', user.id);
+
+    setSalvando(false);
+
+    if (error) {
+      Alert.alert("Erro", "Não foi possível salvar as configurações.");
+      console.error(error);
+    } else {
+      Alert.alert("Sucesso", "Configurações salvas com sucesso!");
+      setModalConfig(false);
+    }
+  };
+
   const converterData = (dataStr: string) => {
     if (!dataStr) return new Date();
-    
-    // Suporte para formato do Banco (AAAA-MM-DD)
     if (dataStr.includes('-')) {
         const [ano, mes, dia] = dataStr.split('-');
         return new Date(Number(ano), Number(mes) - 1, Number(dia));
     }
-    
-    // Suporte para formato do App (DD/MM/AAAA)
     const [dia, mes, ano] = dataStr.split('/');
     return new Date(Number(ano), Number(mes) - 1, Number(dia));
   };
@@ -32,22 +106,100 @@ export default function ListaCobranca({ clientes }: Props) {
     
     let msg = '';
     if (atrasado) {
-        // Mensagem de Atraso
-        const template = t('listaCobranca.msgAtraso') || "Olá {nome}, constou aqui que seu pagamento de R$ {valor} venceu dia {data}. Podemos regularizar hoje?";
-        msg = template
+        msg = textoAtraso
             .replace('{nome}', nome)
             .replace('{valor}', valor)
             .replace('{data}', data);
     } else {
-        // Mensagem de Hoje
-        const template = t('listaCobranca.msgHoje') || "Olá {nome}, lembrete do vencimento hoje ({data}). Valor: R$ {valor}. Aguardo confirmação!";
-        msg = template
+        msg = textoHoje
             .replace('{nome}', nome)
             .replace('{valor}', valor)
             .replace('{data}', data);
     }
     
+    if (chavePix.trim() !== '') {
+        msg += `\n\nMinha chave PIX é:\n*${chavePix}*`;
+    }
+    
     Linking.openURL(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`);
+  };
+
+  const abrirAcoes = (item: any) => {
+      setItemSelecionado(item);
+      setModalAcoes(true);
+  };
+
+  // FUNÇÕES DE CONFIRMAÇÃO DOS MODAIS
+  const handleConfirmarModalAcao = async (dataInformada: string) => {
+    if (!itemSelecionado) return;
+    setProcessandoAcao(true);
+
+    const partes = dataInformada.split('/');
+    const dataFormatadaBanco = partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : new Date().toISOString().split('T')[0];
+
+    if (tipoAcao === 'QUITAR') {
+        const { error } = await supabase.from('contratos').update({ status: 'QUITADO' }).eq('id', itemSelecionado.contrato.id);
+        if (!error) {
+            if (contas && contas.length > 0) {
+                await adicionarMovimento({
+                    conta_id: contas[0].id,
+                    valor: itemSelecionado.valorCobrar,
+                    descricao: `Quitação - ${itemSelecionado.cliente}`,
+                    data: dataFormatadaBanco,
+                    tipo: 'ENTRADA'
+                });
+            }
+            Alert.alert("Sucesso", "Contrato quitado e lançado no caixa!");
+        } else {
+            Alert.alert("Erro", "Falha ao quitar contrato.");
+        }
+    } else if (tipoAcao === 'RENOVAR') {
+        const { error } = await supabase.from('contratos').update({ proximoVencimento: dataFormatadaBanco }).eq('id', itemSelecionado.contrato.id);
+        if (!error) {
+            if (contas && contas.length > 0) {
+                const valorJuros = itemSelecionado.contrato.capital * (itemSelecionado.contrato.taxa / 100);
+                await adicionarMovimento({
+                    conta_id: contas[0].id,
+                    valor: valorJuros,
+                    descricao: `Renovação (Juros) - ${itemSelecionado.cliente}`,
+                    data: dataFormatadaBanco,
+                    tipo: 'ENTRADA'
+                });
+            }
+            Alert.alert("Sucesso", "Renovado com sucesso e juros lançados no caixa!");
+        } else {
+            Alert.alert("Erro", "Falha ao renovar contrato.");
+        }
+    }
+    
+    setProcessandoAcao(false);
+    setModalAcaoVisivel(false);
+  };
+
+  const handleConfirmarParcelamento = async (valorTotal: number, qtdParcelas: number, dataPrimeira: string, multaDiaria: number) => {
+    if (!itemSelecionado) return;
+    setProcessandoAcao(true);
+
+    const partes = dataPrimeira.split('/');
+    const dataFormatadaBanco = partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : dataPrimeira;
+
+    const { error } = await supabase.from('contratos').update({
+        status: 'PARCELADO',
+        valorParcela: valorTotal / qtdParcelas,
+        totalParcelas: qtdParcelas,
+        parcelasPagas: 0,
+        proximoVencimento: dataFormatadaBanco,
+        taxa: multaDiaria
+    }).eq('id', itemSelecionado.contrato.id);
+
+    setProcessandoAcao(false);
+
+    if (!error) {
+        Alert.alert("Sucesso", "Contrato parcelado/negociado com sucesso!");
+        setModalParcelamentoVisivel(false);
+    } else {
+        Alert.alert("Erro", "Falha ao parcelar contrato.");
+    }
   };
 
   let listaVencidos: any[] = [];
@@ -55,25 +207,18 @@ export default function ListaCobranca({ clientes }: Props) {
   let totalAtrasado = 0;
   let totalHoje = 0;
   
-  // Define "Hoje" zerando as horas (para comparar só o dia)
   const hoje = new Date();
   hoje.setHours(0,0,0,0);
 
   clientes.forEach(cli => {
     (cli.contratos || []).forEach(con => {
-      // Filtra: Só contratos Ativos ou Parcelados
       if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
-        
         const dataVenc = converterData(con.proximoVencimento); 
-        // Zera as horas do vencimento também
         dataVenc.setHours(0,0,0,0);
 
-        // Diferença em milissegundos
         const diffTime = hoje.getTime() - dataVenc.getTime();
-        // Diferença em dias (arredondando para cima)
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
-        // Define valor a cobrar
         let valor = 0;
         if (con.status === 'PARCELADO') valor = con.valorParcela || 0;
         else valor = con.capital + (con.capital * (con.taxa / 100));
@@ -87,9 +232,6 @@ export default function ListaCobranca({ clientes }: Props) {
           parcelaAtual: (con.parcelasPagas || 0) + 1 
         };
 
-        // Lógica: 
-        // diffDays > 0 -> Passado (Atrasado)
-        // diffDays === 0 -> Hoje (Vence Hoje)
         if (diffDays > 0) {
           listaVencidos.push(item);
           totalAtrasado += valor;
@@ -101,7 +243,6 @@ export default function ListaCobranca({ clientes }: Props) {
     });
   });
 
-  // Ordena: Mais atrasados aparecem primeiro
   listaVencidos.sort((a, b) => b.diasAtraso - a.diasAtraso);
 
   const renderCard = (item: any, corBorda: string, textoStatus: string) => (
@@ -135,13 +276,32 @@ export default function ListaCobranca({ clientes }: Props) {
             </View>
         )}
       </View>
+
+      <View style={{marginTop: 10, borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 10}}>
+          <TouchableOpacity 
+              style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECF0F1', padding: 10, borderRadius: 8}}
+              onPress={() => abrirAcoes(item)}
+          >
+              <Ionicons name="options-outline" size={18} color="#2C3E50" />
+              <Text style={{marginLeft: 5, color: '#2C3E50', fontWeight: 'bold'}}>Gerenciar Contrato</Text>
+          </TouchableOpacity>
+      </View>
     </View>
   );
 
   return (
     <ScrollView style={styles.container}>
       
-      {/* PAINEL DE TOTAIS */}
+      <View style={{flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10}}>
+          <TouchableOpacity 
+              style={{flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECF0F1', padding: 8, borderRadius: 8}}
+              onPress={() => setModalConfig(true)}
+          >
+              <Ionicons name="settings-outline" size={18} color="#2C3E50" />
+              <Text style={{marginLeft: 5, color: '#2C3E50', fontWeight: 'bold', fontSize: 12}}>Configurar Mensagem</Text>
+          </TouchableOpacity>
+      </View>
+
       <View style={styles.painelResumo}>
         <View style={styles.boxTotal}>
            <Text style={styles.lblTotal}>{t('listaCobranca.totalAtrasado')}</Text>
@@ -154,46 +314,137 @@ export default function ListaCobranca({ clientes }: Props) {
         </View>
       </View>
 
-      {/* SEÇÃO VENCIDOS */}
-      {listaVencidos.length > 0 && (
+      {listaVencidos.length > 0 ? (
         <View style={styles.secao}>
           <Text style={styles.tituloSecao}>🚨 {t('listaCobranca.vencidos')} ({listaVencidos.length})</Text>
           {listaVencidos.map((item) => renderCard(item, '#E74C3C', `${item.diasAtraso} ${t('listaCobranca.diasAtraso')}`))}
         </View>
-      )}
+      ) : null}
 
-      {/* SEÇÃO HOJE */}
-      {listaHoje.length > 0 && (
+      {listaHoje.length > 0 ? (
         <View style={styles.secao}>
           <Text style={styles.tituloSecao}>⚠️ {t('listaCobranca.venceHoje')} ({listaHoje.length})</Text>
           {listaHoje.map((item) => renderCard(item, '#F1C40F', t('listaCobranca.venceHojeStatus') || 'Vence Hoje!'))}
         </View>
-      )}
+      ) : null}
 
-      {listaVencidos.length === 0 && listaHoje.length === 0 && (
+      {listaVencidos.length === 0 && listaHoje.length === 0 ? (
         <View style={{alignItems:'center', marginTop: 50}}>
             <Ionicons name="checkmark-circle-outline" size={60} color="#27AE60" />
             <Text style={{color:'#7F8C8D', marginTop:10, fontSize: 16}}>{t('listaCobranca.tudoEmDia')}</Text>
         </View>
-      )}
+      ) : null}
 
       <View style={{height: 40}} />
+
+      <Modal visible={modalConfig} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                  <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15}}>
+                      <Text style={styles.modalTitulo}>Configurar Mensagens</Text>
+                      <TouchableOpacity onPress={() => setModalConfig(false)} disabled={salvando}>
+                          <Ionicons name="close" size={24} color="#7F8C8D" />
+                      </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={{maxHeight: 400}}>
+                      <Text style={styles.label}>Sua Chave PIX:</Text>
+                      <TextInput 
+                          style={styles.input}
+                          placeholder="Ex: 123.456.789-00 ou email@pix.com"
+                          value={chavePix}
+                          onChangeText={setChavePix}
+                      />
+
+                      <Text style={styles.infoText}>
+                          A chave PIX será enviada em destaque no final da mensagem para facilitar que o cliente copie. Use <Text style={{fontWeight: 'bold'}}>{'{nome}'}</Text>, <Text style={{fontWeight: 'bold'}}>{'{valor}'}</Text> e <Text style={{fontWeight: 'bold'}}>{'{data}'}</Text> nos textos abaixo para preencher automaticamente.
+                      </Text>
+
+                      <Text style={styles.label}>Mensagem para Atrasados:</Text>
+                      <TextInput 
+                          style={[styles.input, {height: 80, textAlignVertical: 'top'}]}
+                          multiline
+                          value={textoAtraso}
+                          onChangeText={setTextoAtraso}
+                      />
+
+                      <Text style={styles.label}>Mensagem para quem Vence Hoje:</Text>
+                      <TextInput 
+                          style={[styles.input, {height: 80, textAlignVertical: 'top'}]}
+                          multiline
+                          value={textoHoje}
+                          onChangeText={setTextoHoje}
+                      />
+                  </ScrollView>
+
+                  <TouchableOpacity 
+                      style={[styles.btnSalvarConfig, salvando && {opacity: 0.7}]} 
+                      onPress={salvarConfiguracoes}
+                      disabled={salvando}
+                  >
+                      {salvando ? (
+                          <ActivityIndicator color="#FFF" />
+                      ) : (
+                          <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 16}}>Salvar Configurações</Text>
+                      )}
+                  </TouchableOpacity>
+              </View>
+          </View>
+      </Modal>
+
+      <Modal visible={modalAcoes} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                  <Text style={[styles.modalTitulo, {marginBottom: 20}]}>Ações: {itemSelecionado?.cliente}</Text>
+                  
+                  <TouchableOpacity style={[styles.btnAcao, {backgroundColor: '#27AE60'}]} onPress={() => { setTipoAcao('QUITAR'); setModalAcaoVisivel(true); setModalAcoes(false); }}>
+                      <Ionicons name="checkmark-done-circle" size={24} color="#FFF" />
+                      <Text style={styles.txtBtnAcao}>Quitar Contrato</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={[styles.btnAcao, {backgroundColor: '#2980B9'}]} onPress={() => { setTipoAcao('RENOVAR'); setModalAcaoVisivel(true); setModalAcoes(false); }}>
+                      <Ionicons name="refresh-circle" size={24} color="#FFF" />
+                      <Text style={styles.txtBtnAcao}>Renovar Contrato</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={[styles.btnAcao, {backgroundColor: '#8E44AD'}]} onPress={() => { setModalParcelamentoVisivel(true); setModalAcoes(false); }}>
+                      <Ionicons name="list" size={24} color="#FFF" />
+                      <Text style={styles.txtBtnAcao}>Parcelar / Negociar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => setModalAcoes(false)} style={{marginTop: 15, alignItems: 'center', padding: 10}}>
+                      <Text style={{color: '#7F8C8D', fontWeight: 'bold'}}>Cancelar</Text>
+                  </TouchableOpacity>
+              </View>
+          </View>
+      </Modal>
+
+      <ModalAcao 
+        visivel={modalAcaoVisivel}
+        tipo={tipoAcao}
+        fechar={() => setModalAcaoVisivel(false)}
+        confirmar={handleConfirmarModalAcao}
+      />
+
+      <ModalParcelamento 
+        visivel={modalParcelamentoVisivel}
+        fechar={() => setModalParcelamentoVisivel(false)}
+        confirmar={handleConfirmarParcelamento}
+      />
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 10 },
-  
   painelResumo: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 10, padding: 15, marginBottom: 20, elevation: 3 },
   boxTotal: { flex: 1, alignItems: 'center' },
   divisor: { width: 1, backgroundColor: '#EEE', marginHorizontal: 10 },
   lblTotal: { fontSize: 12, fontWeight: 'bold', color: '#7F8C8D' },
   vlrTotal: { fontSize: 18, fontWeight: 'bold', marginTop: 5 },
-
   secao: { marginBottom: 20 },
   tituloSecao: { fontSize: 16, fontWeight: 'bold', color: '#2C3E50', marginBottom: 10, marginLeft: 5 },
-
   card: { backgroundColor: '#FFF', padding: 15, borderRadius: 10, marginBottom: 10, borderLeftWidth: 5, elevation: 2 },
   linhaTopo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   nomeCliente: { fontSize: 16, fontWeight: 'bold', color: '#333' },
@@ -204,5 +455,14 @@ const styles = StyleSheet.create({
   data: { fontSize: 14, color: '#555', marginBottom: 8, fontWeight: '600' },
   rowInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   tipo: { fontSize: 12, color: '#7F8C8D', fontWeight: 'bold' },
-  valor: { fontSize: 16, color: '#2C3E50', fontWeight: 'bold' }
+  valor: { fontSize: 16, color: '#2C3E50', fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 10, padding: 20 },
+  modalTitulo: { fontSize: 18, fontWeight: 'bold', color: '#2C3E50' },
+  label: { fontSize: 14, fontWeight: 'bold', color: '#34495E', marginBottom: 5, marginTop: 10 },
+  infoText: { fontSize: 11, color: '#7F8C8D', marginBottom: 10, backgroundColor: '#F4F6F6', padding: 8, borderRadius: 5 },
+  input: { backgroundColor: '#F9F9F9', borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, color: '#333' },
+  btnSalvarConfig: { backgroundColor: '#27AE60', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 15 },
+  btnAcao: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 10 },
+  txtBtnAcao: { color: '#FFF', fontWeight: 'bold', fontSize: 16, marginLeft: 10 }
 });

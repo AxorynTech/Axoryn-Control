@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons'; // ⬅️ INJETADO PARA O ÍCONE DE ADICIONAR/REMOVER DATAS
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -45,6 +46,51 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
   const [diasDiario, setDiasDiario] = useState('25');
   const [qtdParcelasVenda, setQtdParcelasVenda] = useState('1');
   
+  // NOVOS ESTADOS
+  const [qtdSemanas, setQtdSemanas] = useState('4');
+  const [qtdQuinzenas, setQtdQuinzenas] = useState('2'); // ⬅️ Adicionado para o Quinzenal
+  
+  // ⬇️ NOVO CONTROLE DOS DIAS DA SEMANA (DIÁRIO) ⬇️
+  // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
+  const [diasSelecionados, setDiasSelecionados] = useState<number[]>([1, 2, 3, 4, 5, 6]); 
+
+  const DIAS_SEMANA = [
+    { id: 0, label: 'D' },
+    { id: 1, label: 'S' },
+    { id: 2, label: 'T' },
+    { id: 3, label: 'Q' },
+    { id: 4, label: 'Q' },
+    { id: 5, label: 'S' },
+    { id: 6, label: 'S' },
+  ];
+
+  const toggleDia = (id: number) => {
+    setDiasSelecionados(prev => 
+      prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id].sort()
+    );
+  };
+  // ⬆️ FIM DO CONTROLE DOS DIAS ⬆️
+
+  // ⬇️ INJETADO: CONTROLE DE DATAS ESPECÍFICAS A PULAR (FERIADOS) ⬇️
+  const [dataExclusaoInput, setDataExclusaoInput] = useState('');
+  const [datasExcluidas, setDatasExcluidas] = useState<string[]>([]);
+
+  const adicionarDataExclusao = () => {
+    if (dataExclusaoInput.length === 10) {
+      if (!datasExcluidas.includes(dataExclusaoInput)) {
+         setDatasExcluidas([...datasExcluidas, dataExclusaoInput]);
+      }
+      setDataExclusaoInput('');
+    } else {
+      Alert.alert('Atenção', 'Digite a data no formato completo (DD/MM/AAAA)');
+    }
+  };
+
+  const removerDataExclusao = (dataParaRemover: string) => {
+    setDatasExcluidas(datasExcluidas.filter(d => d !== dataParaRemover));
+  };
+  // ⬆️ FIM DO CONTROLE DE DATAS ⬆️
+
   // Controle de Venda (Apenas PRAZO ou MENSAL agora)
   const [modVenda, setModVenda] = useState<'PRAZO' | 'MENSAL'>('PRAZO');
 
@@ -74,6 +120,15 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       // Reseta para o padrão (Porcentagem) ao abrir
       setTipoJuros('PORCENTAGEM');
       setTaxa('20');
+
+      // Reseta os novos campos
+      setQtdSemanas('4');
+      setQtdQuinzenas('2');
+      setDiasSelecionados([1, 2, 3, 4, 5, 6]); // Padrão: Segunda a Sábado
+      
+      // ⬇️ INJETADO: Limpa as datas excluidas ao abrir ⬇️
+      setDatasExcluidas([]);
+      setDataExclusaoInput('');
     }
   }, [visivel, clientePreSelecionado]);
 
@@ -126,7 +181,21 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
         }
     } else {
         frequenciaFinal = frequencia;
-        parcelasFinal = null;
+        
+        // ⬇️ CORREÇÃO: AGORA O TOTAL DE PARCELAS É PREENCHIDO CORRETAMENTE ⬇️
+        if (frequencia === 'SEMANAL') {
+            const s = parseInt(qtdSemanas);
+            parcelasFinal = isNaN(s) || s < 1 ? 1 : s;
+        } else if (frequencia === 'QUINZENAL') {
+            const q = parseInt(qtdQuinzenas);
+            parcelasFinal = isNaN(q) || q < 1 ? 1 : q;
+        } else if (frequencia === 'DIARIO') {
+            const d = parseInt(diasDiario);
+            parcelasFinal = isNaN(d) || d < 1 ? 1 : d;
+        } else {
+            parcelasFinal = null; // Mensal continua sem parcelas definidas
+        }
+        // ⬆️ FIM DA CORREÇÃO ⬆️
     }
 
     // --- LÓGICA DO JUROS FIXO vs PORCENTAGEM ---
@@ -169,7 +238,17 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       frequencia: frequenciaFinal,
       garantia: textoDescritivo,
       diasDiario: frequencia === 'DIARIO' ? parseInt(diasDiario) : null,
-      totalParcelas: parcelasFinal,
+      
+      qtdSemanas: frequencia === 'SEMANAL' ? parseInt(qtdSemanas) : null,
+      qtdQuinzenas: frequencia === 'QUINZENAL' ? parseInt(qtdQuinzenas) : null,
+      
+      // Envia os dias separados por vírgula. Ex: "1,2,3,4,5,6"
+      diasSemanaDiario: frequencia === 'DIARIO' ? diasSelecionados.join(',') : null, 
+      
+      // ⬇️ INJETADO: Envia as datas de feriados separadas por vírgula ⬇️
+      datasExcluidas: frequencia === 'DIARIO' ? datasExcluidas.join(',') : null,
+      
+      totalParcelas: parcelasFinal, // Vai para o banco de dados e resolve o erro
       dataInicio, 
       valorMultaDiaria: valMulta
     });
@@ -359,17 +438,77 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
 
                 <View style={{marginTop: 10}}>
                       <Text style={styles.label}>{t('novoContrato.modalidade')}</Text>
-                      <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'MENSAL' ? 'SEMANAL' : frequencia === 'SEMANAL' ? 'DIARIO' : 'MENSAL')}>
+                      {/* INCLUÍDO 'QUINZENAL' NO BOTÃO ROTATIVO */}
+                      <TouchableOpacity style={styles.btnFreq} onPress={() => setFrequencia(frequencia === 'MENSAL' ? 'QUINZENAL' : frequencia === 'QUINZENAL' ? 'SEMANAL' : frequencia === 'SEMANAL' ? 'DIARIO' : 'MENSAL')}>
                         <Text style={{fontWeight:'bold', color:'#333'}}>
-                            {t(`novoContrato.freq${frequencia}`)}
+                            {t(`novoContrato.freq${frequencia}`, frequencia)}
                         </Text>
                       </TouchableOpacity>
                 </View>
                 
+                {/* ⬇️ BLOCO QUINZENAL ⬇️ */}
+                {frequencia === 'QUINZENAL' && (
+                   <View style={{marginTop: 10}}>
+                     <Text style={styles.label}>{t('novoContrato.qtdQuinzenas', 'Quantas Quinzenas?')}</Text>
+                     <TextInput style={styles.input} value={qtdQuinzenas} onChangeText={setQtdQuinzenas} keyboardType="numeric" />
+                   </View>
+                )}
+
+                {/* ⬇️ BLOCO SEMANAL ⬇️ */}
+                {frequencia === 'SEMANAL' && (
+                   <View style={{marginTop: 10}}>
+                     <Text style={styles.label}>{t('novoContrato.qtdSemanas', 'Quantas Semanas?')}</Text>
+                     <TextInput style={styles.input} value={qtdSemanas} onChangeText={setQtdSemanas} keyboardType="numeric" />
+                   </View>
+                )}
+
+                {/* ⬇️ BLOCO DIÁRIO COM SELETOR DE DIAS E FERIADOS ⬇️ */}
                 {frequencia === 'DIARIO' && (
                    <View>
                      <Text style={styles.label}>{t('novoContrato.quantosDias')}</Text>
                      <TextInput style={styles.input} value={diasDiario} onChangeText={setDiasDiario} keyboardType="numeric" />
+                     
+                     <Text style={styles.label}>{t('novoContrato.diasSemanaDiario', 'Quais dias cobrar?')}</Text>
+                     <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 5, marginBottom: 10}}>
+                        {DIAS_SEMANA.map(dia => (
+                            <TouchableOpacity 
+                                key={dia.id} 
+                                style={[styles.btnDia, diasSelecionados.includes(dia.id) && styles.btnDiaAtivo]}
+                                onPress={() => toggleDia(dia.id)}
+                            >
+                                <Text style={[styles.txtDia, diasSelecionados.includes(dia.id) && styles.txtDiaAtivo]}>{dia.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                     </View>
+
+                     {/* ⬇️ INJETADO: CAMPO PARA ADICIONAR DATAS ESPECÍFICAS (FERIADOS) ⬇️ */}
+                     <Text style={styles.label}>Pular Datas Específicas (Feriados):</Text>
+                     <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
+                        <TextInput
+                           style={[styles.input, {flex: 1}]}
+                           placeholder="DD/MM/AAAA"
+                           value={dataExclusaoInput}
+                           onChangeText={setDataExclusaoInput}
+                           keyboardType="numbers-and-punctuation"
+                           maxLength={10}
+                        />
+                        <TouchableOpacity
+                           style={{backgroundColor: '#2980B9', padding: 12, borderRadius: 8, justifyContent: 'center'}}
+                           onPress={adicionarDataExclusao}
+                        >
+                           <Ionicons name="add" size={20} color="#FFF" />
+                        </TouchableOpacity>
+                     </View>
+                     <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 5}}>
+                        {datasExcluidas.map(d => (
+                            <TouchableOpacity key={d} onPress={() => removerDataExclusao(d)} style={{backgroundColor: '#E74C3C', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, flexDirection: 'row', alignItems: 'center'}}>
+                                <Text style={{color: '#FFF', fontSize: 12, marginRight: 5}}>{d}</Text>
+                                <Ionicons name="close" size={14} color="#FFF" />
+                            </TouchableOpacity>
+                        ))}
+                     </View>
+                     {/* ⬆️ FIM INJEÇÃO FERIADOS ⬆️ */}
+
                    </View>
                 )}
               </>
@@ -411,5 +550,10 @@ const styles = StyleSheet.create({
   rowRadio: { flexDirection: 'row', gap: 5, marginBottom: 5 },
   radioBtn: { flex: 1, flexDirection: 'row', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#DDD', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA' },
   radioBtnAtivo: { backgroundColor: '#2980B9', borderColor: '#2980B9' },
-  radioTxt: { fontSize: 11, fontWeight: 'bold', color: '#555', textAlign:'center' }
+  radioTxt: { fontSize: 11, fontWeight: 'bold', color: '#555', textAlign:'center' },
+
+  btnDia: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#DDD', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA' },
+  btnDiaAtivo: { backgroundColor: '#2980B9', borderColor: '#2980B9' },
+  txtDia: { fontSize: 12, fontWeight: 'bold', color: '#555' },
+  txtDiaAtivo: { color: '#FFF' },
 });

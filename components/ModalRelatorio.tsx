@@ -3,7 +3,7 @@ import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Cliente, Contrato } from '../types';
+import { Cliente } from '../types';
 
 interface Props {
   visivel: boolean;
@@ -39,47 +39,64 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
     return parseFloat(limpo);
   };
 
-  const buscarValor = (texto: string, chave: string) => {
-    const regex = new RegExp(`${chave}[^0-9-]*([0-9.,]+)`, 'i');
-    const match = texto.match(regex);
-    if (match) return limparValor(match[1]);
-    return 0;
-  };
-
-  const extrairTotal = (texto: string) => {
-    const matchRecebido = texto.match(/Recebido R\$\s?([\d\.,]+)/i);
-    if (matchRecebido) return limparValor(matchRecebido[1]);
-
-    if (texto.toUpperCase().includes('RENOVA')) {
-        const matchJuros = texto.match(/Juros R\$\s?([\d\.,]+)/i);
-        const matchMulta = texto.match(/Multa R\$\s?([\d\.,]+)/i);
-        let soma = 0;
-        if (matchJuros) soma += limparValor(matchJuros[1]);
-        if (matchMulta) soma += limparValor(matchMulta[1]);
-        if (soma > 0) return soma;
-    }
-
-    const matchCombinado = texto.match(/Parcela.*\(R\$\s?([\d\.,]+)\).*\+ Multa R\$\s?([\d\.,]+)/i);
-    if (matchCombinado) return limparValor(matchCombinado[1]) + limparValor(matchCombinado[2]);
-    
-    const match = texto.match(/R\$\s?([\d\.,]+)/i);
+  const extrairValor = (texto: string, padrao: RegExp) => {
+    const match = texto.match(padrao);
     return match ? limparValor(match[1]) : 0;
   };
 
-  const obterCapitalOriginal = (con: Contrato) => {
-    const movs = con.movimentacoes || [];
-    if (movs.length > 0) {
-        const logCriacao = movs[movs.length - 1]; 
-        const matchCap = logCriacao.match(/Capital R\$\s?([\d\.,]+)/i);
-        if (matchCap) return limparValor(matchCap[1]);
-        
-        const matchParcelado = logCriacao.match(/(\d+)x de R\$\s?([\d\.,]+)/i);
-        if (matchParcelado) {
-            const total = parseInt(matchParcelado[1]) * limparValor(matchParcelado[2]);
-            return con.taxa > 0 ? total / (1 + (con.taxa / 100)) : total;
-        }
-    }
-    return con.capital || 0;
+  // --- NOVO: Lógica de Identificação de Logs Mais Segura ---
+  const analisarLog = (logStr: string) => {
+      const lowerLog = logStr.toLowerCase();
+      
+      // 1. Logs de Criação (Investimento)
+      if (lowerLog.includes('iniciado') || lowerLog.includes('criado')) {
+          // Extrai o valor do capital dependendo do formato do log
+          let capitalStr = logStr.match(/(?:R\$\s?|valor:\s?)([\d\.,]+)/i);
+          // Tratamento especial para parcelado: "10x de R$ 50,00"
+          if (lowerLog.includes('parcelado') || lowerLog.match(/\dx de/)) {
+               const matchParc = logStr.match(/(\d+)x de R\$\s?([\d\.,]+)/i);
+               if (matchParc) {
+                   const qtd = parseInt(matchParc[1]);
+                   const val = limparValor(matchParc[2]);
+                   // Se for parcelado, não temos como saber o capital exato só pelo log sem a taxa,
+                   // então retornamos 0 e usamos o con.capital fora desta função se for o log de criação
+                   return { tipo: 'CRIACAO', valorTotal: 0, capital: 0, lucro: 0, multa: 0 }; 
+               }
+          }
+          const val = capitalStr ? limparValor(capitalStr[1]) : 0;
+          return { tipo: 'CRIACAO', valorTotal: val, capital: val, lucro: 0, multa: 0 };
+      }
+      
+      // 2. Logs de Renovação
+      if (lowerLog.includes('renova')) {
+          const juros = extrairValor(logStr, /R\$\s?([\d\.,]+)/i); // O primeiro valor costuma ser o juros na string de renovação
+          const multa = lowerLog.includes('multa') ? extrairValor(logStr, /multa.*?R\$\s?([\d\.,]+)/i) : 0;
+          
+          // Na renovação, o capital não é recuperado. Apenas se paga juros e multa.
+          return { tipo: 'RENOVACAO', valorTotal: juros + multa, capital: 0, lucro: juros, multa: multa };
+      }
+      
+      // 3. Logs de Recebimento de Parcela
+      if (lowerLog.includes('recebid')) {
+          // Ex: "Recebido Parcela 1/10 (R$ 50,00) (+ Multa R$ 10,00)"
+          const parcelaBruta = extrairValor(logStr, /R\$\s?([\d\.,]+)/i);
+          const multa = lowerLog.includes('multa') ? extrairValor(logStr, /multa.*?R\$\s?([\d\.,]+)/i) : 0;
+          
+          // O valor principal extraído regex costuma ser a soma (Parcela + Multa)
+          // Precisamos separar. Assumimos que o primeiro 'R$' achado é o valor total daquele log.
+          const totalPago = parcelaBruta; 
+          
+          return { tipo: 'PARCELA', valorTotal: totalPago, capital: 0, lucro: 0, multa: multa, brutoParcela: totalPago - multa };
+      }
+      
+      // 4. Logs de Quitação
+      if (lowerLog.includes('quitado')) {
+           const totalPago = extrairValor(logStr, /R\$\s?([\d\.,]+)/i);
+           const multa = lowerLog.includes('multa') ? extrairValor(logStr, /multa.*?R\$\s?([\d\.,]+)/i) : 0;
+           return { tipo: 'QUITACAO', valorTotal: totalPago, capital: 0, lucro: 0, multa: multa, brutoQuitacao: totalPago - multa };
+      }
+
+      return { tipo: 'OUTRO', valorTotal: 0, capital: 0, lucro: 0, multa: 0 };
   };
 
   const gerarRelatorio = async () => {
@@ -111,7 +128,8 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
       clientes.forEach(cli => {
         (cli.contratos || []).forEach(con => {
             const movs = con.movimentacoes || [];
-
+            
+            // 1. Métricas Globais (Independente de Data)
             if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
                 totalEmRua += (con.capital || 0);
                 totalContratosAtivos++;
@@ -129,80 +147,112 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                 }
             }
 
+            // 2. Análise de Criação do Contrato (Investimento/Saída)
             let dataInicioCon = parseData(con.dataInicio || '');
             if (isNaN(dataInicioCon.getTime()) && movs.length > 0) {
-                 dataInicioCon = parseData(movs[movs.length - 1]);
+                 // Fallback: pega a data do último log (o mais antigo, índice length - 1)
+                 const lastLogDataStr = movs[movs.length - 1].split('-')[0].trim();
+                 dataInicioCon = parseData(lastLogDataStr);
+            }
+
+            // Capital Original para cálculos de lucro na quitação
+            let capitalOriginal = con.capital || 0;
+            if (con.status === 'QUITADO') {
+                 // Tenta deduzir o capital original se já estiver quitado
+                 // Esta é uma aproximação; idealmente o banco guardaria capital_original
+                 if (con.lucroTotal && con.lucroTotal > 0 && con.taxa > 0) {
+                     capitalOriginal = con.lucroTotal / (con.taxa/100);
+                 }
             }
 
             if (!isNaN(dataInicioCon.getTime()) && dataInicioCon >= dtInicio && dataInicioCon <= dtFim) {
-                const capOrig = obterCapitalOriginal(con);
-                const valorReal = capOrig > 0 ? capOrig : (con.capital || 0);
-                if (valorReal > 0) {
-                    stats.investido += valorReal;
+                // Soma como Investimento apenas se a data de criação estiver no filtro
+                const valorInvestido = capitalOriginal;
+                if (valorInvestido > 0) {
+                    stats.investido += valorInvestido;
                     stats.qtdNovosContratos++;
-                    htmlInvestimentos += `<tr><td>${dataInicioCon.toLocaleDateString('pt-BR')}</td><td>${cli.nome}</td><td>R$ ${valorReal.toFixed(2)}</td></tr>`;
+                    htmlInvestimentos += `<tr><td>${dataInicioCon.toLocaleDateString('pt-BR')}</td><td>${cli.nome}</td><td>R$ ${valorInvestido.toFixed(2)}</td></tr>`;
                 }
             }
 
-            movs.forEach(mov => {
-                const dataMov = parseData(mov);
+            // 3. Varredura do Histórico para Entradas (Pagamentos, Renovações, Quitações)
+            movs.forEach(movStr => {
+                // A data costuma estar no começo da string: "15/04/2026 - Recebido..."
+                const dataMovStr = movStr.split('-')[0].trim();
+                const dataMov = parseData(dataMovStr);
+                
                 if (!isNaN(dataMov.getTime()) && dataMov >= dtInicio && dataMov <= dtFim) {
-                    const desc = mov.toLowerCase();
-                    // --- CORREÇÃO: Ignora também strings de empréstimo para não somar como entrada ---
-                    if (desc.includes('iniciado') || desc.includes('acordo') || desc.includes('emprestimo') || desc.includes('empréstimo')) return;
+                    
+                    const analise = analisarLog(movStr);
+                    
+                    if (analise.tipo === 'CRIACAO' || analise.tipo === 'OUTRO') return; // Pula
 
-                    let valTotal = extrairTotal(mov);
                     let valLucro = 0;
-                    let valMulta = 0;
-                    let valCapital = 0;
-                    let tipo = t('relatorio.pagamento') || 'Pagamento';
+                    let valCapitalRecuperado = 0;
+                    let valMulta = analise.multa;
+                    let valTotalLog = analise.valorTotal;
+                    let descDisplay = '';
 
-                    const buscaLucro = buscarValor(mov, 'Lucro');
-                    const buscaJuros = buscarValor(mov, 'Juros'); 
-                    const buscaMulta = buscarValor(mov, 'Multa');
-                    const buscaCapital = buscarValor(mov, 'Capital');
-
-                    const lucroReal = buscaLucro > 0 ? buscaLucro : buscaJuros;
-
-                    if (lucroReal > 0 || buscaCapital > 0) {
-                        valLucro = lucroReal;
-                        valMulta = buscaMulta;
-                        valCapital = buscaCapital;
-                    } else {
-                        valMulta = buscaMulta;
-                        if (desc.includes('quitado')) {
-                            tipo = t('relatorio.quitacao') || 'Quitação';
-                            stats.qtdQuitados++;
-                            const capRef = obterCapitalOriginal(con);
-                            if (valMulta === 0 && con.taxa > 0) {
-                                valCapital = (con.capital && con.capital > 0) ? con.capital : capRef;
-                                if(valCapital > valTotal) valCapital = valTotal; 
-                                valLucro = valTotal - valCapital;
-                            } else {
-                                valCapital = (con.capital && con.capital > 0) ? con.capital : capRef;
-                                valLucro = valTotal - valCapital - valMulta;
-                            }
+                    if (analise.tipo === 'RENOVACAO') {
+                        valLucro = analise.lucro;
+                        valCapitalRecuperado = 0;
+                        descDisplay = t('relatorio.renovacao') || 'Renovação';
+                    } 
+                    else if (analise.tipo === 'PARCELA') {
+                        // Sabemos o valor bruto (Parcela - Multa)
+                        const bruto = analise.brutoParcela!;
+                        // Usamos o lucro_juros_por_parcela do contrato se existir (sistema Diário/Semanal/Quinzenal/Parcelado)
+                        if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
+                            valLucro = con.lucroJurosPorParcela;
+                            valCapitalRecuperado = bruto - valLucro;
                         } else {
-                            tipo = desc.includes('renova') ? (t('relatorio.renovacao') || 'Renovação') : (t('relatorio.parcela') || 'Parcela');
-                            if (tipo === (t('relatorio.renovacao') || 'Renovação')) {
-                                valLucro = valTotal - valMulta;
-                                valCapital = 0;
-                            } else {
-                                if (con.lucroJurosPorParcela) valLucro = con.lucroJurosPorParcela;
-                                valCapital = valTotal - valMulta - valLucro;
-                            }
+                            // Fallback caso falte o dado: chuta que tudo é capital (melhor errar lucro pra baixo do que misturar)
+                            valCapitalRecuperado = bruto;
+                            valLucro = 0; 
                         }
+                        descDisplay = t('relatorio.parcela') || 'Parcela';
+                    }
+                    else if (analise.tipo === 'QUITACAO') {
+                        const bruto = analise.brutoQuitacao!;
+                        
+                        // Lógica de quitação varia conforme o tipo de contrato
+                        if (con.frequencia === 'PARCELADO' || con.frequencia === 'SEMANAL' || con.frequencia === 'QUINZENAL' || con.frequencia === 'DIARIO') {
+                             // Num sistema parcelado, a quitação geralmente é o pagamento da última parcela ou saldo devedor restante
+                             // Usamos a mesma lógica da parcela
+                             if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
+                                 valLucro = con.lucroJurosPorParcela;
+                                 valCapitalRecuperado = bruto - valLucro;
+                             } else {
+                                 valCapitalRecuperado = bruto;
+                             }
+                        } else {
+                             // Contrato MENSAL puro: Juros já foram cobrados nas renovações. A quitação é devolver o Principal + o Juros daquele mês corrente
+                             // Pelo log de quitação: Total = Principal + Juros + Multa
+                             valLucro = (capitalOriginal * (con.taxa/100));
+                             valCapitalRecuperado = bruto - valLucro;
+                             
+                             // Correção de segurança: se o capital recuperado deduzido for menor que 0, ajusta.
+                             if (valCapitalRecuperado < 0) {
+                                 valCapitalRecuperado = bruto;
+                                 valLucro = 0;
+                             }
+                        }
+                        descDisplay = t('relatorio.quitacao') || 'Quitação';
+                        stats.qtdQuitados++;
                     }
 
+                    // Prevenção de números negativos por erros de aproximação
                     if (valLucro < 0) valLucro = 0;
-                    if (valCapital < 0) valCapital = 0;
-                    
-                    stats.recebidoBruto += valTotal;
-                    stats.capitalRecuperado += valCapital;
+                    if (valCapitalRecuperado < 0) valCapitalRecuperado = 0;
+
+                    // Acumuladores Globais do Filtro
+                    stats.recebidoBruto += valTotalLog;
+                    stats.capitalRecuperado += valCapitalRecuperado;
                     stats.lucroLiquido += valLucro;
                     stats.multas += valMulta;
                     stats.qtdPagamentos++;
 
+                    // Renderização da Tabela
                     const corLucro = valLucro > 0 ? '#27AE60' : '#BDC3C7';
                     const corMulta = valMulta > 0 ? '#E67E22' : '#BDC3C7';
 
@@ -222,9 +272,9 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                             <td>${cli.nome}</td>
                             <td style="text-align:center;">#${con.id}</td>
                             <td><span style="font-size:8px; padding:2px 4px; border-radius:3px; font-weight:bold; ${modStyle}">${modLabel}</span></td>
-                            <td><span class="badge">${tipo}</span></td>
-                            <td style="font-weight:bold">R$ ${valTotal.toFixed(2)}</td>
-                            <td style="color:#7F8C8D">R$ ${valCapital.toFixed(2)}</td>
+                            <td><span class="badge">${descDisplay}</span></td>
+                            <td style="font-weight:bold">R$ ${valTotalLog.toFixed(2)}</td>
+                            <td style="color:#7F8C8D">R$ ${valCapitalRecuperado.toFixed(2)}</td>
                             <td style="color:${corLucro}; font-weight:bold;">R$ ${valLucro.toFixed(2)}</td>
                             <td style="color:${corMulta}; font-weight:bold;">R$ ${valMulta.toFixed(2)}</td>
                         </tr>
@@ -363,10 +413,7 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
         </html>
       `;
 
-      // --- CORREÇÃO FINAL: BLINDAGEM COMPLETA WEB x MOBILE ---
       if (Platform.OS === 'web') {
-          // WEB: Abre nova janela e força a impressão apenas do HTML gerado.
-          // Isso resolve o problema de imprimir a tela do app junto.
           const pdfWindow = window.open('', '_blank');
           if (pdfWindow) {
               pdfWindow.document.write(html);
@@ -379,7 +426,6 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
               Alert.alert(t('common.erro'), "Permita pop-ups para imprimir.");
           }
       } else {
-          // MOBILE: Gera o arquivo e abre o menu de compartilhamento
           const { uri } = await Print.printToFileAsync({ html });
           await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
       }

@@ -1,11 +1,26 @@
 ﻿import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { supabase } from '../services/supabase';
 import { Cliente, Contrato } from '../types';
 import RiskRadarCSI from './RiskRadarCSI';
+
+import ModalEditarEmprestimo from './ModalEditarEmprestimo';
 
 type Props = {
   cliente: Cliente;
@@ -14,7 +29,7 @@ type Props = {
   aoNovoEmprestimo: () => void;
   aoEditarCliente: () => void;
   aoExcluirCliente: () => void;
-  aoEditarContrato: (c: Contrato) => void;
+  aoEditarContrato: (c: Contrato) => void; 
   aoExcluirContrato: (id: number) => void;
   aoRenovarOuQuitar: (tipo: string, c: Contrato) => void;
   aoNegociar: (c: Contrato) => void;
@@ -33,7 +48,40 @@ export default function PastaCliente({
   const [historicoVisivel, setHistoricoVisivel] = useState(false);
   const [historicoConteudo, setHistoricoConteudo] = useState<string[]>([]);
 
-  // --- HELPERS DE TRADUÇÃO ---
+  const [urlFotoRosto, setUrlFotoRosto] = useState<string | null>(null);
+  const [urlFotoDoc, setUrlFotoDoc] = useState<string | null>(null);
+  const [carregandoFotos, setCarregandoFotos] = useState(false);
+  const [fotoExpandida, setFotoExpandida] = useState<string | null>(null); 
+
+  const [modalEditarContratoVisivel, setModalEditarContratoVisivel] = useState(false);
+  const [contratoSendoEditado, setContratoSendoEditado] = useState<Contrato | null>(null);
+
+  useEffect(() => {
+      const carregarMiniaturaRosto = async () => {
+          const cli = cliente as any;
+          if (cli.foto_com_documento && !urlFotoRosto) {
+              try {
+                  const { data } = await supabase.storage.from('documentos_clientes').createSignedUrl(cli.foto_com_documento, 3600);
+                  if (data) setUrlFotoRosto(data.signedUrl);
+              } catch (e) { console.log('Erro ao carregar miniatura', e); }
+          }
+      };
+
+      const carregarFotoDocCompleta = async () => {
+          const cli = cliente as any;
+          if (expandido && cli.foto_apenas_documento && !urlFotoDoc) {
+              try {
+                  const { data } = await supabase.storage.from('documentos_clientes').createSignedUrl(cli.foto_apenas_documento, 3600);
+                  if (data) setUrlFotoDoc(data.signedUrl);
+              } catch (e) { console.log('Erro ao carregar foto doc', e); }
+          }
+      };
+
+      carregarMiniaturaRosto(); 
+      carregarFotoDocCompleta(); 
+
+  }, [cliente, expandido]); 
+
   const traduzirStatus = (status: string) => {
       return t(`status.${status}`, { defaultValue: status });
   };
@@ -63,7 +111,6 @@ export default function PastaCliente({
     aoNovoEmprestimo();
   };
 
-  // --- FUNÇÕES DE EXCLUSÃO BLINDADAS (WEB x MOBILE) ---
   const handleExcluirCliente = () => {
       if (Platform.OS === 'web') {
           if (window.confirm(`${t('fluxo.excluirTitulo')}\n\n${t('fluxo.excluirMsg')} ${cliente.nome}?`)) {
@@ -106,7 +153,23 @@ export default function PastaCliente({
       }
   };
 
-  // --- LÓGICA DO PDF (WEB + MOBILE) ---
+  const abrirEdicaoContrato = (contrato: Contrato) => {
+      setContratoSendoEditado(contrato);
+      setModalEditarContratoVisivel(true);
+  };
+
+  const salvarEdicaoContrato = async (dadosAtualizados: Partial<Contrato>) => {
+      if (!contratoSendoEditado) return;
+      
+      try {
+          await aoEditarContrato({ ...contratoSendoEditado, ...dadosAtualizados });
+          setModalEditarContratoVisivel(false);
+          setContratoSendoEditado(null);
+      } catch (error) {
+          console.log("Erro ao salvar edição", error);
+      }
+  };
+
   const gerarPDF = async (con: Contrato) => {
     try {
       const dataEmissao = new Date().toLocaleDateString('pt-BR');
@@ -136,7 +199,6 @@ export default function PastaCliente({
         `;
       }
 
-      // HTML DO RELATÓRIO
       const html = `
         <html>
           <head>
@@ -214,9 +276,7 @@ export default function PastaCliente({
         </html>
       `;
 
-      // --- CORREÇÃO BLINDADA: WEB (IFRAME) x MOBILE (NATIVO) ---
       if (Platform.OS === 'web') {
-          // WEB: Cria um iframe invisível para imprimir APENAS o conteúdo do relatório
           const iframe = document.createElement('iframe');
           iframe.style.position = 'absolute';
           iframe.style.width = '0px';
@@ -229,19 +289,15 @@ export default function PastaCliente({
               doc.open();
               doc.write(html);
               doc.close();
-              
-              // Foca no iframe e imprime
               iframe.contentWindow?.focus();
               iframe.contentWindow?.print();
           }
 
-          // Remove o iframe do DOM após um tempo para limpar
           setTimeout(() => {
               document.body.removeChild(iframe);
           }, 1000);
 
       } else {
-          // MOBILE: Gera arquivo temporário e abre o compartilhamento
           const { uri } = await Print.printToFileAsync({ html });
           await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
       }
@@ -293,19 +349,44 @@ export default function PastaCliente({
         </View>
       </Modal>
 
-      {/* HEADER DA PASTA (CLICÁVEL PARA ABRIR) */}
+      <Modal visible={!!fotoExpandida} transparent animationType="fade" onRequestClose={() => setFotoExpandida(null)}>
+          <View style={styles.modalFundoFoto}>
+              <TouchableOpacity style={styles.btnFecharFoto} onPress={() => setFotoExpandida(null)}>
+                  <Ionicons name="close-circle" size={40} color="#FFF" />
+              </TouchableOpacity>
+              {fotoExpandida ? <Image source={{ uri: fotoExpandida }} style={styles.imgFullscreen} resizeMode="contain" /> : null}
+          </View>
+      </Modal>
+
+      <ModalEditarEmprestimo 
+          visivel={modalEditarContratoVisivel}
+          contratoOriginal={contratoSendoEditado}
+          fechar={() => { setModalEditarContratoVisivel(false); setContratoSendoEditado(null); }}
+          salvar={salvarEdicaoContrato}
+      />
+
       <TouchableOpacity onPress={aoExpandir} style={styles.header}>
         <View style={styles.linhaTitulo}>
-            <View style={{flexDirection:'row', alignItems:'center'}}>
-                {cliente.bloqueado && <Text style={{fontSize:18, marginRight:5}}>🔒</Text>}
-                <Text style={[styles.nome, cliente.bloqueado && {color:'#999'}]}>{cliente.nome}</Text>
+            <View style={{flexDirection:'row', alignItems:'center', flex: 1}}>
+                {cliente.bloqueado ? <Text style={{fontSize:18, marginRight:5}}>🔒</Text> : null}
+                
+                {urlFotoRosto ? (
+                    <TouchableOpacity onPress={() => setFotoExpandida(urlFotoRosto)}>
+                        <Image source={{ uri: urlFotoRosto }} style={styles.avatarNome} />
+                    </TouchableOpacity>
+                ) : (cliente as any).foto_com_documento ? (
+                    <View style={[styles.avatarNome, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#EEE' }]}>
+                        <ActivityIndicator size="small" color="#999" />
+                    </View>
+                ) : null }
+
+                <Text style={[styles.nome, cliente.bloqueado && {color:'#999'}]} numberOfLines={1}>{cliente.nome}</Text>
             </View>
             <Text style={styles.seta}>{expandido ? '▲' : '▼'}</Text>
         </View>
       </TouchableOpacity>
 
-      {/* CONTEÚDO EXPANDIDO */}
-      {expandido && (
+      {expandido ? (
         <View style={styles.corpo}>
           
           <View style={styles.fichaCadastral}>
@@ -323,11 +404,34 @@ export default function PastaCliente({
             <Text style={styles.linhaFicha}>📍 {cliente.endereco || t('pastaCliente.semEndereco')}</Text>
             {cliente.indicacao ? <Text style={styles.linhaFicha}>🤝 {t('pastaCliente.indicadoPor')}: {cliente.indicacao}</Text> : null}
             <Text style={styles.linhaFicha}>⭐ {t('pastaCliente.reputacao')}: {cliente.reputacao || 'Neutro'}</Text>
+
+            {((cliente as any).foto_com_documento || (cliente as any).foto_apenas_documento) ? (
+                <View style={styles.kycContainer}>
+                    <Text style={styles.kycTitle}>📸 Documentos de Segurança (KYC)</Text>
+                    <View style={styles.rowKyc}>
+                        {urlFotoRosto ? (
+                            <TouchableOpacity onPress={() => setFotoExpandida(urlFotoRosto)} style={styles.kycThumb}>
+                                <Image source={{ uri: urlFotoRosto }} style={styles.imgThumb} />
+                                <Text style={styles.txtThumb}>Foto + Doc</Text>
+                            </TouchableOpacity>
+                        ) : (cliente as any).foto_com_documento ? (
+                            <ActivityIndicator color="#2980B9" style={styles.kycThumb} />
+                        ) : null}
+                        
+                        {urlFotoDoc ? (
+                            <TouchableOpacity onPress={() => setFotoExpandida(urlFotoDoc)} style={styles.kycThumb}>
+                                <Image source={{ uri: urlFotoDoc }} style={styles.imgThumb} />
+                                <Text style={styles.txtThumb}>Apenas Doc</Text>
+                            </TouchableOpacity>
+                        ) : ((cliente as any).foto_apenas_documento && expandido) ? (
+                            <ActivityIndicator color="#2980B9" style={styles.kycThumb} />
+                        ) : null}
+                    </View>
+                </View>
+            ) : null}
+
           </View>
 
-          {/* ================================================= */}
-          {/* =========== RADAR DE RISCO AUTOMÁTICO =========== */}
-          {/* ================================================= */}
           <View style={styles.radarContainer}>
              <Text style={styles.radarLabel}>{t('radar.tituloSection')}</Text>
              <RiskRadarCSI 
@@ -337,7 +441,6 @@ export default function PastaCliente({
                initialCpf={cliente.cpf}
              />
           </View>
-          {/* ================================================= */}
 
           <View style={styles.acoesCliente}>
             <TouchableOpacity 
@@ -408,7 +511,7 @@ export default function PastaCliente({
                  <Text style={styles.info}>{t('pastaCliente.juros')}: {con.taxa}% ({traduzirFrequencia(con.frequencia || 'MENSAL')})</Text>
               )}
 
-              {con.status !== 'QUITADO' && (
+              {con.status !== 'QUITADO' ? (
                 <View style={styles.botoesCon}>
                   {con.status === 'ATIVO' ? (
                     <>
@@ -418,13 +521,18 @@ export default function PastaCliente({
                   ) : (
                     <TouchableOpacity onPress={() => aoPagarParcela(con)} style={styles.btnParcela}><Text style={styles.txtBtn}>{t('pastaCliente.pagarParcela')} {((con.parcelasPagas||0)+1)}/{con.totalParcelas}</Text></TouchableOpacity>
                   )}
+                  
+                  <TouchableOpacity onPress={() => abrirEdicaoContrato(con)} style={styles.btnLixo}>
+                      <Text>✏️</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity onPress={() => handleExcluirContrato(con.id)} style={styles.btnLixo}><Text>🗑</Text></TouchableOpacity>
                 </View>
-              )}
+              ) : null}
 
-              {con.status === 'ATIVO' && (
+              {con.status === 'ATIVO' ? (
                 <TouchableOpacity onPress={() => aoNegociar(con)} style={styles.btnNegociar}><Text style={styles.txtBtn}>{t('pastaCliente.negociar')}</Text></TouchableOpacity>
-              )}
+              ) : null}
 
               <View style={styles.historicoResumido}>
                  <Text style={{fontSize:10, fontWeight:'bold', color:'#999', marginBottom:2}}>{t('pastaCliente.ultimasMovimentacoes')}</Text>
@@ -433,7 +541,7 @@ export default function PastaCliente({
             </View>
           )})}
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -442,8 +550,8 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#FFF', borderRadius: 10, marginBottom: 10, elevation: 2 },
   header: { padding: 15 }, 
   linhaTitulo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  nome: { fontSize: 18, fontWeight: 'bold', color: '#2C3E50' }, 
-  seta: { fontSize: 18, color: '#BDC3C7' },
+  nome: { fontSize: 18, fontWeight: 'bold', color: '#2C3E50', flexShrink: 1 }, 
+  seta: { fontSize: 18, color: '#BDC3C7', marginLeft: 10 }, 
   corpo: { padding: 15, borderTopWidth: 1, borderTopColor: '#F0F2F5' },
   fichaCadastral: { backgroundColor: '#F8F9FA', padding: 10, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: '#EEE' },
   radarContainer: { marginBottom: 20, backgroundColor: '#EBF5FB', padding: 5, borderRadius: 8, borderWidth: 1, borderColor: '#AED6F1' },
@@ -478,5 +586,18 @@ const styles = StyleSheet.create({
   modalTopo: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 15, borderBottomWidth:1, borderBottomColor:'#EEE', paddingBottom:10 },
   modalTitulo: { fontSize: 20, fontWeight:'bold', color:'#2C3E50' }, 
   itemHistoricoModal: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }, 
-  txtHistoricoModal: { fontSize: 18, color: '#333' } 
+  txtHistoricoModal: { fontSize: 18, color: '#333' },
+  
+  kycContainer: { marginTop: 15, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E5E8E8' },
+  kycTitle: { fontSize: 12, fontWeight: 'bold', color: '#7F8C8D', marginBottom: 10 },
+  rowKyc: { flexDirection: 'row', gap: 15 },
+  kycThumb: { alignItems: 'center' },
+  imgThumb: { width: 60, height: 60, borderRadius: 8, borderWidth: 1, borderColor: '#BDC3C7', backgroundColor: '#FFF' },
+  txtThumb: { fontSize: 10, color: '#555', marginTop: 4, fontWeight: 'bold' },
+  
+  modalFundoFoto: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  imgFullscreen: { width: '100%', height: '80%' },
+  btnFecharFoto: { position: 'absolute', top: 40, right: 20, zIndex: 10 },
+
+  avatarNome: { width: 30, height: 30, borderRadius: 15, marginRight: 10, borderWidth: 1, borderColor: '#BDC3C7', backgroundColor: '#FFF' },
 });
