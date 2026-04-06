@@ -13,14 +13,15 @@ type Props = {
 
 export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
   const { t } = useTranslation();
+  const moeda = t('common.moeda', { defaultValue: 'R$' }); // <--- Puxando a moeda correta
   
   const [modalConfig, setModalConfig] = useState(false);
   const [salvando, setSalvando] = useState(false);
   
   // Estados para as configurações
   const [chavePix, setChavePix] = useState('');
-  const [textoAtraso, setTextoAtraso] = useState('Olá {nome}, constou aqui que seu pagamento de R$ {valor} venceu dia {data}. Podemos regularizar hoje?');
-  const [textoHoje, setTextoHoje] = useState('Olá {nome}, lembrete do vencimento hoje ({data}). Valor: R$ {valor}. Aguardo confirmação!');
+  const [textoAtraso, setTextoAtraso] = useState(`Olá {nome}, constou aqui que seu pagamento de ${moeda} {valor} venceu dia {data}. Podemos regularizar hoje?`);
+  const [textoHoje, setTextoHoje] = useState(`Olá {nome}, lembrete do vencimento hoje ({data}). Valor: ${moeda} {valor}. Aguardo confirmação!`);
 
   // BUSCAR CONFIGURAÇÕES DO BANCO AO ABRIR A TELA
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      Alert.alert("Erro", "Usuário não autenticado.");
+      Alert.alert(t('common.erro'), "Usuário não autenticado.");
       setSalvando(false);
       return;
     }
@@ -67,10 +68,10 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
     setSalvando(false);
 
     if (error) {
-      Alert.alert("Erro", "Não foi possível salvar as configurações.");
+      Alert.alert(t('common.erro'), "Não foi possível salvar as configurações.");
       console.error(error);
     } else {
-      Alert.alert("Sucesso", "Configurações salvas com sucesso!");
+      Alert.alert(t('common.sucesso'), "Configurações salvas com sucesso!");
       setModalConfig(false);
     }
   };
@@ -174,12 +175,12 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
         {item.contrato.status === 'PARCELADO' ? (
             <View style={styles.rowInfo}>
                 <Text style={styles.tipo}>{t('listaCobranca.parcela')} {item.parcelaAtual}/{item.contrato.totalParcelas}</Text>
-                <Text style={styles.valor}>R$ {item.valorCobrar.toFixed(2)}</Text>
+                <Text style={styles.valor}>{moeda} {item.valorCobrar.toFixed(2)}</Text>
             </View>
         ) : (
             <View style={styles.rowInfo}>
                 <Text style={styles.tipo}>{t('listaCobranca.quitacaoTotal')}</Text>
-                <Text style={styles.valor}>R$ {item.valorCobrar.toFixed(2)}</Text>
+                <Text style={styles.valor}>{moeda} {item.valorCobrar.toFixed(2)}</Text>
             </View>
         )}
       </View>
@@ -193,7 +194,7 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
               }}
           >
               <Ionicons name="folder-open" size={18} color="#2980B9" />
-              <Text style={{marginLeft: 5, color: '#2980B9', fontWeight: 'bold'}}>Abrir Pasta na Carteira</Text>
+              <Text style={{marginLeft: 5, color: '#2980B9', fontWeight: 'bold'}}>{t('listaCobranca.abrirPasta', 'Abrir Pasta na Carteira')}</Text>
           </TouchableOpacity>
       </View>
     </View>
@@ -208,19 +209,19 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
               onPress={() => setModalConfig(true)}
           >
               <Ionicons name="settings-outline" size={18} color="#2C3E50" />
-              <Text style={{marginLeft: 5, color: '#2C3E50', fontWeight: 'bold', fontSize: 12}}>Configurar Mensagem</Text>
+              <Text style={{marginLeft: 5, color: '#2C3E50', fontWeight: 'bold', fontSize: 12}}>{t('listaCobranca.configurarMensagem', 'Configurar Mensagem')}</Text>
           </TouchableOpacity>
       </View>
 
       <View style={styles.painelResumo}>
         <View style={styles.boxTotal}>
            <Text style={styles.lblTotal}>{t('listaCobranca.totalAtrasado')}</Text>
-           <Text style={[styles.vlrTotal, {color:'#E74C3C'}]}>R$ {totalAtrasado.toFixed(2)}</Text>
+           <Text style={[styles.vlrTotal, {color:'#E74C3C'}]}>{moeda} {totalAtrasado.toFixed(2)}</Text>
         </View>
         <View style={styles.divisor} />
         <View style={styles.boxTotal}>
            <Text style={styles.lblTotal}>{t('listaCobranca.venceHoje')}</Text>
-           <Text style={[styles.vlrTotal, {color:'#F1C40F'}]}>R$ {totalHoje.toFixed(2)}</Text>
+           <Text style={[styles.vlrTotal, {color:'#F1C40F'}]}>{moeda} {totalHoje.toFixed(2)}</Text>
         </View>
       </View>
 
@@ -251,7 +252,7 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15}}>
-                      <Text style={styles.modalTitulo}>Configurar Mensagens</Text>
+                      <Text style={styles.modalTitulo}>{t('listaCobranca.configurarMensagem', 'Configurar Mensagem')}</Text>
                       <TouchableOpacity onPress={() => setModalConfig(false)} disabled={salvando}>
                           <Ionicons name="close" size={24} color="#7F8C8D" />
                       </TouchableOpacity>
@@ -295,7 +296,7 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
                       {salvando ? (
                           <ActivityIndicator color="#FFF" />
                       ) : (
-                          <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 16}}>Salvar Configurações</Text>
+                          <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 16}}>{t('common.salvar', 'Salvar Configurações')}</Text>
                       )}
                   </TouchableOpacity>
               </View>

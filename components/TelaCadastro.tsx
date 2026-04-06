@@ -86,7 +86,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           : await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permission.status !== 'granted') {
-          Alert.alert('Atenção', `Precisamos de permissão para acessar a ${source}.`);
+          Alert.alert(t('radar.atencao'), t('common.erroPermissao', { defaultValue: `Precisamos de permissão para acessar a ${source}.` }));
           return;
       }
 
@@ -107,10 +107,10 @@ export default function TelaCadastro({ aoSalvar }: Props) {
   };
 
   const escolherFonte = (tipo: 'com_doc' | 'apenas_doc') => {
-      Alert.alert('Selecionar Foto', 'De onde deseja pegar a imagem?', [
-          { text: 'Tirar Foto (Câmera)', onPress: () => capturarFoto(tipo, 'camera') },
-          { text: 'Escolher da Galeria', onPress: () => capturarFoto(tipo, 'galeria') },
-          { text: 'Cancelar', style: 'cancel' }
+      Alert.alert(t('cadastro.selecionarFoto', { defaultValue: 'Selecionar Foto' }), t('cadastro.deOndePegar', { defaultValue: 'De onde deseja pegar a imagem?' }), [
+          { text: t('cadastro.tirarFoto', { defaultValue: 'Tirar Foto (Câmera)' }), onPress: () => capturarFoto(tipo, 'camera') },
+          { text: t('cadastro.escolherGaleria', { defaultValue: 'Escolher da Galeria' }), onPress: () => capturarFoto(tipo, 'galeria') },
+          { text: t('common.cancelar'), style: 'cancel' }
       ]);
   };
   // ⬆️ FIM DA INJEÇÃO DE FUNÇÕES DE FOTO ⬆️
@@ -148,7 +148,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
         }
     } catch (e) {
         console.log("Erro no upload", e);
-        Alert.alert("Atenção", "Houve um problema ao subir as fotos, mas o cliente será salvo.");
+        Alert.alert(t('radar.atencao'), t('cadastro.erroUploadAviso', { defaultValue: "Houve um problema ao subir as fotos, mas o cliente será salvo." }));
     }
     setCarregandoUpload(false);
     // ⬆️ FIM DA INJEÇÃO DE UPLOAD ⬆️
@@ -263,15 +263,15 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           />
 
           {/* ⬇️ INJETADO: BOTÕES DE FOTO KYC ⬇️ */}
-          <Text style={[styles.label, { marginTop: 10 }]}>Documentação KYC de Segurança</Text>
+          <Text style={[styles.label, { marginTop: 10 }]}>{t('cadastro.kycTitulo')}</Text>
           <View style={styles.rowFotos}>
               <TouchableOpacity style={styles.btnFoto} onPress={() => escolherFonte('com_doc')}>
                   <Ionicons name="person-circle-outline" size={32} color="#2980B9" />
-                  <Text style={styles.txtBtnFoto}>Foto com Doc</Text>
+                  <Text style={styles.txtBtnFoto}>{t('cadastro.kycFotoDoc')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnFoto} onPress={() => escolherFonte('apenas_doc')}>
                   <Ionicons name="card-outline" size={32} color="#2980B9" />
-                  <Text style={styles.txtBtnFoto}>Apenas Doc</Text>
+                  <Text style={styles.txtBtnFoto}>{t('cadastro.kycApenasDoc')}</Text>
               </TouchableOpacity>
           </View>
 

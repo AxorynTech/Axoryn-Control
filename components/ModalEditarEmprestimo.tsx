@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <--- INJETADO
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Contrato } from '../types';
 
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export default function ModalEditarEmprestimo({ visivel, contratoOriginal, fechar, salvar }: Props) {
+  const { t } = useTranslation(); // <--- INJETADO
   const [capital, setCapital] = useState('');
   const [juros, setJuros] = useState('');
   const [lucroTotal, setLucroTotal] = useState('');
@@ -49,7 +51,7 @@ export default function ModalEditarEmprestimo({ visivel, contratoOriginal, fecha
 
   const handleSalvar = () => {
     if (salvando) return;
-    if (!capital || !juros) return Alert.alert("Erro", "Preencha Capital e Juros");
+    if (!capital || !juros) return Alert.alert(t('common.erro'), t('common.preenchaCampos'));
     
     setSalvando(true);
     
@@ -71,7 +73,7 @@ export default function ModalEditarEmprestimo({ visivel, contratoOriginal, fecha
       
     } catch(e) { 
       setSalvando(false);
-      Alert.alert("Erro", "Verifique os dados"); 
+      Alert.alert(t('common.erro'), t('common.erro')); 
     }
   };
 
@@ -82,28 +84,27 @@ export default function ModalEditarEmprestimo({ visivel, contratoOriginal, fecha
         <View style={styles.mC}>
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               
-              {/* \u00E9 = é */}
-              <Text style={styles.mT}>Editar Empr{'\u00E9'}stimo</Text>
+              <Text style={styles.mT}>{t('editarEmprestimo.titulo', 'Editar Empréstimo')}</Text>
               
-              <Text style={styles.label}>Capital (Valor Emprestado)</Text>
+              <Text style={styles.label}>{t('editarEmprestimo.capital', 'Capital (Valor Emprestado)')}</Text>
               <TextInput placeholder="Capital" style={styles.input} keyboardType="numeric" value={capital} onChangeText={setCapital} />
 
-              <Text style={styles.label}>Taxa de Juros (%)</Text>
+              <Text style={styles.label}>{t('editarEmprestimo.taxa', 'Taxa de Juros (%)')}</Text>
               <TextInput placeholder="Juros" style={styles.input} keyboardType="numeric" value={juros} onChangeText={setJuros} />
 
               {/* ⬇️ INJETADO: Mostra os campos de parcelamento se a frequência NÃO for MENSAL ⬇️ */}
               {contratoOriginal?.frequencia && contratoOriginal.frequencia !== 'MENSAL' && (
                   <View style={styles.blocoParcelas}>
-                      <Text style={[styles.label, {color: '#8E44AD'}]}>Valor da Parcela (R$)</Text>
+                      <Text style={[styles.label, {color: '#8E44AD'}]}>{t('pdf.valorParcela')} ({t('common.moeda')})</Text>
                       <TextInput placeholder="Ex: 50.00" style={[styles.input, { borderColor: '#8E44AD', borderWidth: 1 }]} keyboardType="numeric" value={valorParcela} onChangeText={setValorParcela} />
 
                       <View style={{flexDirection: 'row', gap: 10}}>
                           <View style={{flex: 1}}>
-                              <Text style={styles.label}>Total de Parcelas</Text>
+                              <Text style={styles.label}>{t('pdf.parcelas', 'Total de Parcelas')}</Text>
                               <TextInput placeholder="Ex: 10" style={styles.input} keyboardType="numeric" value={totalParcelas} onChangeText={setTotalParcelas} />
                           </View>
                           <View style={{flex: 1}}>
-                              <Text style={styles.label}>Parcelas Pagas</Text>
+                              <Text style={styles.label}>{t('pastaCliente.pagas', 'Parcelas Pagas')}</Text>
                               <TextInput placeholder="Ex: 2" style={styles.input} keyboardType="numeric" value={parcelasPagas} onChangeText={setParcelasPagas} />
                           </View>
                       </View>
@@ -111,22 +112,20 @@ export default function ModalEditarEmprestimo({ visivel, contratoOriginal, fecha
               )}
               {/* ⬆️ FIM DA INJEÇÃO ⬆️ */}
 
-              <Text style={styles.label}>Lucro Total (Acumulado)</Text>
+              <Text style={styles.label}>{t('editarEmprestimo.lucroTotal', 'Lucro Total (Acumulado)')}</Text>
               <TextInput placeholder="Lucro" style={[styles.input, { borderColor: '#F39C12', borderWidth: 1 }]} keyboardType="numeric" value={lucroTotal} onChangeText={setLucroTotal} />
 
-              {/* \u00ED = í (Início) */}
-              <Text style={styles.label}>Data de In{'\u00ED'}cio</Text>
-              <TextInput placeholder="DD/MM/AAAA" style={styles.input} value={dataInicio} onChangeText={setDataInicio} />
+              <Text style={styles.label}>{t('editarEmprestimo.dataInicio', 'Data de Início')}</Text>
+              <TextInput placeholder={t('pagarParcela.dataPagamento', 'DD/MM/YYYY')} style={styles.input} value={dataInicio} onChangeText={setDataInicio} />
 
-              {/* \u00F3 = ó (Próximo) */}
-              <Text style={styles.label}>Pr{'\u00F3'}ximo Vencimento</Text>
-              <TextInput placeholder="DD/MM/AAAA" style={[styles.input, { borderColor: '#2980B9', borderWidth: 1 }]} value={proximoVencimento} onChangeText={setProximoVencimento} />
+              <Text style={styles.label}>{t('editarEmprestimo.proximoVencimento', 'Próximo Vencimento')}</Text>
+              <TextInput placeholder={t('pagarParcela.dataPagamento', 'DD/MM/YYYY')} style={[styles.input, { borderColor: '#2980B9', borderWidth: 1 }]} value={proximoVencimento} onChangeText={setProximoVencimento} />
 
-              <Text style={styles.label}>Multa por dia (R$)</Text>
+              <Text style={styles.label}>{t('editarEmprestimo.multaDiaria', 'Multa por dia')} ({t('common.moeda')})</Text>
               <TextInput placeholder="0.00" style={[styles.input, { borderColor: '#E74C3C', borderWidth: 1 }]} keyboardType="numeric" value={multa} onChangeText={setMulta} />
 
-              <Text style={styles.label}>Garantia</Text>
-              <TextInput placeholder="Garantia" style={styles.input} value={garantia} onChangeText={setGarantia} />
+              <Text style={styles.label}>{t('novoContrato.garantia', 'Garantia')}</Text>
+              <TextInput placeholder={t('novoContrato.garantia', 'Garantia')} style={styles.input} value={garantia} onChangeText={setGarantia} />
               
               <TouchableOpacity 
                 style={[styles.btnP, salvando && { opacity: 0.7 }]} 
@@ -136,12 +135,12 @@ export default function ModalEditarEmprestimo({ visivel, contratoOriginal, fecha
                 {salvando ? (
                     <ActivityIndicator color="#FFF" />
                 ) : (
-                    <Text style={styles.btnTxt}>SALVAR CORRE{'\u00C7'}{'\u00C3'}O</Text>
+                    <Text style={styles.btnTxt}>{t('editarEmprestimo.btnSalvar', 'SALVAR CORREÇÃO')}</Text>
                 )}
               </TouchableOpacity>
               
               <TouchableOpacity onPress={fechar} style={styles.btnCancel} disabled={salvando}>
-                <Text style={{color:'#999'}}>Cancelar</Text>
+                <Text style={{color:'#999'}}>{t('common.cancelar')}</Text>
               </TouchableOpacity>
           </ScrollView>
         </View>

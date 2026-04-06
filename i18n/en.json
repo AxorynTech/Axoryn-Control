@@ -190,7 +190,9 @@
     "sucessoTransferencia": "Transfer successful!",
     "falhaSalvar": "Failed to save entry.",
     "falhaCriarConta": "Failed to create account.",
-    "falhaPDF": "Failed to generate PDF."
+    "falhaPDF": "Failed to generate PDF.",
+    "excluirSelecionados": "Delete Selected",
+    "confirmarExclusaoMultipla": "Are you sure you want to delete {{qtd}} items?"
   },
   "resumo": {
     "titulo": "Financial Summary",
@@ -199,6 +201,16 @@
     "mes": "This Month",
     "ultimasMovimentacoes": "Recent Activity",
     "vazio": "No payments recorded in this period."
+  },
+  "editarEmprestimo": {
+    "titulo": "Edit Loan",
+    "capital": "Capital (Loan Amount)",
+    "taxa": "Interest Rate (%)",
+    "lucroTotal": "Total Profit (Accumulated)",
+    "dataInicio": "Start Date",
+    "proximoVencimento": "Next Due Date",
+    "multaDiaria": "Daily Late Fee",
+    "btnSalvar": "SAVE CORRECTION"
   },
   "cadastro": {
     "titulo": "New Client",
@@ -216,7 +228,10 @@
     "placeholderEndereco": "Street, Number, District",
     "placeholderIndicacao": "Optional",
     "placeholderReputacao": "e.g., Good payer, Neutral...",
-    "msgSucesso": "Client saved successfully!"
+    "msgSucesso": "Client saved successfully!",
+    "kycTitulo": "Security KYC Documentation",
+    "kycFotoDoc": "Photo w/ ID",
+    "kycApenasDoc": "ID Only"
   },
   "perfil": {
     "statusConta": "Account Status",
@@ -395,7 +410,9 @@
     "colVenc": "Due Date",
     "nenhumaGarantia": "No active collateral.",
     "rodape": "Axoryn Control © 2026 - Smart Financial Technology.",
-    "erroPDF": "Failed to generate PDF"
+    "erroPDF": "Failed to generate PDF",
+    "capitalRecuperado": "Recovered Capital",
+    "lucroLiquido": "Net Profit"
   },
   "listaCobranca": {
     "semNumero": "Client has no number.",
@@ -410,7 +427,9 @@
     "vencidos": "OVERDUE",
     "diasAtraso": "days late",
     "venceHojeStatus": "Due Today!",
-    "tudoEmDia": "Everything looks good!"
+    "tudoEmDia": "Everything looks good!",
+    "abrirPasta": "Open Folder in Wallet",
+    "configurarMensagem": "Configure Message"
   },
   "modalNovoEmprestimo": {
     "produtoPrefix": "PRODUCT: ",
@@ -423,7 +442,10 @@
     "labelData": "Payment Date",
     "btnConfirmar": "CONFIRM",
     "tipoQuitar": "SETTLE",
-    "tipoRenovar": "RENEW"
+    "tipoRenovar": "RENEW",
+    "tipoAbater": "AMORTIZE CAPITAL",
+    "descricaoAbater": "What amount will be deducted from the Principal Capital?",
+    "novoRecalculo": "Future charges will be recalculated based on the new capital."
   },
   "pagarParcela": {
     "titulo": "RECEIVE INSTALLMENT",
@@ -553,7 +575,9 @@
     "beneficio6": "Unrestricted order tabs and product management",
     "descMensal": "Full access to all unlimited Axoryn Control features for 1 month.",
     "descAnual": "Full access to all unlimited Axoryn Control features for 1 year.",
-    "rodapeIos": "Payment will be charged to your Apple account at confirmation of purchase. Subscription automatically renews unless auto-renew is turned off at least 24-hours before the end of the current period. Account will be charged for renewal within 24-hours prior to the end of the current period. Subscriptions may be managed by the user and auto-renewal may be turned off by going to the user's Account Settings after purchase."
+    "rodapeIos": "Payment will be charged to your Apple account at confirmation of purchase. Subscription automatically renews unless auto-renew is turned off at least 24-hours before the end of the current period. Account will be charged for renewal within 24-hours prior to the end of the current period. Subscriptions may be managed by the user and auto-renewal may be turned off by going to the user's Account Settings after purchase.",
+    "testeAcabou": "Your trial period has ended.",
+    "restamXDiasTeste": "{{dias}} trial days remaining."
   },
   "equipe": {
     "titulo": "Team Management",

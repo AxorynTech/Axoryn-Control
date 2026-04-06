@@ -145,8 +145,6 @@ export default function TelaFluxoPessoal() {
     const dataBanco = item.data_movimento || ''; 
     if (dataBanco.includes('-')) {
         const [ano, mes, dia] = dataBanco.split('-');
-        // Cria data objeto em UTC ou local, o importante é remontar a string
-        // Simplesmente remontando a string:
         setData(`${dia}/${mes}/${ano}`);
     } else {
         setData(getDataHojeString());
@@ -161,7 +159,7 @@ export default function TelaFluxoPessoal() {
     
     // Validação simples da data manual
     if (!data || data.length < 8 || !data.includes('/')) {
-        return Alert.alert("Erro", "Data inválida. Use o formato DD/MM/AAAA");
+        return Alert.alert(t('common.erro'), t('fluxo.erroDataInvalida', { defaultValue: 'Data inválida. Use o formato DD/MM/AAAA' }));
     }
 
     // Converter DD/MM/AAAA para YYYY-MM-DD
@@ -234,8 +232,9 @@ export default function TelaFluxoPessoal() {
   const handleExcluirMultiplos = () => {
       if (selecionados.length === 0) return;
       
-      const titulo = t('fluxo.excluirMultiplosTitulo', { defaultValue: 'Excluir Selecionados' });
-      const msg = t('fluxo.excluirMultiplosMsg', { defaultValue: `Tem certeza que deseja excluir ${selecionados.length} lançamentos?` });
+      // Busca a tradução que adicionamos no JSON no passo anterior
+      const titulo = t('fluxo.excluirSelecionados');
+      const msg = t('fluxo.confirmarExclusaoMultipla', { qtd: selecionados.length });
 
       if (Platform.OS === 'web') {
           if (window.confirm(`${titulo}\n\n${msg}`)) {
@@ -247,7 +246,7 @@ export default function TelaFluxoPessoal() {
       } else {
           Alert.alert(titulo, msg, [
               { text: t('common.cancelar'), style: 'cancel' },
-              { text: t('fluxo.btnApagar', { defaultValue: 'Apagar Tudo' }), style: 'destructive', onPress: async () => {
+              { text: t('fluxo.btnApagar'), style: 'destructive', onPress: async () => {
                   await Promise.all(selecionados.map(id => excluirMovimento(id)));
                   setSelecionados([]);
                   setModoSelecao(false);
@@ -432,7 +431,7 @@ export default function TelaFluxoPessoal() {
               <TouchableOpacity onPress={() => { setModoSelecao(false); setSelecionados([]); }} style={{flexDirection:'row', alignItems:'center'}}>
                   <Ionicons name="close" size={24} color="#FFF" />
               </TouchableOpacity>
-              <Text style={{color:'#FFF', fontWeight:'bold', fontSize: 16}}>{selecionados.length} selecionados</Text>
+              <Text style={{color:'#FFF', fontWeight:'bold', fontSize: 16}}>{selecionados.length} {t('fluxo.selecionados', { defaultValue: 'selecionados' })}</Text>
               <TouchableOpacity onPress={handleExcluirMultiplos}>
                   <Ionicons name="trash" size={24} color="#E74C3C" />
               </TouchableOpacity>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Contrato } from '../types';
 
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export default function ModalAbaterEmprestimo({ visivel, contrato, fechar, salvar }: Props) {
+  const { t } = useTranslation();
   const [valorPago, setValorPago] = useState('');
   const [multaAdicional, setMultaAdicional] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
@@ -39,8 +41,10 @@ export default function ModalAbaterEmprestimo({ visivel, contrato, fechar, salva
     const valPago = parseFloat(valorPago.replace(',', '.')) || 0;
     const valMulta = parseFloat(multaAdicional.replace(',', '.')) || 0;
 
-    if (valPago <= 0) return Alert.alert("Atenção", "Informe o valor que o cliente está te entregando.");
-    if (valPago >= dividaTotal) return Alert.alert("Atenção", "Esse valor quita a dívida inteira. Use o botão 'Quitar' na tela anterior.");
+    if (valPago <= 0) return Alert.alert(t('radar.atencao'), t('modalAcao.descricaoAbater'));
+    
+    // Fallback de tradução caso a chave 'alertaQuitar' não exista no JSON
+    if (valPago >= dividaTotal) return Alert.alert(t('radar.atencao'), t('modalAcao.alertaQuitar', "Esse valor quita a dívida inteira. Use o botão 'Quitar' na tela anterior."));
 
     setSalvando(true);
     try {
@@ -54,30 +58,30 @@ export default function ModalAbaterEmprestimo({ visivel, contrato, fechar, salva
     <Modal visible={visivel} transparent animationType="slide" onRequestClose={fechar}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.mF}>
         <View style={styles.mC}>
-          <Text style={styles.mT}>Abater Dívida (Amortização)</Text>
+          <Text style={styles.mT}>{t('modalAcao.tipoAbater')}</Text>
           
           <View style={styles.boxInfo}>
-              <Text style={styles.txtInfo}>Capital Base: R$ {contrato?.capital?.toFixed(2)}</Text>
-              <Text style={styles.txtInfo}>Juros do Ciclo: R$ {jurosAtual.toFixed(2)}</Text>
-              <Text style={styles.txtDestaque}>Dívida Total Atual: R$ {dividaTotal.toFixed(2)}</Text>
+              <Text style={styles.txtInfo}>Capital: {t('common.moeda')} {contrato?.capital?.toFixed(2)}</Text>
+              <Text style={styles.txtInfo}>{t('pastaCliente.juros')}: {t('common.moeda')} {jurosAtual.toFixed(2)}</Text>
+              <Text style={styles.txtDestaque}>{t('relatorio.colTotal')}: {t('common.moeda')} {dividaTotal.toFixed(2)}</Text>
           </View>
 
-          <Text style={styles.label}>Valor Pago pelo Cliente (R$)</Text>
-          <Text style={styles.helper}>O que sobrar vira o novo Capital.</Text>
+          <Text style={styles.label}>{t('pagarParcela.valor')} ({t('common.moeda')})</Text>
+          <Text style={styles.helper}>{t('modalAcao.novoRecalculo')}</Text>
           <TextInput placeholder="Ex: 500.00" style={[styles.input, { borderColor: '#16A085', borderWidth: 1 }]} keyboardType="numeric" value={valorPago} onChangeText={setValorPago} />
 
-          <Text style={styles.label}>Adicionar Multa? (Opcional - R$)</Text>
+          <Text style={styles.label}>{t('pdf.multaDiaria')} ({t('common.moeda')})</Text>
           <TextInput placeholder="Ex: 50.00" style={styles.input} keyboardType="numeric" value={multaAdicional} onChangeText={setMultaAdicional} />
 
-          <Text style={styles.label}>Data do Recebimento</Text>
-          <TextInput placeholder="DD/MM/AAAA" style={styles.input} value={dataPagamento} onChangeText={setDataPagamento} />
+          <Text style={styles.label}>{t('pagarParcela.dataPagamento')}</Text>
+          <TextInput placeholder="DD/MM/YYYY" style={styles.input} value={dataPagamento} onChangeText={setDataPagamento} />
 
           <TouchableOpacity style={[styles.btnP, salvando && { opacity: 0.7 }]} onPress={handleSalvar} disabled={salvando}>
-            {salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>CONFIRMAR E RENOVAR</Text>}
+            {salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>{t('modalAcao.btnConfirmar')}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={fechar} style={styles.btnCancel} disabled={salvando}>
-            <Text style={{color:'#999'}}>Cancelar</Text>
+            <Text style={{color:'#999'}}>{t('common.cancelar')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

@@ -190,7 +190,9 @@
     "sucessoTransferencia": "¡Transferencia realizada!",
     "falhaSalvar": "Fallo al guardar asiento.",
     "falhaCriarConta": "Fallo al crear cuenta.",
-    "falhaPDF": "Fallo al generar PDF."
+    "falhaPDF": "Fallo al generar PDF.",
+    "excluirSelecionados": "Eliminar Seleccionados",
+    "confirmarExclusaoMultipla": "¿Estás seguro de que deseas eliminar {{qtd}} elementos?"
   },
   "resumo": {
     "titulo": "Resumen Financiero",
@@ -216,7 +218,10 @@
     "placeholderEndereco": "Calle, Número, Barrio",
     "placeholderIndicacao": "Opcional",
     "placeholderReputacao": "ej: Buen pagador, Neutro...",
-    "msgSucesso": "¡Cliente guardado con éxito!"
+    "msgSucesso": "¡Cliente guardado con éxito!",
+    "kycTitulo": "Documentación KYC de Seguridad",
+    "kycFotoDoc": "Foto con Doc",
+    "kycApenasDoc": "Solo Doc"
   },
   "perfil": {
     "statusConta": "Estado de la Cuenta",
@@ -395,7 +400,9 @@
     "colVenc": "Vencimiento",
     "nenhumaGarantia": "Ninguna garantía activa.",
     "rodape": "Axoryn Control © 2026 - Tecnología Financiera Inteligente.",
-    "erroPDF": "Fallo al generar PDF"
+    "erroPDF": "Fallo al generar PDF",
+    "capitalRecuperado": "Capital Recuperado",
+    "lucroLiquido": "Beneficio Neto"
   },
   "listaCobranca": {
     "semNumero": "Cliente sin número.",
@@ -410,7 +417,20 @@
     "vencidos": "VENCIDOS",
     "diasAtraso": "días retraso",
     "venceHojeStatus": "¡Vence Hoy!",
-    "tudoEmDia": "¡Todo al día por aquí!"
+    "tudoEmDia": "¡Todo al día por aquí!",
+    "abrirPasta": "Abrir Carpeta en Cartera",
+    "configurarMensaje": "Configurar Mensaje"
+  
+  },
+  "editarEmprestimo": {
+    "titulo": "Editar Préstamo",
+    "capital": "Capital (Valor Prestado)",
+    "taxa": "Tasa de Interés (%)",
+    "lucroTotal": "Ganancia Total (Acumulada)",
+    "dataInicio": "Fecha de Inicio",
+    "proximoVencimento": "Próximo Vencimiento",
+    "multaDiaria": "Multa por día",
+    "btnSalvar": "GUARDAR CORRECCIÓN"
   },
   "modalNovoEmprestimo": {
     "produtoPrefix": "PRODUCTO: ",
@@ -423,7 +443,10 @@
     "labelData": "Fecha de Pago",
     "btnConfirmar": "CONFIRMAR",
     "tipoQuitar": "LIQUIDAR",
-    "tipoRenovar": "RENOVAR"
+    "tipoRenovar": "RENOVAR",
+    "tipoAbater": "AMORTIZAR CAPITAL",
+    "descricaoAbater": "¿Qué cantidad se deducirá del Capital Principal?",
+    "novoRecalculo": "Los próximos cobros serán recalculados sobre el nuevo capital."
   },
   "pagarParcela": {
     "titulo": "RECIBIR CUOTA",
@@ -553,7 +576,9 @@
     "beneficio6": "Comandas y gestión de productos sin restricciones",
     "descMensal": "Acceso total a todos los recursos ilimitados de Axoryn Control por 1 mes.",
     "descAnual": "Acceso total a todos los recursos ilimitados de Axoryn Control por 1 año.",
-    "rodapeIos": "El pago se cargará a su cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente por el mismo valor y período, a menos que se cancele al menos 24 horas antes del final del período actual. La renovación se cobrará dentro de las 24 horas previas al final del período. Puede administrar y cancelar la renovación automática en la Configuración de su cuenta en la App Store después de la compra."
+    "rodapeIos": "El pago se cargará a su cuenta de Apple al confirmar la compra. La suscripción se renueva automáticamente por el mismo valor y período, a menos que se cancele al menos 24 horas antes del final del período actual. La renovación se cobrará dentro de las 24 horas previas al final del período. Puede administrar y cancelar la renovación automática en la Configuración de su cuenta en la App Store después de la compra.",
+    "testeAcabou": "Tu período de prueba ha terminado.",
+    "restamXDiasTeste": "Quedan {{dias}} días de prueba."
   },
   "equipe": {
     "titulo": "Gestión de Equipo",
