@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  InteractionManager, // 🚀 ARQUITETURA: Fila de execução
+  InteractionManager,
   Linking,
   Modal,
   Platform,
@@ -226,10 +226,19 @@ export default function PastaCliente({
           <div class="item"><span>${t('pdf.valorParcela') || 'Valor Parcela'}:</span> <b>R$ ${(con.valorParcela || 0).toFixed(2)}</b></div>
         `;
       } else {
-        infoExtra = `
-          <div class="item"><span>${t('pdf.taxaJuros') || 'Taxa de Juros'}:</span> <b>${con.taxa}%</b></div>
-          <div class="item"><span>${t('pdf.multaDiaria') || 'Multa Diária'}:</span> <b>R$ ${(con.valorMultaDiaria || 0).toFixed(2)}</b></div>
-        `;
+        // 🚀 INJETADO AQUI NO PDF: MOSTRA O VALOR FIXO SE EXISTIR EM VEZ DA TAXA
+        const jurosSalvoPDF = con.lucroJurosPorParcela || 0;
+        if (jurosSalvoPDF > 0) {
+            infoExtra = `
+              <div class="item"><span>${t('pdf.taxaJuros') || 'Lucro Fixo'}:</span> <b>R$ ${Number(jurosSalvoPDF).toFixed(2)}</b></div>
+              <div class="item"><span>${t('pdf.multaDiaria') || 'Multa Diária'}:</span> <b>R$ ${(con.valorMultaDiaria || 0).toFixed(2)}</b></div>
+            `;
+        } else {
+            infoExtra = `
+              <div class="item"><span>${t('pdf.taxaJuros') || 'Taxa de Juros'}:</span> <b>${con.taxa}%</b></div>
+              <div class="item"><span>${t('pdf.multaDiaria') || 'Multa Diária'}:</span> <b>R$ ${(con.valorMultaDiaria || 0).toFixed(2)}</b></div>
+            `;
+        }
       }
 
       const html = `
@@ -516,6 +525,10 @@ export default function PastaCliente({
           {cliente.contratos && cliente.contratos.map((con) => {
             const detalhes = getDetalhesContrato(con.garantia);
             
+            // 🚀 INJETADO AQUI NA RENDERIZAÇÃO: AVISA A TELA SE O CONTRATO É FIXO
+            const valorJurosSalvo = con.lucroJurosPorParcela || 0;
+            const exibicaoJuros = valorJurosSalvo > 0 ? `R$ ${Number(valorJurosSalvo).toFixed(2)}` : `${con.taxa}%`;
+
             return (
             <View key={con.id} style={[styles.contrato, con.status === 'QUITADO' && styles.quitado]}>
               <View style={styles.conHeader}>
@@ -557,7 +570,8 @@ export default function PastaCliente({
                    </Text>
                  </View>
               ) : (
-                 <Text style={styles.info}>{t('pastaCliente.juros')}: {con.taxa}% ({traduzirFrequencia(con.frequencia || 'MENSAL')})</Text>
+                 // 🚀 INJETADO: Exibe a taxa ou o valor cravado se for FIXO
+                 <Text style={styles.info}>{valorJurosSalvo > 0 ? t('pdf.taxaJuros', 'Lucro Fixo') : t('pastaCliente.juros')}: {exibicaoJuros} ({traduzirFrequencia(con.frequencia || 'MENSAL')})</Text>
               )}
 
               {con.status !== 'QUITADO' ? (

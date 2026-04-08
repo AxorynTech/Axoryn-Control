@@ -128,8 +128,21 @@ export default function ListaCobranca({ clientes, aoAbrirCliente }: Props) {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
         let valor = 0;
-        if (con.status === 'PARCELADO') valor = con.valorParcela || 0;
-        else valor = con.capital + (con.capital * (con.taxa / 100));
+        
+        // --- 🚀 A MATEMÁTICA CORRIGIDA E BLINDADA AQUI ---
+        if (con.status === 'PARCELADO') {
+            valor = con.valorParcela || 0;
+        } else {
+            // Se for MENSAL (Ativo) e tiver um valor fixo salvo, usa a soma direta!
+            // Se não tiver valor fixo, faz a conta da taxa normal.
+            const valorJurosSalvo = con.lucroJurosPorParcela || 0;
+            
+            if (valorJurosSalvo > 0) {
+                valor = con.capital + Number(valorJurosSalvo);
+            } else {
+                valor = con.capital + (con.capital * ((con.taxa || 0) / 100));
+            }
+        }
 
         const item = {
           cliente: cli.nome,

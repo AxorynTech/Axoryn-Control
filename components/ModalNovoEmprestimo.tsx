@@ -201,23 +201,25 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     // --- LÓGICA DO JUROS FIXO vs PORCENTAGEM ---
     let taxaParaEnviar = 0;
     let valorJurosFixo = 0;
+    let valorParcelaForcado = 0; // 🚀 INJETADO: Para travar o valor e driblar o banco
 
     if (tipoOperacao === 'EMPRESTIMO') {
         if (tipoJuros === 'FIXO') {
             // Se escolheu Fixo (Ex: 50 reais em 1000 capital)
-            // Convertemos para porcentagem para o sistema aceitar e calcular o total certo.
-            // (50 / 1000) * 100 = 5%. O sistema calculará 1000 + 5% = 1050.
-            if (valCapital > 0) {
-                taxaParaEnviar = (valInputJuros / valCapital) * 100;
-            } else {
-                taxaParaEnviar = 0;
-            }
-            
-            // Enviamos também o valor fixo original caso precise no futuro
             valorJurosFixo = valInputJuros;
+            
+            // 🚀 INJETADO: Mandamos a taxa ZERADA para o banco parar de recalcular com dízimas!
+            taxaParaEnviar = 0;
+            
+            // 🚀 INJETADO: Calculamos a parcela exata aqui no celular
+            if (parcelasFinal && parcelasFinal > 0) {
+              valorParcelaForcado = (valCapital + valorJurosFixo) / parcelasFinal;
+            } else {
+              valorParcelaForcado = valorJurosFixo; // Mensal = parcela é só o juros
+            }
+
         } else {
             // Se escolheu Porcentagem (Ex: 20%)
-            // Envia a taxa direta.
             taxaParaEnviar = valInputJuros;
             valorJurosFixo = 0;
         }
@@ -230,10 +232,12 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       tipo: tipoOperacao,
       capital: valCapital,
       
-      // Enviamos a taxa convertida (ou original) para garantir o cálculo correto
       taxa: taxaParaEnviar,
       valorJuros: valorJurosFixo,
       tipoJuros: tipoOperacao === 'EMPRESTIMO' ? tipoJuros : null, 
+      
+      // 🚀 INJETADO: Enviamos a parcela cravada para o Supabase obedecer
+      valorParcela: valorParcelaForcado > 0 ? valorParcelaForcado : null,
 
       frequencia: frequenciaFinal,
       garantia: textoDescritivo,

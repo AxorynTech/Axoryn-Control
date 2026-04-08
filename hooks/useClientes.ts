@@ -402,14 +402,21 @@ export function useClientes() {
 
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
     try {
-      // ⬇️ CORREÇÃO BLINDADA: JUROS SEMPRE BASEADO NO CAPITAL ATUAL ⬇️
+      // 🚀 MATEMÁTICA BLINDADA: SE EXISTIR VALOR FIXO SALVO, USA ELE. SE NÃO, USA A TAXA.
       let vJuro = 0;
+      const jurosSalvo = contrato.lucroJurosPorParcela || 0;
+
       if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
-          vJuro = contrato.lucroJurosPorParcela || 0;
+          vJuro = jurosSalvo;
       } else {
-          vJuro = contrato.capital * (contrato.taxa / 100);
+          // Se for MENSAL e tiver valor fixo cravado, usa o cravado.
+          if (jurosSalvo > 0) {
+              vJuro = Number(jurosSalvo);
+          } else {
+              // Só calcula com porcentagem se for um empréstimo antigo que não tinha valor fixo
+              vJuro = contrato.capital * (contrato.taxa / 100);
+          }
       }
-      // ⬆️ FIM DA CORREÇÃO ⬆️
 
       let vMulta = 0;
       if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
@@ -629,14 +636,19 @@ export function useClientes() {
 
   const abaterEmprestimo = useCallback(async (nomeCliente: string, contrato: Contrato, valorPago: number, multaPaga: number, dataPagamento: string) => {
     try {
-        // ⬇️ CORREÇÃO BLINDADA: JUROS SEMPRE BASEADO NO CAPITAL ATUAL ⬇️
+        // 🚀 MATEMÁTICA BLINDADA AQUI TAMBÉM 🚀
         let jurosAtual = 0;
+        const jurosSalvo = contrato.lucroJurosPorParcela || 0;
+
         if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
-            jurosAtual = contrato.lucroJurosPorParcela || 0;
+            jurosAtual = jurosSalvo;
         } else {
-            jurosAtual = contrato.capital * (contrato.taxa / 100);
+            if (jurosSalvo > 0) {
+                jurosAtual = Number(jurosSalvo);
+            } else {
+                jurosAtual = contrato.capital * (contrato.taxa / 100);
+            }
         }
-        // ⬆️ FIM DA CORREÇÃO ⬆️
         
         const dividaTotal = contrato.capital + jurosAtual;
         const novoCapital = dividaTotal - valorPago;
@@ -686,6 +698,7 @@ export function useClientes() {
                 updates.valor_parcela = (novoCapital + novoJurosTotal) / parcelasRestantes;
             }
         } else {
+            // Recalcula o próximo Juro cravado no novo capital
             updates.lucro_juros_por_parcela = novoCapital * (contrato.taxa / 100);
         }
 
