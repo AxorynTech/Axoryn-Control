@@ -1,27 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
+import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
-  Alert,
-  // ⬇️ INJETADO PARA FOTOS KYC ⬇️
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
-// ⬇️ INJETADO PARA CAPTURA E UPLOAD KYC ⬇️
 import { Ionicons } from '@expo/vector-icons';
-import { decode } from 'base64-arraybuffer';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../services/supabase';
+
+// 🚀 ARQUITETURA IOS: Removidos os imports do expo-file-system e base64-arraybuffer.
+// Vamos usar o FormData nativo.
 
 type Props = {
   visivel: boolean;
@@ -31,7 +30,7 @@ type Props = {
 };
 
 export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, salvar }: Props) {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation();
   const [nome, setNome] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [endereco, setEndereco] = useState('');
@@ -39,17 +38,13 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
   const [reputacao, setReputacao] = useState('');
   const [segmento, setSegmento] = useState('EMPRESTIMO');
 
-  // ⬇️ INJETADO: ESTADOS DAS FOTOS KYC ⬇️
-  // uriLocal é para a foto que acabou de ser tirada/escolhida
   const [uriFotoComDoc, setUriFotoComDoc] = useState<string | null>(null);
   const [uriFotoApenasDoc, setUriFotoApenasDoc] = useState<string | null>(null);
   
-  // urlBanco é para mostrar a miniatura do que JÁ ESTÁ no banco
   const [urlBancoRosto, setUrlBancoRosto] = useState<string | null>(null);
   const [urlBancoDoc, setUrlBancoDoc] = useState<string | null>(null);
   
   const [carregandoUpload, setCarregandoUpload] = useState(false);
-  // ⬆️ FIM DA INJEÇÃO ⬆️
 
   useEffect(() => {
     if (clienteOriginal) {
@@ -60,11 +55,9 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
       setReputacao(clienteOriginal.reputacao || '');
       setSegmento(clienteOriginal.segmento || 'EMPRESTIMO');
       
-      // Limpa seleções locais ao abrir
       setUriFotoComDoc(null);
       setUriFotoApenasDoc(null);
 
-      // ⬇️ INJETADO: BUSCA URLS SEGURAS DO BANCO SE JÁ EXISTIREM FOTOS ⬇️
       const carregarFotosAntigas = async () => {
           if (clienteOriginal.foto_com_documento) {
               const { data } = await supabase.storage.from('documentos_clientes').createSignedUrl(clienteOriginal.foto_com_documento, 3600);
@@ -82,7 +75,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
       };
       
       if (visivel) carregarFotosAntigas();
-      // ⬆️ FIM DA INJEÇÃO ⬆️
 
     } else {
       setNome(''); setWhatsapp(''); setEndereco(''); setIndicacao(''); setReputacao('');
@@ -90,7 +82,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
     }
   }, [clienteOriginal, visivel]);
 
-  // ⬇️ INJETADO: FUNÇÕES DE CAPTURA KYC ⬇️
   const capturarFoto = async (tipo: 'com_doc' | 'apenas_doc', source: 'camera' | 'galeria') => {
       const permission = source === 'camera' 
           ? await ImagePicker.requestCameraPermissionsAsync() 
@@ -114,10 +105,10 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
       if (!result.canceled && result.assets[0]) {
           if (tipo === 'com_doc') {
               setUriFotoComDoc(result.assets[0].uri);
-              setUrlBancoRosto(null); // Esconde a antiga pra mostrar a nova
+              setUrlBancoRosto(null);
           } else {
               setUriFotoApenasDoc(result.assets[0].uri);
-              setUrlBancoDoc(null); // Esconde a antiga pra mostrar a nova
+              setUrlBancoDoc(null);
           }
       }
   };
@@ -129,37 +120,59 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
           { text: 'Cancelar', style: 'cancel' }
       ]);
   };
-  // ⬆️ FIM DA INJEÇÃO KYC ⬆️
 
-  // ⬇️ ALTERADO PARA ASYNC PARA PERMITIR UPLOAD ANTES DE SALVAR ⬇️
+  // 🚀 ARQUITETURA IOS BLINDADA: Upload via FormData (Streaming Nativo resolve o "Network request failed")
+  const realizarUploadArquivo = async (uri: string, prefixo: string, userId: string): Promise<string> => {
+      let ext = uri.split('.').pop()?.toLowerCase() || 'jpeg';
+      if (ext === 'jpg') ext = 'jpeg'; 
+      
+      const path = `${userId}/${prefixo}_${Date.now()}.${ext}`;
+      
+      const formData = new FormData();
+      formData.append('file', {
+          uri: uri, 
+          name: `${prefixo}_${Date.now()}.${ext}`,
+          type: `image/${ext}`
+      } as any); 
+      
+      const { error } = await supabase.storage
+          .from('documentos_clientes')
+          .upload(path, formData); 
+
+      if (error) throw error;
+      return path;
+  };
+
   const handleSalvar = async () => {
     if (!nome.trim()) return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
     
     setCarregandoUpload(true);
-    let pathFotoComDoc = clienteOriginal.foto_com_documento; // Mantém a antiga se não mudar
-    let pathFotoApenasDoc = clienteOriginal.foto_apenas_documento; // Mantém a antiga se não mudar
+    let pathFotoComDoc = clienteOriginal.foto_com_documento; 
+    let pathFotoApenasDoc = clienteOriginal.foto_apenas_documento; 
 
     try {
         const { data: { user } } = await supabase.auth.getUser();
         
-        // Se escolheu uma FOTO NOVA de ROSTO, faz upload
-        if (uriFotoComDoc && user) {
-            const ext = uriFotoComDoc.split('.').pop()?.toLowerCase() || 'jpg';
-            const path = `${user.id}/rosto_${Date.now()}.${ext}`;
-            const base64 = await FileSystem.readAsStringAsync(uriFotoComDoc, { encoding: 'base64' });
-            const arrayBuffer = decode(base64);
-            const { error } = await supabase.storage.from('documentos_clientes').upload(path, arrayBuffer, { upsert: true, contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
-            if (!error) pathFotoComDoc = path;
-        }
+        if (user) {
+            // 🚀 ARQUITETURA: Uploads em Paralelo
+            const promessasUpload = [];
+            
+            if (uriFotoComDoc) {
+                promessasUpload.push(
+                    realizarUploadArquivo(uriFotoComDoc, 'rosto', user.id)
+                        .then(path => { pathFotoComDoc = path; })
+                );
+            }
+            if (uriFotoApenasDoc) {
+                promessasUpload.push(
+                    realizarUploadArquivo(uriFotoApenasDoc, 'doc', user.id)
+                        .then(path => { pathFotoApenasDoc = path; })
+                );
+            }
 
-        // Se escolheu uma FOTO NOVA de DOC, faz upload
-        if (uriFotoApenasDoc && user) {
-            const ext = uriFotoApenasDoc.split('.').pop()?.toLowerCase() || 'jpg';
-            const path = `${user.id}/doc_${Date.now()}.${ext}`;
-            const base64 = await FileSystem.readAsStringAsync(uriFotoApenasDoc, { encoding: 'base64' });
-            const arrayBuffer = decode(base64);
-            const { error } = await supabase.storage.from('documentos_clientes').upload(path, arrayBuffer, { upsert: true, contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
-            if (!error) pathFotoApenasDoc = path;
+            if (promessasUpload.length > 0) {
+                await Promise.all(promessasUpload);
+            }
         }
     } catch (e) {
         console.log("Erro no upload ao editar", e);
@@ -167,7 +180,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
     }
     setCarregandoUpload(false);
 
-    // Envia tudo pro hook salvar
     salvar({ 
       nome: nome.trim().toUpperCase(), 
       whatsapp, 
@@ -179,11 +191,9 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
       foto_apenas_documento: pathFotoApenasDoc
     });
   };
-  // ⬆️ FIM DA INJEÇÃO NO SALVAR ⬆️
 
   return (
     <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar}>
-      {/* Container principal com KeyboardAvoidingView */}
       <KeyboardAvoidingView 
         style={styles.mF} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -248,7 +258,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
                 onChangeText={setReputacao} 
             />
             
-            {/* ⬇️ INJETADO: BLOCO DE EDIÇÃO DE FOTOS KYC ⬇️ */}
             <View style={styles.kycSection}>
                 <Text style={{fontWeight:'bold', marginBottom:10, color:'#555'}}>Documentos de Segurança (KYC)</Text>
                 
@@ -290,7 +299,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
                     </View>
                 </View>
             </View>
-            {/* ⬆️ FIM DA INJEÇÃO ⬆️ */}
 
             <TouchableOpacity style={styles.btnP} onPress={handleSalvar} disabled={carregandoUpload}>
               {carregandoUpload ? (
@@ -318,8 +326,8 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderRadius: 15, 
     padding: 20,
-    maxHeight: '85%', // Limite de altura
-    flexShrink: 1, // Permite encolher se o teclado apertar
+    maxHeight: '85%', 
+    flexShrink: 1, 
     elevation: 5
   },
   mT: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
@@ -338,7 +346,6 @@ const styles = StyleSheet.create({
   btnTxt: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
   btnCancel: { marginTop: 15, alignItems: 'center', padding: 10 },
 
-  // ⬇️ INJETADO: ESTILOS KYC PARA O MODAL ⬇️
   kycSection: { marginTop: 10, marginBottom: 20, borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 15 },
   rowFotos: { flexDirection: 'row', gap: 10 },
   colFoto: { flex: 1 },
@@ -347,5 +354,4 @@ const styles = StyleSheet.create({
   previewBox: { position: 'relative', height: 100, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#DDD' },
   imgPreview: { width: '100%', height: '100%' },
   btnTrocarFoto: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(41, 128, 185, 0.85)', paddingVertical: 6, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  // ⬆️ FIM DOS ESTILOS KYC ⬆️
 });

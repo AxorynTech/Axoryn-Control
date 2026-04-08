@@ -19,13 +19,17 @@ import {
 } from 'react-native';
 
 // IMPORTS PROPRIOS
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAssinatura } from '../../hooks/useAssinatura';
 import { usePDV } from '../../hooks/usePDV';
 import { useProdutos } from '../../hooks/useProdutos';
 import { ItemPedido, Pedido, Produto } from '../../types';
 import { gerarRelatorioPDF } from '../../utils/gerarRelatorio';
-// ⬇️ IMPORT DA CÂMERA ⬇️
-import { CameraView, useCameraPermissions } from 'expo-camera';
+
+// 🚀 ARQUITETURA: Configuração movida para fora para não recriar a instância no iOS
+const CONFIGURACAO_SCANNER = { 
+    barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128"] 
+} as const;
 
 export default function TelaProdutos() {
   const { t } = useTranslation();
@@ -68,15 +72,15 @@ export default function TelaProdutos() {
   const [dataFim, setDataFim] = useState(new Date());
   const [showPicker, setShowPicker] = useState<'inicio' | 'fim' | null>(null);
 
-  // NOVO ESTADO: Adicionado para controlar ajustes de estoque
   const [quantidadeAjuste, setQuantidadeAjuste] = useState('');
 
   // --- ESTADOS DA CÂMERA ---
   const [permissaoCamera, pedirPermissaoCamera] = useCameraPermissions();
   const [modalScanner, setModalScanner] = useState(false);
   const [modoScanner, setModoScanner] = useState<'PDV' | 'CADASTRO'>('PDV');
+  // 🚀 ARQUITETURA: Trava para impedir múltiplos disparos de leitura
+  const [scanBloqueado, setScanBloqueado] = useState(false);
 
-  // Função para abrir o leitor
   const abrirLeitorDeCodigo = async (modo: 'PDV' | 'CADASTRO') => {
     if (!permissaoCamera?.granted) {
       const { status } = await pedirPermissaoCamera();
@@ -84,28 +88,33 @@ export default function TelaProdutos() {
         return Alert.alert(t('estoque.atencao'), "Precisamos de permissão para usar a câmera.");
       }
     }
+    setScanBloqueado(false); // Libera a leitura
     setModoScanner(modo);
     setModalScanner(true);
   };
 
-  // Função que roda assim que um código é lido
   const aoLerCodigoDeBarras = ({ data }: { data: string }) => {
-    setModalScanner(false); // Fecha a câmera
+    // Se já leu, ignora qualquer chamada extra que o iOS disparar
+    if (scanBloqueado) return;
+    setScanBloqueado(true);
 
-    if (modoScanner === 'PDV') {
-      // Procura o produto no estoque
-      const produtoEncontrado = produtos.find(p => p.codigo_barras === data);
-      
-      if (produtoEncontrado) {
-         adicionarAoCarrinho(produtoEncontrado);
-         Alert.alert("Adicionado!", `${produtoEncontrado.nome} foi para o carrinho.`);
-      } else {
-         Alert.alert("Não Encontrado", `Nenhum produto cadastrado com o código:\n${data}`);
-      }
-    } else if (modoScanner === 'CADASTRO') {
-      // Preenche o campo no modal de edição/criação do produto
-      setProdutoEmEdicao({ ...produtoEmEdicao, codigo_barras: data });
-    }
+    setModalScanner(false); // Fecha a câmera imediatamente
+
+    // Adiciona um pequeno atraso para a interface respirar antes de processar os dados
+    setTimeout(() => {
+        if (modoScanner === 'PDV') {
+          const produtoEncontrado = produtos.find(p => p.codigo_barras === data);
+          
+          if (produtoEncontrado) {
+             adicionarAoCarrinho(produtoEncontrado);
+             Alert.alert("Adicionado!", `${produtoEncontrado.nome} foi para o carrinho.`);
+          } else {
+             Alert.alert("Não Encontrado", `Nenhum produto cadastrado com o código:\n${data}`);
+          }
+        } else if (modoScanner === 'CADASTRO') {
+          setProdutoEmEdicao({ ...produtoEmEdicao, codigo_barras: data });
+        }
+    }, 300);
   };
 
   useFocusEffect(
@@ -228,7 +237,7 @@ export default function TelaProdutos() {
         setProdutoEmEdicao({ nome: '', estoque: 0 });
         setPrecoInput('');
     }
-    setQuantidadeAjuste(''); // NOVA LINHA: Limpa o input de ajuste toda vez que abrir
+    setQuantidadeAjuste(''); 
     setModalProduto(true);
   };
 
@@ -481,7 +490,6 @@ export default function TelaProdutos() {
                            value={filtro} 
                            onChangeText={setFiltro} 
                         />
-                        {/* ⬇️ BOTÃO DA CÂMERA NO PDV ⬇️ */}
                         <TouchableOpacity onPress={() => abrirLeitorDeCodigo('PDV')}>
                             <Ionicons name="barcode" size={26} color="#2980B9" />
                         </TouchableOpacity>
@@ -765,7 +773,6 @@ export default function TelaProdutos() {
                 <Text style={styles.label}>{t('estoque.nomeLabel')}</Text>
                 <TextInput placeholder={t('estoque.exemploProduto')} style={styles.input} value={produtoEmEdicao.nome} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, nome: t})} />
                 
-                {/* ⬇️ NOVO CAMPO: CÓDIGO DE BARRAS ⬇️ */}
                 <Text style={styles.label}>Código de Barras</Text>
                 <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 10}}>
                     <TextInput 
@@ -781,14 +788,12 @@ export default function TelaProdutos() {
                         <Ionicons name="barcode-outline" size={24} color="#FFF" />
                     </TouchableOpacity>
                 </View>
-                {/* ⬆️ FIM DO NOVO CAMPO ⬆️ */}
 
                 <View style={{flexDirection:'row', gap: 10}}>
                     <View style={{flex:1}}><Text style={styles.label}>{t('estoque.precoLabel')}</Text><TextInput placeholder={t('estoque.zeroNumerico')} keyboardType="numeric" style={styles.input} value={precoInput} onChangeText={setPrecoInput} /></View>
                     <View style={{flex:1}}><Text style={styles.label}>{t('estoque.estoqueLabel')}</Text><TextInput placeholder={t('estoque.zeroQtd')} keyboardType='numeric' style={styles.input} value={produtoEmEdicao.estoque?.toString()} onChangeText={t => setProdutoEmEdicao({...produtoEmEdicao, estoque: parseInt(t)})}/></View>
                 </View>
 
-                {/* ⬇️ INÍCIO DO NOVO ESQUEMA DE AJUSTE RÁPIDO DE ESTOQUE ⬇️ */}
                 {produtoEmEdicao.id ? (
                     <View style={{marginBottom: 15, backgroundColor: '#F9F9F9', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#EEE'}}>
                         <Text style={[styles.label, {textAlign: 'center', marginBottom: 10}]}>Ajuste Rápido de Estoque</Text>
@@ -831,7 +836,6 @@ export default function TelaProdutos() {
                         </View>
                     </View>
                 ) : null}
-                {/* ⬆️ FIM DO NOVO ESQUEMA DE AJUSTE RÁPIDO DE ESTOQUE ⬆️ */}
 
                 <View style={{flexDirection:'row', justifyContent:'space-between'}}>
                     <TouchableOpacity onPress={() => setModalProduto(false)} style={{padding:10}}><Text>{t('common.cancelar')}</Text></TouchableOpacity>
@@ -841,14 +845,14 @@ export default function TelaProdutos() {
         </View>
       </Modal>
 
-      {/* MODAL DO LEITOR DE CÓDIGO DE BARRAS */}
+      {/* 🚀 ARQUITETURA: Uso do Modal com a trava do Scanner e as configs constantes */}
       <Modal visible={modalScanner} animationType="slide" transparent={false}>
           <View style={{flex: 1, backgroundColor: '#000'}}>
               <CameraView 
-                  style={{flex: 1}} 
+                  style={StyleSheet.absoluteFillObject}
                   facing="back"
-                  barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128"] }}
-                  onBarcodeScanned={aoLerCodigoDeBarras}
+                  barcodeScannerSettings={CONFIGURACAO_SCANNER} 
+                  onBarcodeScanned={scanBloqueado ? undefined : aoLerCodigoDeBarras}
               />
               <View style={{position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center'}}>
                   <TouchableOpacity onPress={() => setModalScanner(false)} style={{backgroundColor: '#E74C3C', padding: 15, borderRadius: 30, elevation: 5}}>

@@ -48,6 +48,20 @@ export default function Auth() {
     }
   };
 
+  // ⬇️ INJETADO: FUNÇÕES DE SUPORTE ⬇️
+  const abrirWhatsAppSuporte = () => {
+    const telefone = "5515996292295";
+    const mensagem = "Olá, preciso de ajuda com o acesso ao Axoryn Control.";
+    const url = `https://wa.me/${telefone}?text=${encodeURIComponent(mensagem)}`;
+    Linking.openURL(url).catch(() => Alert.alert("Erro", "WhatsApp não instalado."));
+  };
+
+  const abrirEmailSuporte = () => {
+    Linking.openURL('mailto:axoryncontrol@gmail.com?subject=Suporte Axoryn Control')
+      .catch(() => Alert.alert("Erro", "Não foi possível abrir o aplicativo de e-mail."));
+  };
+  // ⬆️ FIM DA INJEÇÃO ⬆️
+
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       if (processandoLink.current) return;
@@ -228,6 +242,22 @@ export default function Auth() {
           </TouchableOpacity>
         </View>
 
+        {/* ⬇️ INJETADO: BOTÕES DE SUPORTE ⬇️ */}
+        <View style={styles.suporteContainer}>
+          <Text style={styles.suporteTitulo}>{t('auth.precisaAjuda', 'Precisa de ajuda? Fale com o suporte:')}</Text>
+          <View style={styles.rowSuporte}>
+            <TouchableOpacity style={styles.btnSuporteZap} onPress={abrirWhatsAppSuporte}>
+              <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
+              <Text style={styles.txtBtnSuporte}>WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnSuporteEmail} onPress={abrirEmailSuporte}>
+              <Ionicons name="mail" size={18} color="#FFF" />
+              <Text style={styles.txtBtnSuporte}>E-mail</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {/* ⬆️ FIM DA INJEÇÃO ⬆️ */}
+
         <ModalRecuperarSenha visivel={modalRecuperar} fechar={() => setModalRecuperar(false)} />
         <ModalNovaSenha visivel={modalNovaSenha} fechar={() => setModalNovaSenha(false)} />
         {/* Passamos a função de aceitar para o modal */}
@@ -265,4 +295,13 @@ const styles = StyleSheet.create({
   checkbox: { marginRight: 10 },
   termosTexto: { color: '#333', fontSize: 14, flexShrink: 1 },
   linkTermos: { color: '#2980B9', fontWeight: 'bold', textDecorationLine: 'underline' },
+
+  // ⬇️ INJETADO: ESTILOS DO SUPORTE ⬇️
+  suporteContainer: { marginTop: 30, alignItems: 'center' },
+  suporteTitulo: { color: '#7F8C8D', fontSize: 13, marginBottom: 10, fontWeight: '600' },
+  rowSuporte: { flexDirection: 'row', gap: 15 },
+  btnSuporteZap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#25D366', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 25, gap: 6, elevation: 1 },
+  btnSuporteEmail: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E74C3C', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 25, gap: 6, elevation: 1 },
+  txtBtnSuporte: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
+  // ⬆️ FIM DA INJEÇÃO ⬆️
 });

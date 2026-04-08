@@ -7,31 +7,10 @@ const corsHeaders = {
 
 // --- DICIONÁRIO DE TRADUÇÃO DO ROBÔ ---
 const TRADUCOES: any = {
-  pt: {
-    titulo: 'Chefe, Temos Trabalho! 🎩',
-    corpo: (qtd: number, valor: string) => `Você tem ${qtd} cobranças para hoje (Total: ${valor})`,
-    locale: 'pt-BR',
-    moeda: 'BRL'
-  },
-  en: {
-    titulo: 'Boss, We Have Work! 🎩',
-    corpo: (qtd: number, valor: string) => `You have ${qtd} collections due today (Total: ${valor})`,
-    locale: 'en-US',
-    moeda: 'USD'
-  },
-  es: {
-    titulo: '¡Jefe, Tenemos Trabajo! 🎩',
-    corpo: (qtd: number, valor: string) => `Tienes ${qtd} cobros para hoy (Total: ${valor})`,
-    locale: 'es-ES',
-    moeda: 'USD'
-  },
-  // ✅ NOVO: Idioma Hindi (Indiano) adicionado aqui
-  hi: {
-    titulo: 'बॉस, काम आ गया है! 🎩', // Tradução: Boss, o trabalho chegou!
-    corpo: (qtd: number, valor: string) => `आज आपके पास ${qtd} कलेक्शन बकाया हैं (कुल: ${valor})`, // Tradução: Hoje você tem X cobranças pendentes (Total: Y)
-    locale: 'hi-IN', // Formato de data/número da Índia
-    moeda: 'INR'     // Rúpia Indiana (₹)
-  }
+  pt: { titulo: 'Chefe, Temos Trabalho! 🎩', corpo: (qtd: number, valor: string) => `Você tem ${qtd} cobranças para hoje (Total: ${valor})`, locale: 'pt-BR', moeda: 'BRL' },
+  en: { titulo: 'Boss, We Have Work! 🎩', corpo: (qtd: number, valor: string) => `You have ${qtd} collections due today (Total: ${valor})`, locale: 'en-US', moeda: 'USD' },
+  es: { titulo: '¡Jefe, Tenemos Trabajo! 🎩', corpo: (qtd: number, valor: string) => `Tienes ${qtd} cobros para hoy (Total: ${valor})`, locale: 'es-ES', moeda: 'USD' },
+  hi: { titulo: 'बॉस, काम आ गया है! 🎩', corpo: (qtd: number, valor: string) => `आज आपके पास ${qtd} कलेक्शन बकाया हैं (कुल: ${valor})`, locale: 'hi-IN', moeda: 'INR' }
 };
 
 // @ts-ignore
@@ -42,13 +21,11 @@ Deno.serve(async (req: Request) => {
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-    // Nota: Idealmente use Deno.env.get('SERVICE_ROLE_KEY') por segurança
+    // Mantenha a sua SERVICE_KEY original aqui
     const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjYnl3a2xnam1hbXBlY3Zna3FmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODA5NzU2NiwiZXhwIjoyMDgzNjczNTY2fQ.YcbGbOdTTJv4eVVUuNZ3JuC39oL20oAcXKuJON1ITac';
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // 1. Busca usuários E O IDIOMA DELES
-    // Adicionei 'language' na seleção. Se sua tabela não tiver essa coluna, ele vai usar o padrão (pt).
     const { data: usuarios, error: erroUser } = await supabase
       .from('profiles')
       .select('user_id, expo_token, language') 
@@ -57,33 +34,32 @@ Deno.serve(async (req: Request) => {
     if (erroUser) throw erroUser;
 
     const mensagensMap = new Map();
-    
-    const dataObj = new Date();
-    const dia = String(dataObj.getDate()).padStart(2, '0');
-    const mes = String(dataObj.getMonth() + 1).padStart(2, '0');
-    const ano = dataObj.getFullYear();
-    const hojeISO = `${ano}-${mes}-${dia}`; 
+    const hojeISO = new Date().toISOString().split('T')[0]; 
 
     console.log(`🔎 Processando cobranças até: "${hojeISO}"`);
 
     if (usuarios) {
+      console.log(`👥 Usuários com token encontrados: ${usuarios.length}`);
       for (const usuario of usuarios) {
         
-        if (mensagensMap.has(usuario.expo_token)) continue;
+        // 🚀 ARQUITETURA BLINDADA: Limpa espaços, enters ocultos e tokens falsos
+        if (!usuario.expo_token || typeof usuario.expo_token !== 'string') continue;
+        const token = usuario.expo_token.trim();
+        
+        if (!token.startsWith('Expo') || token.length > 100) {
+           console.log(`⚠️ Token ignorado (inválido): ${token.substring(0, 15)}...`);
+           continue;
+        }
 
-        // Define o idioma (padrão 'pt' se não existir ou for nulo)
-        // Se o usuário tiver 'hi' no banco, vai cair no bloco novo do Hindi
+        if (mensagensMap.has(token)) continue;
+
         const langCode = usuario.language && TRADUCOES[usuario.language] ? usuario.language : 'pt';
         const textos = TRADUCOES[langCode];
 
         let totalClientes = 0;
         let valorTotalGeral = 0.0;
 
-        const { data: clientes, error: erroCli } = await supabase
-          .from('clientes')
-          .select('nome, contratos(*)') 
-          .eq('user_id', usuario.user_id)
-
+        const { data: clientes } = await supabase.from('clientes').select('nome, contratos(*)').eq('user_id', usuario.user_id)
         if (!clientes || clientes.length === 0) continue;
 
         for (const cli of clientes) {
@@ -91,24 +67,33 @@ Deno.serve(async (req: Request) => {
           const listaContratos = Array.isArray(cli.contratos) ? cli.contratos : [];
 
           for (const con of listaContratos) {
-            if (con.status !== 'ATIVO') continue;
+            const statusPermitidos = ['ATIVO', 'ATRASADO', 'PARCELADO'];
+            if (!statusPermitidos.includes(con.status)) continue;
 
-            const dataVencimento = con.proximo_vencimento;
+            let dataVencimentoRaw = con.proximo_vencimento || con.proximoVencimento;
+            if (!dataVencimentoRaw) continue;
 
-            if (dataVencimento && dataVencimento <= hojeISO) {
-                
-                let valorFinal = 0;
+            let dataVencimentoISO = dataVencimentoRaw;
+            if (dataVencimentoRaw.includes('/')) {
+              const partes = dataVencimentoRaw.split('/');
+              if (partes.length === 3) {
+                dataVencimentoISO = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+              }
+            }
 
-                // Limpeza robusta de strings
-                let parcela = parseFloat(String(con.valor_parcela).replace(/[^\d.,-]/g, '').replace(',', '.').trim());
-                let capital = parseFloat(String(con.capital).replace(/[^\d.,-]/g, '').replace(',', '.').trim());
-                let taxa = parseFloat(String(con.taxa).replace(/[^\d.,-]/g, '').replace(',', '.').trim());
+            if (dataVencimentoISO <= hojeISO) {
+                let parcela = parseFloat(String(con.valor_parcela || con.valorParcela || 0).replace(/[^\d.,-]/g, '').replace(',', '.').trim());
+                let capital = parseFloat(String(con.capital || 0).replace(/[^\d.,-]/g, '').replace(',', '.').trim());
+                let taxa = parseFloat(String(con.taxa || 0).replace(/[^\d.,-]/g, '').replace(',', '.').trim());
 
                 if (isNaN(parcela)) parcela = 0;
                 if (isNaN(capital)) capital = 0;
                 if (isNaN(taxa)) taxa = 0;
 
-                if (parcela > 0) {
+                let valorFinal = 0;
+                if (con.status === 'PARCELADO' && parcela > 0) {
+                    valorFinal = parcela;
+                } else if (parcela > 0) {
                     valorFinal = parcela;
                 } else if (capital > 0) {
                     const valorJuros = capital * (taxa / 100);
@@ -124,20 +109,15 @@ Deno.serve(async (req: Request) => {
         }
 
         if (totalClientes > 0) {
-            // Formatação de moeda baseada no idioma do usuário
-            // Para 'hi', vai usar INR (₹) e formatação indiana
-            const valorFormatado = valorTotalGeral.toLocaleString(textos.locale, { 
-                style: 'currency', 
-                currency: textos.moeda 
-            });
+            const valorFormatado = valorTotalGeral.toLocaleString(textos.locale, { style: 'currency', currency: textos.moeda });
             
-            mensagensMap.set(usuario.expo_token, {
-                to: usuario.expo_token,
+            mensagensMap.set(token, {
+                to: token,
                 sound: 'default',
-                title: textos.titulo, // Título traduzido
-                body: textos.corpo(totalClientes, valorFormatado), // Corpo traduzido com variáveis
-                data: { url: '/(tabs)/cobranca' },
-                channelId: 'resumo-diario',
+                // Trava extra de tamanho por segurança
+                title: String(textos.titulo).substring(0, 90), 
+                body: String(textos.corpo(totalClientes, valorFormatado)).substring(0, 90), 
+                data: { url: '/(tabs)/cobranca' }
             });
         }
       }
@@ -151,17 +131,34 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const respostaExpo = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(mensagens),
-    });
+    // 🚀 ARQUITETURA BLINDADA: Dividindo as notificações em Lotes de 100 (Requisito Oficial da Expo)
+    const lotes = [];
+    for (let i = 0; i < mensagens.length; i += 100) {
+      lotes.push(mensagens.slice(i, i + 100));
+    }
 
-    return new Response(JSON.stringify({ success: true, enviados: mensagens.length }), {
+    console.log(`📤 Enviando ${mensagens.length} mensagens divididas em ${lotes.length} lote(s)...`);
+    const resultados = [];
+
+    // Dispara cada lote para a Expo
+    for (const lote of lotes) {
+        console.log("📦 PAYLOAD ENVIADO:", JSON.stringify(lote)); // Vai te mostrar no log a string limpa!
+        
+        const respostaExpo = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(lote),
+        });
+
+        resultados.push(await respostaExpo.json());
+    }
+
+    console.log(`📡 Resposta do Expo:`, JSON.stringify(resultados));
+
+    return new Response(JSON.stringify({ success: true, enviados: mensagens.length, expoResponse: resultados }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 

@@ -1,4 +1,4 @@
-﻿import * as Notifications from 'expo-notifications';
+﻿﻿import * as Notifications from 'expo-notifications';
 import i18n from '../i18n'; // <--- Importação direta da instância de tradução
 import { Cliente } from '../types';
 

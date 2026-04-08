@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  InteractionManager, // 🚀 ARQUITETURA: Fila de execução
   Linking,
   Modal,
   Platform,
@@ -20,9 +21,8 @@ import { supabase } from '../services/supabase';
 import { Cliente, Contrato } from '../types';
 import RiskRadarCSI from './RiskRadarCSI';
 
-import ModalEditarEmprestimo from './ModalEditarEmprestimo';
-// ⬇️ INJETADO: IMPORTANDO O NOVO MODAL ⬇️
 import ModalAbaterEmprestimo from './ModalAbaterEmprestimo';
+import ModalEditarEmprestimo from './ModalEditarEmprestimo';
 
 type Props = {
   cliente: Cliente;
@@ -37,7 +37,6 @@ type Props = {
   aoNegociar: (c: Contrato) => void;
   aoPagarParcela: (c: Contrato) => void;
   aoAlternarBloqueio: (c: Cliente) => void;
-  // ⬇️ INJETADO: A NOVA FUNÇÃO OPCIONAL DE ABATER ⬇️
   aoAbaterEmprestimo?: (nomeCliente: string, c: Contrato, valorCap: number, valorJur: number, data: string) => void;
 };
 
@@ -60,34 +59,38 @@ export default function PastaCliente({
   const [modalEditarContratoVisivel, setModalEditarContratoVisivel] = useState(false);
   const [contratoSendoEditado, setContratoSendoEditado] = useState<Contrato | null>(null);
 
-  // ⬇️ INJETADO: ESTADOS DO MODAL DE ABATIMENTO ⬇️
   const [modalAbaterVisivel, setModalAbaterVisivel] = useState(false);
   const [contratoParaAbater, setContratoParaAbater] = useState<Contrato | null>(null);
 
+  // 🚀 ARQUITETURA: Previne Network Storm e Memory Leaks no iOS
   useEffect(() => {
-      const carregarMiniaturaRosto = async () => {
+      let isMounted = true; 
+
+      const carregarImagens = async () => {
           const cli = cliente as any;
           if (cli.foto_com_documento && !urlFotoRosto) {
               try {
                   const { data } = await supabase.storage.from('documentos_clientes').createSignedUrl(cli.foto_com_documento, 3600);
-                  if (data) setUrlFotoRosto(data.signedUrl);
+                  if (data && isMounted) setUrlFotoRosto(data.signedUrl);
               } catch (e) { console.log('Erro ao carregar miniatura', e); }
           }
-      };
 
-      const carregarFotoDocCompleta = async () => {
-          const cli = cliente as any;
           if (expandido && cli.foto_apenas_documento && !urlFotoDoc) {
               try {
                   const { data } = await supabase.storage.from('documentos_clientes').createSignedUrl(cli.foto_apenas_documento, 3600);
-                  if (data) setUrlFotoDoc(data.signedUrl);
+                  if (data && isMounted) setUrlFotoDoc(data.signedUrl);
               } catch (e) { console.log('Erro ao carregar foto doc', e); }
           }
       };
 
-      carregarMiniaturaRosto(); 
-      carregarFotoDocCompleta(); 
+      // Só inicia o download da foto DEPOIS que a interface terminar de ser desenhada e as animações pararem
+      InteractionManager.runAfterInteractions(() => {
+          carregarImagens();
+      });
 
+      return () => {
+          isMounted = false; // Se rolar a tela rápido, aborta a atualização de estado
+      };
   }, [cliente, expandido]); 
 
   const traduzirStatus = (status: string) => {
@@ -181,7 +184,6 @@ export default function PastaCliente({
       }, 500);
   };
 
-  // ⬇️ INJETADO: AÇÕES DE ABRIR E SALVAR O ABATIMENTO ⬇️
   const abrirAbatimento = (contrato: Contrato) => {
       setContratoParaAbater(contrato);
       setModalAbaterVisivel(true);
@@ -200,7 +202,6 @@ export default function PastaCliente({
           }
       }, 500);
   };
-  // ⬆️ FIM DA INJEÇÃO ⬆️
 
   const gerarPDF = async (con: Contrato) => {
     try {
@@ -361,50 +362,57 @@ export default function PastaCliente({
 
   return (
     <View style={styles.card}>
-      <Modal visible={historicoVisivel} transparent animationType="fade" onRequestClose={() => setHistoricoVisivel(false)}>
-        <View style={styles.modalFundo}>
-            <View style={styles.modalConteudo}>
-                <View style={styles.modalTopo}>
-                    <Text style={styles.modalTitulo}>{t('pastaCliente.historicoTitulo')}</Text>
-                    <TouchableOpacity onPress={() => setHistoricoVisivel(false)}>
-                        <Ionicons name="close-circle" size={30} color="#E74C3C" />
-                    </TouchableOpacity>
-                </View>
-                <ScrollView style={{maxHeight: 400}}>
-                    {historicoConteudo.map((mov, i) => (
-                        <View key={i} style={styles.itemHistoricoModal}>
-                            <Text style={styles.txtHistoricoModal}>{mov}</Text>
-                        </View>
-                    ))}
-                </ScrollView>
-            </View>
-        </View>
-      </Modal>
-
-      <Modal visible={!!fotoExpandida} transparent animationType="fade" onRequestClose={() => setFotoExpandida(null)}>
-          <View style={styles.modalFundoFoto}>
-              <TouchableOpacity style={styles.btnFecharFoto} onPress={() => setFotoExpandida(null)}>
-                  <Ionicons name="close-circle" size={40} color="#FFF" />
-              </TouchableOpacity>
-              {fotoExpandida ? <Image source={{ uri: fotoExpandida }} style={styles.imgFullscreen} resizeMode="contain" /> : null}
+      {/* 🚀 ARQUITETURA: Montagem Condicional dos Modais (Economiza RAM) */}
+      {historicoVisivel && (
+        <Modal visible={true} transparent animationType="fade" onRequestClose={() => setHistoricoVisivel(false)}>
+          <View style={styles.modalFundo}>
+              <View style={styles.modalConteudo}>
+                  <View style={styles.modalTopo}>
+                      <Text style={styles.modalTitulo}>{t('pastaCliente.historicoTitulo')}</Text>
+                      <TouchableOpacity onPress={() => setHistoricoVisivel(false)}>
+                          <Ionicons name="close-circle" size={30} color="#E74C3C" />
+                      </TouchableOpacity>
+                  </View>
+                  <ScrollView style={{maxHeight: 400}}>
+                      {historicoConteudo.map((mov, i) => (
+                          <View key={i} style={styles.itemHistoricoModal}>
+                              <Text style={styles.txtHistoricoModal}>{mov}</Text>
+                          </View>
+                      ))}
+                  </ScrollView>
+              </View>
           </View>
-      </Modal>
+        </Modal>
+      )}
 
-      <ModalEditarEmprestimo 
-          visivel={modalEditarContratoVisivel}
-          contratoOriginal={contratoSendoEditado}
-          fechar={() => { setModalEditarContratoVisivel(false); setContratoSendoEditado(null); }}
-          salvar={salvarEdicaoContrato}
-      />
+      {!!fotoExpandida && (
+        <Modal visible={true} transparent animationType="fade" onRequestClose={() => setFotoExpandida(null)}>
+            <View style={styles.modalFundoFoto}>
+                <TouchableOpacity style={styles.btnFecharFoto} onPress={() => setFotoExpandida(null)}>
+                    <Ionicons name="close-circle" size={40} color="#FFF" />
+                </TouchableOpacity>
+                <Image source={{ uri: fotoExpandida }} style={styles.imgFullscreen} resizeMode="contain" />
+            </View>
+        </Modal>
+      )}
 
-      {/* ⬇️ INJETADO: O COMPONENTE DO MODAL DE ABATER ⬇️ */}
-      <ModalAbaterEmprestimo
-          visivel={modalAbaterVisivel}
-          contrato={contratoParaAbater}
-          fechar={() => { setModalAbaterVisivel(false); setContratoParaAbater(null); }}
-          salvar={salvarAbatimento}
-      />
-      {/* ⬆️ FIM DA INJEÇÃO ⬆️ */}
+      {modalEditarContratoVisivel && (
+        <ModalEditarEmprestimo 
+            visivel={true}
+            contratoOriginal={contratoSendoEditado}
+            fechar={() => { setModalEditarContratoVisivel(false); setContratoSendoEditado(null); }}
+            salvar={salvarEdicaoContrato}
+        />
+      )}
+
+      {modalAbaterVisivel && (
+        <ModalAbaterEmprestimo
+            visivel={true}
+            contrato={contratoParaAbater}
+            fechar={() => { setModalAbaterVisivel(false); setContratoParaAbater(null); }}
+            salvar={salvarAbatimento}
+        />
+      )}
 
       <TouchableOpacity onPress={aoExpandir} style={styles.header}>
         <View style={styles.linhaTitulo}>
@@ -558,10 +566,7 @@ export default function PastaCliente({
                     <>
                       <TouchableOpacity onPress={() => aoRenovarOuQuitar('RENOVAR', con)} style={styles.btnRenovar}><Text style={styles.txtBtn}>{t('pastaCliente.renovar')}</Text></TouchableOpacity>
                       <TouchableOpacity onPress={() => aoRenovarOuQuitar('QUITAR', con)} style={styles.btnQuitar}><Text style={styles.txtBtn}>{t('pastaCliente.quitar')}</Text></TouchableOpacity>
-                      
-                      {/* ⬇️ INJETADO: O BOTÃO VERDE DE ABATER ⬇️ */}
                       <TouchableOpacity onPress={() => abrirAbatimento(con)} style={styles.btnAbater}><Text style={styles.txtBtn}>ABATER</Text></TouchableOpacity>
-                      {/* ⬆️ FIM DA INJEÇÃO ⬆️ */}
                     </>
                   ) : (
                     <TouchableOpacity onPress={() => aoPagarParcela(con)} style={styles.btnParcela}><Text style={styles.txtBtn}>{t('pastaCliente.pagarParcela')} {((con.parcelasPagas||0)+1)}/{con.totalParcelas}</Text></TouchableOpacity>
@@ -621,7 +626,6 @@ const styles = StyleSheet.create({
   botoesCon: { flexDirection: 'row', marginTop: 10, gap: 8 },
   btnRenovar: { flex: 1, backgroundColor: '#2980B9', padding: 10, borderRadius: 6, alignItems: 'center' }, 
   btnQuitar: { flex: 1, backgroundColor: '#E74C3C', padding: 10, borderRadius: 6, alignItems: 'center' }, 
-  // ⬇️ INJETADO: Estilo do botão abater ⬇️
   btnAbater: { flex: 1, backgroundColor: '#16A085', padding: 10, borderRadius: 6, alignItems: 'center' }, 
   btnParcela: { flex: 1, backgroundColor: '#8E44AD', padding: 10, borderRadius: 6, alignItems: 'center' },
   btnLixo: { padding: 10, justifyContent: 'center' },
@@ -634,17 +638,14 @@ const styles = StyleSheet.create({
   modalTitulo: { fontSize: 20, fontWeight:'bold', color:'#2C3E50' }, 
   itemHistoricoModal: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }, 
   txtHistoricoModal: { fontSize: 18, color: '#333' },
-  
   kycContainer: { marginTop: 15, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E5E8E8' },
   kycTitle: { fontSize: 12, fontWeight: 'bold', color: '#7F8C8D', marginBottom: 10 },
   rowKyc: { flexDirection: 'row', gap: 15 },
   kycThumb: { alignItems: 'center' },
   imgThumb: { width: 60, height: 60, borderRadius: 8, borderWidth: 1, borderColor: '#BDC3C7', backgroundColor: '#FFF' },
   txtThumb: { fontSize: 10, color: '#555', marginTop: 4, fontWeight: 'bold' },
-  
   modalFundoFoto: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
   imgFullscreen: { width: '100%', height: '80%' },
   btnFecharFoto: { position: 'absolute', top: 40, right: 20, zIndex: 10 },
-
   avatarNome: { width: 30, height: 30, borderRadius: 15, marginRight: 10, borderWidth: 1, borderColor: '#BDC3C7', backgroundColor: '#FFF' },
 });

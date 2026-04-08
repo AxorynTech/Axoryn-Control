@@ -19,9 +19,8 @@ import {
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
-// ⬇️ CORREÇÃO INJETADA: IMPORTANDO DA PASTA LEGACY COMO O EXPO PEDIU ⬇️
-import { decode } from 'base64-arraybuffer';
-import * as FileSystem from 'expo-file-system/legacy';
+
+// 🚀 ARQUITETURA IOS: Removidos os imports antigos de base64 e legacy FileSystem.
 
 import ModalDadosPessoais from '../../components/ModalDadosPessoais';
 import { useAssinatura } from '../../hooks/useAssinatura';
@@ -110,16 +109,17 @@ export default function Perfil() {
               const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
               const fileName = `${user.id}_${Date.now()}.${fileExt}`;
 
-              // 🛠️ MANTIDO: O uso do readAsStringAsync agora funcionará pois o import está no /legacy 🛠️
-              const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-              const arrayBuffer = decode(base64);
+              // 🚀 ARQUITETURA IOS BLINDADA: FormData em vez de base64 resolve o "Network request failed" no iPhone
+              const formData = new FormData();
+              formData.append('file', {
+                  uri: uri,
+                  name: fileName,
+                  type: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`
+              } as any);
 
               const { error: uploadError } = await supabase.storage
                   .from('avatars')
-                  .upload(fileName, arrayBuffer, { 
-                    upsert: true,
-                    contentType: `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`
-                  });
+                  .upload(fileName, formData);
 
               if (uploadError) throw uploadError;
 
@@ -404,4 +404,4 @@ const styles = StyleSheet.create({
   selectedOption: { borderColor: '#2980B9', backgroundColor: 'rgba(41, 128, 185, 0.1)' },
   flag: { fontSize: 24, marginRight: 12 },
   languageText: { flex: 1, fontSize: 16, color: '#333' },
-}); 
+});
