@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import i18n from 'i18next';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -26,7 +26,7 @@ import { useProdutos } from '../../hooks/useProdutos';
 import { ItemPedido, Pedido, Produto } from '../../types';
 import { gerarRelatorioPDF } from '../../utils/gerarRelatorio';
 
-// 🚀 ARQUITETURA: Configuração movida para fora para não recriar a instância no iOS
+// Configuração movida para fora para não recriar a instância no iOS
 const CONFIGURACAO_SCANNER = { 
     barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128"] 
 } as const;
@@ -78,8 +78,9 @@ export default function TelaProdutos() {
   const [permissaoCamera, pedirPermissaoCamera] = useCameraPermissions();
   const [modalScanner, setModalScanner] = useState(false);
   const [modoScanner, setModoScanner] = useState<'PDV' | 'CADASTRO'>('PDV');
-  // 🚀 ARQUITETURA: Trava para impedir múltiplos disparos de leitura
-  const [scanBloqueado, setScanBloqueado] = useState(false);
+  
+  // 🚀 ARQUITETURA ATUALIZADA: useRef garante sincronismo imediato no iOS
+  const travaScanner = useRef(false);
 
   const abrirLeitorDeCodigo = async (modo: 'PDV' | 'CADASTRO') => {
     if (!permissaoCamera?.granted) {
@@ -88,19 +89,25 @@ export default function TelaProdutos() {
         return Alert.alert(t('estoque.atencao'), "Precisamos de permissão para usar a câmera.");
       }
     }
-    setScanBloqueado(false); // Libera a leitura
+    // Libera a trava imediatamente antes de abrir a câmera
+    travaScanner.current = false; 
     setModoScanner(modo);
     setModalScanner(true);
   };
 
   const aoLerCodigoDeBarras = ({ data }: { data: string }) => {
-    // Se já leu, ignora qualquer chamada extra que o iOS disparar
-    if (scanBloqueado) return;
-    setScanBloqueado(true);
+    // 1. Barreira Síncrona: Se a trava já desceu, o iOS bate aqui e volta imediatamente.
+    if (travaScanner.current) return;
+    
+    // 2. Trava ativada de forma síncrona, cortando todos os eventos duplicados instantaneamente.
+    travaScanner.current = true;
 
-    setModalScanner(false); // Fecha a câmera imediatamente
+    // 3. Respiro de Renderização: Dá um milésimo de segundo pro iOS terminar o processo nativo da lente
+    setTimeout(() => {
+        setModalScanner(false); 
+    }, 150);
 
-    // Adiciona um pequeno atraso para a interface respirar antes de processar os dados
+    // 4. Lógica de Negócio com delay seguro para não conflitar com a animação de fechar o modal
     setTimeout(() => {
         if (modoScanner === 'PDV') {
           const produtoEncontrado = produtos.find(p => p.codigo_barras === data);
@@ -112,9 +119,9 @@ export default function TelaProdutos() {
              Alert.alert("Não Encontrado", `Nenhum produto cadastrado com o código:\n${data}`);
           }
         } else if (modoScanner === 'CADASTRO') {
-          setProdutoEmEdicao({ ...produtoEmEdicao, codigo_barras: data });
+          setProdutoEmEdicao((prev) => ({ ...prev, codigo_barras: data }));
         }
-    }, 300);
+    }, 400); 
   };
 
   useFocusEffect(
@@ -845,14 +852,14 @@ export default function TelaProdutos() {
         </View>
       </Modal>
 
-      {/* 🚀 ARQUITETURA: Uso do Modal com a trava do Scanner e as configs constantes */}
+      {/* Uso do Modal com a trava atualizada do Scanner e as configs constantes */}
       <Modal visible={modalScanner} animationType="slide" transparent={false}>
           <View style={{flex: 1, backgroundColor: '#000'}}>
               <CameraView 
                   style={StyleSheet.absoluteFillObject}
                   facing="back"
                   barcodeScannerSettings={CONFIGURACAO_SCANNER} 
-                  onBarcodeScanned={scanBloqueado ? undefined : aoLerCodigoDeBarras}
+                  onBarcodeScanned={aoLerCodigoDeBarras}
               />
               <View style={{position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center'}}>
                   <TouchableOpacity onPress={() => setModalScanner(false)} style={{backgroundColor: '#E74C3C', padding: 15, borderRadius: 30, elevation: 5}}>
