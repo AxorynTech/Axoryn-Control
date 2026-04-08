@@ -77,39 +77,52 @@ export default function TelaProdutos() {
   // --- ESTADOS DA CÂMERA ---
   const [permissaoCamera, pedirPermissaoCamera] = useCameraPermissions();
   const [modalScanner, setModalScanner] = useState(false);
-  const [modoScanner, setModoScanner] = useState<'PDV' | 'CADASTRO'>('PDV');
-  
-  // 🚀 ARQUITETURA ATUALIZADA: useRef garante sincronismo imediato no iOS
+
+  // 🚀 CORREÇÃO iOS: useRef garante sincronismo imediato — sem stale closure
   const travaScanner = useRef(false);
+  const modoScannerRef = useRef<'PDV' | 'CADASTRO'>('PDV');
+  const reabrirModalProduto = useRef(false);
 
   const abrirLeitorDeCodigo = async (modo: 'PDV' | 'CADASTRO') => {
     if (!permissaoCamera?.granted) {
-      const { status } = await pedirPermissaoCamera();
-      if (status !== 'granted') {
+      const { granted } = await pedirPermissaoCamera();
+      if (!granted) {
         return Alert.alert(t('estoque.atencao'), "Precisamos de permissão para usar a câmera.");
       }
     }
-    // Libera a trava imediatamente antes de abrir a câmera
-    travaScanner.current = false; 
-    setModoScanner(modo);
-    setModalScanner(true);
+
+    // Libera a trava e define o modo via ref (sem re-render, sem stale closure)
+    travaScanner.current = false;
+    modoScannerRef.current = modo;
+
+    if (modo === 'CADASTRO' && modalProduto) {
+      // iOS não suporta dois Modals abertos ao mesmo tempo.
+      // Fecha o modal de produto primeiro, depois abre o scanner.
+      reabrirModalProduto.current = true;
+      setModalProduto(false);
+      setTimeout(() => setModalScanner(true), 300);
+    } else {
+      reabrirModalProduto.current = false;
+      setModalScanner(true);
+    }
   };
 
   const aoLerCodigoDeBarras = ({ data }: { data: string }) => {
-    // 1. Barreira Síncrona: Se a trava já desceu, o iOS bate aqui e volta imediatamente.
+    // 1. Barreira Síncrona: Se a trava já desceu, volta imediatamente.
     if (travaScanner.current) return;
     
-    // 2. Trava ativada de forma síncrona, cortando todos os eventos duplicados instantaneamente.
+    // 2. Trava ativada de forma síncrona, cortando todos os eventos duplicados.
     travaScanner.current = true;
 
-    // 3. Respiro de Renderização: Dá um milésimo de segundo pro iOS terminar o processo nativo da lente
+    // 3. Fecha a câmera suavemente
     setTimeout(() => {
         setModalScanner(false); 
     }, 150);
 
-    // 4. Lógica de Negócio com delay seguro para não conflitar com a animação de fechar o modal
+    // 4. Lógica de negócio após animação de fechar
     setTimeout(() => {
-        if (modoScanner === 'PDV') {
+        // ✅ Lê do ref — sempre atualizado, nunca stale closure
+        if (modoScannerRef.current === 'PDV') {
           const produtoEncontrado = produtos.find(p => p.codigo_barras === data);
           
           if (produtoEncontrado) {
@@ -118,8 +131,13 @@ export default function TelaProdutos() {
           } else {
              Alert.alert("Não Encontrado", `Nenhum produto cadastrado com o código:\n${data}`);
           }
-        } else if (modoScanner === 'CADASTRO') {
+        } else if (modoScannerRef.current === 'CADASTRO') {
           setProdutoEmEdicao((prev) => ({ ...prev, codigo_barras: data }));
+          // ✅ Reabre o modal de produto se foi fechado para dar espaço ao scanner
+          if (reabrirModalProduto.current) {
+            reabrirModalProduto.current = false;
+            setTimeout(() => setModalProduto(true), 300);
+          }
         }
     }, 400); 
   };
@@ -852,7 +870,7 @@ export default function TelaProdutos() {
         </View>
       </Modal>
 
-      {/* Uso do Modal com a trava atualizada do Scanner e as configs constantes */}
+      {/* Scanner com trava via useRef — sem stale closure, sem modal duplo no iOS */}
       <Modal visible={modalScanner} animationType="slide" transparent={false}>
           <View style={{flex: 1, backgroundColor: '#000'}}>
               <CameraView 
