@@ -46,7 +46,6 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
   const analisarLog = (logStr: string) => {
       const lowerLog = logStr.toLowerCase();
       
-      // 🏷️ O PDF agora é inteligente: procura a etiqueta do lucro exato que salvamos!
       const lucroMatch = logStr.match(/\[L:([\d\.,]+)\]/);
       const lucroExato = lucroMatch ? limparValor(lucroMatch[1]) : null;
       
@@ -145,7 +144,10 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
 
             let capitalOriginal = con.capital || 0;
             
-            if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(con.frequencia || '')) {
+            // 🚀 FIX: A inteligência do Acordo também funciona no PDF
+            const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(con.frequencia || '') || (con.totalParcelas || 0) > 1;
+
+            if (isFracionado) {
                 const totParc = con.totalParcelas || 1;
                 const valParc = con.valorParcela || 0;
                 const lucParc = con.lucroJurosPorParcela || 0;
@@ -204,7 +206,7 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                         
                         if (analise.lucroExato !== null) {
                             valLucro = analise.lucroExato;
-                        } else if (con.frequencia === 'PARCELADO' || con.frequencia === 'SEMANAL' || con.frequencia === 'QUINZENAL' || con.frequencia === 'DIARIO') {
+                        } else if (isFracionado) {
                             valLucro = con.lucroJurosPorParcela || 0;
                         } else {
                             valLucro = dividaTotal * (con.taxa / (100 + con.taxa));
@@ -222,7 +224,6 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     else if (analise.tipo === 'PARCELA') {
                         const bruto = analise.brutoParcela!;
                         
-                        // 🎯 Lê o lucro da etiqueta! Se não tiver etiqueta, usa a matemática velha
                         if (analise.lucroExato !== null) {
                             valLucro = analise.lucroExato;
                             valCapitalRecuperado = bruto - valLucro;
@@ -245,7 +246,7 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                                 valCapitalRecuperado = bruto;
                                 valLucro = 0;
                             }
-                        } else if (con.frequencia === 'PARCELADO' || con.frequencia === 'SEMANAL' || con.frequencia === 'QUINZENAL' || con.frequencia === 'DIARIO') {
+                        } else if (isFracionado) {
                              if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
                                  valLucro = con.lucroJurosPorParcela;
                                  valCapitalRecuperado = bruto - valLucro;

@@ -12,6 +12,7 @@ type Props = {
 
 export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar }: Props) {
   const { t } = useTranslation(); 
+  
   const moeda = t('common.moeda', { defaultValue: 'R$' });
   const [data, setData] = useState('');
 
@@ -29,6 +30,33 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
       confirmar(data);
   };
 
+  let valorExibicao = contrato?.valorParcela || 0;
+  let isAjuste = false;
+
+  if (contrato) {
+      const numParcelaAtual = (contrato.parcelasPagas || 0) + 1;
+      const isUltimaParcela = numParcelaAtual >= (contrato.totalParcelas || 1);
+      
+      // 🚀 FIX: A Tela agora sabe que Acordos Mensais entram na regra dos centavos
+      const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '') || (contrato.totalParcelas || 0) > 1;
+
+      if (isUltimaParcela && isFracionado) {
+          
+          const vUltima = Number((contrato as any).valorUltimaParcela);
+          
+          if (vUltima && vUltima > 0) {
+              valorExibicao = vUltima;
+          } else {
+              const lucroParcNormal = Number(contrato.lucroJurosPorParcela || 0);
+              valorExibicao = Number((contrato.capital || 0)) + lucroParcNormal;
+          }
+
+          if (valorExibicao !== Number(contrato.valorParcela || 0)) {
+              isAjuste = true;
+          }
+      }
+  }
+
   return (
     <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar}>
       <View style={styles.fundo}>
@@ -41,7 +69,13 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
             {contrato && (
               <Text style={styles.descricao}>
                 {t('pagarParcela.confirmarMsg')} <Text style={{fontWeight:'bold'}}>{(contrato.parcelasPagas || 0) + 1}/{contrato.totalParcelas}</Text>?
-                {'\n'}{t('pagarParcela.valor')}: <Text style={{fontWeight:'bold', color:'#27AE60'}}>{moeda} {contrato.valorParcela?.toFixed(2)}</Text>
+                {'\n'}{t('pagarParcela.valor')}: <Text style={{fontWeight:'bold', color:'#27AE60'}}>{moeda} {valorExibicao.toFixed(2)}</Text>
+                
+                {isAjuste && (
+                    <Text style={{fontSize: 11, color: '#e67e22', fontWeight: 'bold'}}>
+                      {'\n'}(Ajuste Final de Centavos)
+                    </Text>
+                )}
               </Text>
             )}
             
@@ -56,7 +90,10 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
               maxLength={10}
             />
             
-            <TouchableOpacity style={styles.botaoConfirmar} onPress={handleConfirmar}>
+            <TouchableOpacity 
+              style={styles.botaoConfirmar} 
+              onPress={handleConfirmar}
+            >
               <Text style={styles.textoBotao}>{t('pagarParcela.btnReceber')}</Text>
             </TouchableOpacity>
             
@@ -78,7 +115,16 @@ const styles = StyleSheet.create({
   corpo: { padding: 20 },
   descricao: { textAlign: 'center', color: '#555', marginBottom: 20, fontSize: 14, lineHeight: 20 },
   label: { fontSize: 12, fontWeight: 'bold', color: '#333', marginBottom: 5, marginLeft: 2 },
-  input: { backgroundColor: '#F1F3F4', padding: 14, borderRadius: 8, marginBottom: 20, fontSize: 16, color: '#333', fontWeight: 'bold', textAlign: 'center' },
+  input: { 
+    backgroundColor: '#F1F3F4', 
+    padding: 14, 
+    borderRadius: 8, 
+    marginBottom: 20, 
+    fontSize: 16,
+    color: '#333',
+    fontWeight: 'bold',
+    textAlign: 'center'
+  },
   botaoConfirmar: { backgroundColor: '#27AE60', padding: 14, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
   textoBotao: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
   botaoCancelar: { alignItems: 'center', padding: 10 },

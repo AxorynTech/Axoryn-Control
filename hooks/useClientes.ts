@@ -14,7 +14,7 @@ export function useClientes() {
       return Number(Number(valor).toFixed(2));
   };
 
-  // 🛡️ FORÇA LEITURA EXATA DE VÍRGULAS
+  // 🛡️ FORÇA LEITURA EXATA DE NÚMEROS
   const parseNumerico = (val: any) => {
       if (val === undefined || val === null || val === '') return 0;
       if (typeof val === 'string') return Number(val.replace(',', '.'));
@@ -74,25 +74,25 @@ export function useClientes() {
         foto_apenas_documento: cli.foto_apenas_documento,
         contratos: (cli.contratos || []).map((c: any) => ({
           id: c.id,
-          capital: c.capital,
-          taxa: c.taxa,
+          capital: parseNumerico(c.capital),
+          taxa: parseNumerico(c.taxa),
           frequencia: c.frequencia,
           status: c.status,
           garantia: c.garantia,
           movimentacoes: c.movimentacoes || [],
-          lucroTotal: c.lucro_total || 0,
-          multasPagas: c.multas_pagas || 0,
+          lucroTotal: parseNumerico(c.lucro_total),
+          multasPagas: parseNumerico(c.multas_pagas),
           dataInicio: formatarDataDoBanco(c.data_inicio),
           proximoVencimento: formatarDataDoBanco(c.proximo_vencimento),
-          valorMultaDiaria: c.valor_multa_diaria,
-          diasDiario: c.dias_diario,
+          valorMultaDiaria: parseNumerico(c.valor_multa_diaria),
+          diasDiario: parseNumerico(c.dias_diario),
           diasSemanaDiario: c.dias_semana_diario,
           datasExcluidas: c.datas_excluidas, 
-          totalParcelas: c.total_parcelas,
-          parcelasPagas: c.parcelas_pagas,
-          valorParcela: c.valor_parcela,
-          valorUltimaParcela: c.valor_ultima_parcela,
-          lucroJurosPorParcela: c.lucro_juros_por_parcela
+          totalParcelas: parseNumerico(c.total_parcelas),
+          parcelasPagas: parseNumerico(c.parcelas_pagas),
+          valorParcela: parseNumerico(c.valor_parcela),
+          valorUltimaParcela: parseNumerico(c.valor_ultima_parcela),
+          lucroJurosPorParcela: parseNumerico(c.lucro_juros_por_parcela)
         })).sort((a: any, b: any) => b.id - a.id)
       };
   }, [formatarDataDoBanco]);
@@ -434,7 +434,10 @@ export function useClientes() {
       let vJuro = 0;
       const jurosSalvo = contrato.lucroJurosPorParcela || 0;
 
-      if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
+      // 🔥 LÓGICA DE IDENTIFICAÇÃO UNIVERSAL: Se tiver mais de 1 parcela, trata como parcelado
+      const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '') || (contrato.totalParcelas || 0) > 1;
+
+      if (isFracionado) {
           const isUltimaAcao = ((contrato.parcelasPagas || 0) + 1) >= (contrato.totalParcelas || 1);
           if (tipo !== 'RENOVAR' && isUltimaAcao && (contrato as any).valorUltimaParcela > 0) {
               const valorParcUltima = arredondarMoeda((contrato as any).valorUltimaParcela);
@@ -575,14 +578,25 @@ export function useClientes() {
       const qtdPagas = (contrato.parcelasPagas || 0) + 1;
       const isUltimaParcela = qtdPagas >= (contrato.totalParcelas || 1);
       
-      let lucroParc = arredondarMoeda(contrato.lucroJurosPorParcela || 0);
-      let valorParc = arredondarMoeda(contrato.valorParcela || 0);
+      let lucroParc = contrato.lucroJurosPorParcela || 0;
+      let valorParc = contrato.valorParcela || 0;
 
-      if (isUltimaParcela && ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
-          if ((contrato as any).valorUltimaParcela && (contrato as any).valorUltimaParcela > 0) {
-              valorParc = arredondarMoeda((contrato as any).valorUltimaParcela);
+      const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '') || (contrato.totalParcelas || 0) > 1;
+
+      if (isUltimaParcela && isFracionado) {
+          const vUltima = (contrato as any).valorUltimaParcela;
+          if (vUltima && vUltima > 0) {
+              valorParc = vUltima;
+          } else {
+              valorParc = arredondarMoeda((contrato.capital || 0) + lucroParc);
           }
-          lucroParc = arredondarMoeda(valorParc - (contrato.capital || 0));
+          
+          const lucroCalculado = arredondarMoeda(valorParc - (contrato.capital || 0));
+          if (lucroCalculado < 0) {
+              lucroParc = contrato.lucroJurosPorParcela || 0;
+          } else {
+              lucroParc = lucroCalculado;
+          }
       }
 
       const amortizacao = arredondarMoeda(valorParc - lucroParc);
@@ -664,10 +678,13 @@ export function useClientes() {
   const criarAcordo = useCallback(async (nomeCliente: string, contratoId: number, valorTotal: number, qtd: number, data: string, multaDiaria: number) => {
     try {
         const contrato = clientes.find(c => c.nome === nomeCliente)?.contratos.find(ct => ct.id === contratoId);
-        const saldoAnt = contrato?.capital || 0;
-        const lucroAcordo = arredondarMoeda(valorTotal - saldoAnt);
         
-        // 🔥 FIX ACORDO: Agora tem a inteligência da Parcela de Ajuste!
+        const saldoAnt = contrato?.capital || 0;
+        let novoCapitalBase = saldoAnt;
+        if (valorTotal < saldoAnt) novoCapitalBase = valorTotal; 
+
+        const lucroAcordo = arredondarMoeda(valorTotal - novoCapitalBase);
+        
         const calcularParcelas = (totalDivida: number, qtdParcelas: number) => {
             const valorParcNormal = arredondarMoeda(totalDivida / qtdParcelas);
             const totalPagoAntesDaUltima = arredondarMoeda(valorParcNormal * (qtdParcelas - 1));
@@ -678,9 +695,13 @@ export function useClientes() {
         const { valorParcNormal, valorUltimaParcela } = calcularParcelas(valorTotal, qtd);
 
         const updates = {
-            status: 'PARCELADO', capital: arredondarMoeda(valorTotal), total_parcelas: qtd, parcelas_pagas: 0,
+            status: 'PARCELADO', 
+            // 🔥 REMOVIDO: A frequência original do cliente é preservada para não virar "VENDA"
+            capital: novoCapitalBase, 
+            total_parcelas: qtd, 
+            parcelas_pagas: 0,
             valor_parcela: valorParcNormal, 
-            valor_ultima_parcela: valorUltimaParcela, // 🚀 SALVANDO NO BANCO!
+            valor_ultima_parcela: valorUltimaParcela,
             valor_multa_diaria: multaDiaria,
             lucro_juros_por_parcela: lucroAcordo > 0 ? arredondarMoeda(lucroAcordo / qtd) : 0,
             proximo_vencimento: paraBancoISO(data),
@@ -701,7 +722,9 @@ export function useClientes() {
         let jurosAtual = 0;
         const jurosSalvo = contrato.lucroJurosPorParcela || 0;
 
-        if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
+        const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '') || (contrato.totalParcelas || 0) > 1;
+
+        if (isFracionado) {
             jurosAtual = arredondarMoeda(jurosSalvo);
         } else {
             if (jurosSalvo > 0) {
@@ -752,8 +775,7 @@ export function useClientes() {
             movimentacoes: h
         };
 
-        // 🔥 FIX ABATIMENTO: Também ganha a inteligência da Parcela de Ajuste!
-        if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
+        if (isFracionado) {
             const parcelasRestantes = (contrato.totalParcelas || 1) - (contrato.parcelasPagas || 0);
             if (parcelasRestantes > 0) {
                 const novoJurosTotal = arredondarMoeda(novoCapital * (contrato.taxa / 100));
@@ -765,7 +787,7 @@ export function useClientes() {
 
                 updates.lucro_juros_por_parcela = arredondarMoeda(novoJurosTotal / parcelasRestantes);
                 updates.valor_parcela = valorParcNormal;
-                updates.valor_ultima_parcela = valorUltimaParcela; // 🚀 SALVANDO NO BANCO!
+                updates.valor_ultima_parcela = valorUltimaParcela; 
             }
         } else {
             updates.lucro_juros_por_parcela = arredondarMoeda(novoCapital * (contrato.taxa / 100));
