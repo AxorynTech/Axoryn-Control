@@ -144,7 +144,6 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
 
             let capitalOriginal = con.capital || 0;
             
-            // 🚀 FIX: A inteligência do Acordo também funciona no PDF
             const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(con.frequencia || '') || (con.totalParcelas || 0) > 1;
 
             if (isFracionado) {
@@ -313,7 +312,8 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
         });
       });
 
-      const roi = stats.investido > 0 ? ((stats.lucroLiquido + stats.multas) / stats.investido) * 100 : 0;
+      // 🚀 NOVO LAYOUT VIP: O ROI agora se baseia no dinheiro RECUPERADO (Faz sentido na vida real!)
+      const roi = stats.capitalRecuperado > 0 ? ((stats.lucroLiquido + stats.multas) / stats.capitalRecuperado) * 100 : 0;
       const margemLucro = stats.recebidoBruto > 0 ? ((stats.lucroLiquido + stats.multas) / stats.recebidoBruto) * 100 : 0;
       const ticketMedio = stats.qtdPagamentos > 0 ? (stats.recebidoBruto / stats.qtdPagamentos) : 0;
 
@@ -326,12 +326,13 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
               .header { text-align: center; margin-bottom: 30px; border-bottom: 4px solid #2C3E50; padding-bottom: 15px; }
               h1 { margin: 0; color: #2C3E50; font-size: 26px; text-transform: uppercase; letter-spacing: 1px; }
               .sub-header { color: #7F8C8D; font-size: 12px; margin-top: 5px; }
-              .kpi-container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; }
+              .kpi-container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
               .kpi-box { flex: 1; min-width: 30%; background: #F4F6F7; padding: 15px; border-radius: 8px; border-left: 5px solid #BDC3C7; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
               .kpi-label { font-size: 10px; text-transform: uppercase; color: #7F8C8D; font-weight: bold; margin-bottom: 5px; }
               .kpi-value { font-size: 18px; font-weight: bold; color: #2C3E50; }
               .border-blue { border-left-color: #2980B9; } .border-green { border-left-color: #27AE60; }
               .border-red { border-left-color: #C0392B; } .border-orange { border-left-color: #E67E22; }
+              .border-purple { border-left-color: #8E44AD; }
               h3 { font-size: 14px; color: #2C3E50; border-bottom: 2px solid #ECF0F1; padding-bottom: 5px; margin-top: 30px; margin-bottom: 10px; text-transform: uppercase; }
               table { width: 100%; border-collapse: collapse; font-size: 9px; }
               th { background: #2C3E50; color: #FFF; padding: 6px; text-align: left; font-weight: 600; }
@@ -350,24 +351,33 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
 
             <h3>📊 ${t('relatorio.performance') || 'Performance Financeira'}</h3>
             <div class="kpi-container">
-              <div class="kpi-box border-green">
-                <div class="kpi-label">${t('relatorio.lucroMultas') || 'Lucro Líquido + Multas'}</div>
-                <div class="kpi-value" style="color:#27AE60">R$ ${(stats.lucroLiquido + stats.multas).toFixed(2)}</div>
-              </div>
               <div class="kpi-box border-blue">
-                <div class="kpi-label">${t('relatorio.faturamento') || 'Faturamento Bruto'}</div>
+                <div class="kpi-label">Faturamento Bruto</div>
                 <div class="kpi-value">R$ ${stats.recebidoBruto.toFixed(2)}</div>
               </div>
-              <div class="kpi-box border-red">
-                <div class="kpi-label">${t('relatorio.investido') || 'Total Investido'}</div>
-                <div class="kpi-value">R$ ${stats.investido.toFixed(2)}</div>
+              <div class="kpi-box border-purple">
+                <div class="kpi-label">Capital Recuperado</div>
+                <div class="kpi-value">R$ ${stats.capitalRecuperado.toFixed(2)}</div>
+              </div>
+              <div class="kpi-box border-green">
+                <div class="kpi-label">Lucro Líquido + Multas</div>
+                <div class="kpi-value" style="color:#27AE60">R$ ${(stats.lucroLiquido + stats.multas).toFixed(2)}</div>
               </div>
             </div>
 
             <div class="kpi-container">
-               <div class="kpi-box border-orange"><div class="kpi-label">ROI</div><div class="kpi-value">${roi.toFixed(1)}%</div></div>
-               <div class="kpi-box"><div class="kpi-label">${t('relatorio.margem') || 'Margem'}</div><div class="kpi-value">${margemLucro.toFixed(1)}%</div></div>
-               <div class="kpi-box"><div class="kpi-label">${t('relatorio.ticket') || 'Ticket Médio'}</div><div class="kpi-value">R$ ${ticketMedio.toFixed(2)}</div></div>
+               <div class="kpi-box border-red">
+                 <div class="kpi-label">Saídas (Novos Empréstimos)</div>
+                 <div class="kpi-value">R$ ${stats.investido.toFixed(2)}</div>
+               </div>
+               <div class="kpi-box border-orange">
+                 <div class="kpi-label">ROI (Retorno do Cap. Recuperado)</div>
+                 <div class="kpi-value">${roi.toFixed(1)}%</div>
+               </div>
+               <div class="kpi-box">
+                 <div class="kpi-label">Ticket Médio</div>
+                 <div class="kpi-value">R$ ${ticketMedio.toFixed(2)}</div>
+               </div>
             </div>
 
             <h3>💰 ${t('relatorio.detalhamento') || 'Detalhamento de Entradas'}</h3>
@@ -399,13 +409,14 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
               </table>
             ` : '<p style="font-size:10px; color:#999; text-align:center;">' + (t('relatorio.nenhumaEntrada') || 'Nenhuma entrada registrada.') + '</p>'}
 
-            <h3>📉 ${t('relatorio.saidas') || 'Saídas (Investimentos)'}</h3>
+            <h3>📉 ${t('relatorio.saidas') || 'Saídas (Investimentos no Período)'}</h3>
+            <p style="font-size:9px; color:#7F8C8D; margin-top:-5px; margin-bottom:10px;">* Valores de capital liberado para novos contratos iniciados entre ${dataIni} e ${dataFim}. Negociações e acordos não entram nesta lista.</p>
             ${htmlInvestimentos ? `
               <table>
                 <thead><tr><th>${t('relatorio.colData') || 'Data'}</th><th>${t('relatorio.colCliente') || 'Cliente'}</th><th>${t('relatorio.colValor') || 'Valor Liberado'}</th></tr></thead>
                 <tbody>${htmlInvestimentos}</tbody>
               </table>
-            ` : '<p style="font-size:10px; color:#999; text-align:center;">' + (t('relatorio.nenhumContrato') || 'Nenhum novo contrato.') + '</p>'}
+            ` : '<p style="font-size:10px; color:#999; text-align:center;">' + (t('relatorio.nenhumContrato') || 'Nenhum novo contrato no período filtrado.') + '</p>'}
 
             <div style="page-break-before: always;"></div>
             <h3>🔐 ${t('relatorio.inventario') || 'Inventário de Ativos'}</h3>

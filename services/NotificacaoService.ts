@@ -13,6 +13,11 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// 🛡️ MATA DÍZIMAS INFINITAS
+const arredondarMoeda = (valor: number) => {
+    return Number(Number(valor).toFixed(2));
+};
+
 export async function verificarNotificacoes(clientes: Cliente[]) {
   // 1. Pede permissão (se ainda não tiver)
   const { status } = await Notifications.getPermissionsAsync();
@@ -36,23 +41,47 @@ export async function verificarNotificacoes(clientes: Cliente[]) {
         // Verifica se a data existe antes de tentar ler
         if (!con.proximoVencimento) return;
 
-        const p = con.proximoVencimento.split('/');
+        let dataVenc = new Date();
         
-        // Verifica se a data está no formato correto (dia/mês/ano)
-        if (p.length < 3) return;
-
-        const dataVenc = new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
+        // 🚀 ARQUITETO FIX: Suporte universal para datas (tanto BR com / quanto Banco com -)
+        if (con.proximoVencimento.includes('-')) {
+            const [y, m, d] = con.proximoVencimento.split('-');
+            dataVenc = new Date(Number(y), Number(m) - 1, Number(d));
+        } else if (con.proximoVencimento.includes('/')) {
+            const p = con.proximoVencimento.split('/');
+            if (p.length < 3) return;
+            dataVenc = new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]));
+        } else {
+            return;
+        }
         
         // Se a data de vencimento for HOJE ou ANTES DE HOJE (Atrasado)
         if (dataVenc.getTime() <= hoje.getTime()) {
           qtdCobrancas++;
           
-          if(con.status === 'PARCELADO') {
-            valorTotal += (con.valorParcela || 0);
+          let valorEsperado = 0;
+          const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(con.frequencia || '') || (con.totalParcelas || 0) > 1;
+
+          // 🚀 INTELIGÊNCIA FINANCEIRA: Lê a parcela exata ou o lucro cravado salvo no DB
+          if (isFracionado) {
+              const isUltima = ((con.parcelasPagas || 0) + 1) >= (con.totalParcelas || 1);
+              if (isUltima && (con as any).valorUltimaParcela && (con as any).valorUltimaParcela > 0) {
+                  valorEsperado = (con as any).valorUltimaParcela;
+              } else {
+                  valorEsperado = con.valorParcela || 0;
+              }
           } else {
-            // Se for quitação total, soma capital + juros
-            valorTotal += (con.capital + (con.capital * (con.taxa/100)));
+              // Contratos MENSAL: Quitação (Capital + Juros Fixo)
+              if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
+                  valorEsperado = con.capital + con.lucroJurosPorParcela;
+              } else {
+                  // Fallback para contratos pré-históricos
+                  valorEsperado = con.capital + (con.capital * ((con.taxa || 0) / 100));
+              }
           }
+
+          // Soma blindada passando pelo filtro de moeda
+          valorTotal = arredondarMoeda(valorTotal + valorEsperado);
         }
       }
     });

@@ -1,11 +1,11 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useClientes } from '@/hooks/useClientes';
 import { supabase } from '@/services/supabase';
-import { useFocusEffect, useRouter } from 'expo-router'; // <--- Adicionado useRouter
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator, // <--- Adicionado para o loading
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,7 +17,7 @@ import { useAssinatura } from '@/hooks/useAssinatura';
 
 export default function ResumoScreen() {
   const { t } = useTranslation(); 
-  const router = useRouter(); // <--- Hook de navegação
+  const router = useRouter(); 
   
   // --- SEGURANÇA / BLOQUEIO ---
   const { isPremium, loading: loadingAssinatura } = useAssinatura();
@@ -25,6 +25,9 @@ export default function ResumoScreen() {
   const { clientes, fetchData } = useClientes(); 
   const [totais, setTotais] = useState({ dia: 0, semana: 0, mes: 0 });
   const [historicoRecente, setHistoricoRecente] = useState<any[]>([]);
+  
+  // 🚀 NOVO: Estado para armazenar a previsão de recebimentos
+  const [previsao, setPrevisao] = useState({ hoje: 0, proximos7: 0, proximos30: 0 });
 
   // --- LÓGICA DE PROTEÇÃO ---
   useFocusEffect(
@@ -47,7 +50,7 @@ export default function ResumoScreen() {
       if (isPremium) {
         fetchData();
       }
-    }, [isPremium]) // Adicionado isPremium na dependência
+    }, [isPremium])
   );
 
   useEffect(() => {
@@ -74,6 +77,11 @@ export default function ResumoScreen() {
     let somaMes = 0;
     let listaMov: any[] = [];
 
+    // Variáveis da Previsão
+    let prevHoje = 0;
+    let prev7 = 0;
+    let prev30 = 0;
+
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
 
@@ -83,6 +91,54 @@ export default function ResumoScreen() {
 
     clientes.forEach(cli => {
       (cli.contratos || []).forEach(con => {
+          
+        // 🚀 LÓGICA DE PREVISÃO CUIDADOSA
+        if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
+            if (con.proximoVencimento) {
+                let dVenc: Date | null = null;
+                if (con.proximoVencimento.includes('-')) {
+                    const [y, m, d] = con.proximoVencimento.split('-');
+                    dVenc = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+                } else if (con.proximoVencimento.includes('/')) {
+                    const [d, m, y] = con.proximoVencimento.split('/');
+                    dVenc = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+                }
+
+                if (dVenc && !isNaN(dVenc.getTime())) {
+                    dVenc.setHours(0,0,0,0);
+                    
+                    let valorEsperado = 0;
+                    const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(con.frequencia || '') || (con.totalParcelas || 0) > 1;
+
+                    // Aplica a inteligência dos centavos na previsão
+                    if (isFracionado) {
+                        const isUltima = ((con.parcelasPagas || 0) + 1) >= (con.totalParcelas || 1);
+                        if (isUltima && con.valorUltimaParcela && con.valorUltimaParcela > 0) {
+                            valorEsperado = con.valorUltimaParcela;
+                        } else {
+                            valorEsperado = con.valorParcela || 0;
+                        }
+                    } else {
+                        // Se for mensal, o lucroJurosPorParcela é o valor padrão de renovação
+                        valorEsperado = con.lucroJurosPorParcela || 0; 
+                    }
+
+                    const diffTime = dVenc.getTime() - hoje.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    // Acumula na caixinha certa
+                    if (diffDays <= 0) {
+                        prevHoje += valorEsperado; // Vence hoje ou está atrasado
+                    } else if (diffDays > 0 && diffDays <= 7) {
+                        prev7 += valorEsperado;
+                    } else if (diffDays > 7 && diffDays <= 30) {
+                        prev30 += valorEsperado;
+                    }
+                }
+            }
+        }
+
+        // LÓGICA EXISTENTE DO HISTÓRICO E TOTAIS REAIS
         (con.movimentacoes || []).forEach(mov => {
           
           let dataMov: Date | null = null;
@@ -99,32 +155,23 @@ export default function ResumoScreen() {
           } 
           else {
              // --- ESTRATÉGIA 2: FORMATO COM BARRAS (XX/XX/XXXX) ---
-             // Aceita 1 ou 2 dígitos para dia/mês (d/m/yyyy ou dd/mm/yyyy)
              const slashMatch = mov.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
              
              if (slashMatch) {
-                const p1 = parseInt(slashMatch[1]); // Primeiro número
-                const p2 = parseInt(slashMatch[2]); // Segundo número
-                const p3 = parseInt(slashMatch[3]); // Ano
+                const p1 = parseInt(slashMatch[1]); 
+                const p2 = parseInt(slashMatch[2]); 
+                const p3 = parseInt(slashMatch[3]); 
 
-                // --- LÓGICA CONTEXTUAL (O Segredo!) ---
-                // Verifica se a linha tem palavras em INGLÊS
                 const temIngles = /SETTLED|RECEIVED|RENEWAL|AGREEMENT|Daily|Weekly|Monthly/i.test(mov);
 
                 if (p1 > 12) {
-                    // Se o 1º nº é > 12, SÓ PODE SER DIA (25/02)
                     dataMov = new Date(p3, p2 - 1, p1);
                 } else if (p2 > 12) {
-                    // Se o 2º nº é > 12, SÓ PODE SER DIA (02/25) - Formato US
                     dataMov = new Date(p3, p1 - 1, p2);
                 } else {
-                    // AMBIGUIDADE (ex: 02/05 ou 2/5):
-                    // Se a frase tem inglês, assume Mês/Dia. Senão, assume Dia/Mês.
                     if (temIngles) {
-                        // Formato US: Mês/Dia/Ano
                         dataMov = new Date(p3, p1 - 1, p2);
                     } else {
-                        // Formato BR: Dia/Mês/Ano
                         dataMov = new Date(p3, p2 - 1, p1);
                     }
                 }
@@ -135,7 +182,6 @@ export default function ResumoScreen() {
           if (!dataMov) return;
 
           // --- 3. VALOR (R$ ou $) ---
-          // Agora aceita espaços opcionais e formatos variados
           const valueMatch = mov.match(/(?:R\$|\$)\s*([\d\.]+)/);
           let valor = 0;
 
@@ -144,21 +190,14 @@ export default function ResumoScreen() {
           }
 
           // --- 4. FILTRO DE OPERAÇÕES ---
-          // Aceita palavras de todos os idiomas
-          const isRecebimento = /Recebido|Received|Recibido|Parcela/i.test(mov); // Adicionado 'Parcela' para garantir
+          const isRecebimento = /Recebido|Received|Recibido|Parcela/i.test(mov); 
           const isQuitacao = /QUITADO|SETTLED|LIQUIDADO/i.test(mov);
           const isRenovacao = /RENOVAÇÃO|RENEWAL|RENOVACIÓN/i.test(mov);
-          // const isAcordo = /ACORDO|AGREEMENT|ACUERDO/i.test(mov); // Mantido comentado para referência
-
-          // CORREÇÃO AQUI: Removemos 'isAcordo' da verificação financeira.
-          // Assim, a criação do acordo (dívida total) não entra no caixa.
-          // Apenas quando houver "Recebido", "Parcela", "Quitado" ou "Renovação".
+          
           const ehOperacaoFinanceira = isRecebimento || isQuitacao || isRenovacao;
 
-          // Se achou valor e data válida
           if (valor > 0 && !isNaN(dataMov.getTime()) && ehOperacaoFinanceira) {
             
-            // Compara datas zerando as horas para evitar bugs de fuso
             const dMov = new Date(dataMov);
             dMov.setHours(0,0,0,0);
 
@@ -189,6 +228,7 @@ export default function ResumoScreen() {
     listaMov.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
 
     setTotais({ dia: somaDia, semana: somaSemana, mes: somaMes });
+    setPrevisao({ hoje: prevHoje, proximos7: prev7, proximos30: prev30 });
     setHistoricoRecente(listaMov.slice(0, 15)); 
   };
 
@@ -204,6 +244,17 @@ export default function ResumoScreen() {
     </View>
   );
 
+  // 🚀 NOVO COMPONENTE: Card Menor para a Previsão
+  const CardPrevisao = ({ titulo, valor, cor, icone }: any) => (
+    <View style={[styles.cardPrevisao, { borderTopColor: cor }]}>
+      <View style={styles.cardPrevisaoHeader}>
+        <Text style={styles.cardTituloPrevisao}>{titulo}</Text>
+        <IconSymbol size={18} name={icone} color={cor} />
+      </View>
+      <Text style={[styles.cardValorPrevisao, { color: cor }]}>{moeda} {valor.toFixed(2)}</Text>
+    </View>
+  );
+
   // --- BLOQUEIO VISUAL (LOADING / REDIRECIONAMENTO) ---
   if (loadingAssinatura || !isPremium) {
     return (
@@ -213,19 +264,29 @@ export default function ResumoScreen() {
     );
   }
 
-  // --- RENDERIZAÇÃO DA TELA (SOMENTE SE FOR PREMIUM) ---
+  // --- RENDERIZAÇÃO DA TELA ---
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.header}>{t('resumo.titulo')}</Text>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <Text style={styles.header}>{t('resumo.titulo', {defaultValue: 'Resumo Financeiro'})}</Text>
       
       <View style={styles.grid}>
-        <CardResumo titulo={t('resumo.hoje')} valor={totais.dia} cor="#27ae60" icone="calendar" />
-        <CardResumo titulo={t('resumo.semana')} valor={totais.semana} cor="#2980b9" icone="calendar.badge.clock" />
-        <CardResumo titulo={t('resumo.mes')} valor={totais.mes} cor="#8e44ad" icone="calendar.circle.fill" />
+        <CardResumo titulo={t('resumo.hoje', {defaultValue: 'Hoje'})} valor={totais.dia} cor="#27ae60" icone="calendar" />
+        <CardResumo titulo={t('resumo.semana', {defaultValue: 'Semana'})} valor={totais.semana} cor="#2980b9" icone="calendar.badge.clock" />
+        <CardResumo titulo={t('resumo.mes', {defaultValue: 'Mês'})} valor={totais.mes} cor="#8e44ad" icone="calendar.circle.fill" />
+      </View>
+
+      {/* 🚀 NOVA SEÇÃO DE PREVISÃO (Scrool Horizontal para não ocupar muito espaço vertical) */}
+      <View style={styles.secaoPrevisao}>
+        <Text style={styles.subTitulo}>{t('resumo.previsao', {defaultValue: 'Previsão de Recebimentos'})}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 16, paddingBottom: 10 }}>
+           <CardPrevisao titulo={t('resumo.prevHoje', {defaultValue: 'Hoje / Atrasado'})} valor={previsao.hoje} cor="#e74c3c" icone="exclamationmark.triangle.fill" />
+           <CardPrevisao titulo={t('resumo.prev7', {defaultValue: 'Próx. 7 Dias'})} valor={previsao.proximos7} cor="#f39c12" icone="clock.arrow.circlepath" />
+           <CardPrevisao titulo={t('resumo.prev30', {defaultValue: 'Próx. 30 Dias'})} valor={previsao.proximos30} cor="#3498db" icone="calendar.badge.plus" />
+        </ScrollView>
       </View>
 
       <View style={styles.secaoHistorico}>
-        <Text style={styles.subTitulo}>{t('resumo.ultimasMovimentacoes')}</Text>
+        <Text style={styles.subTitulo}>{t('resumo.ultimasMovimentacoes', {defaultValue: 'Últimas Movimentações'})}</Text>
         {historicoRecente.map((item, index) => (
           <View key={index} style={styles.itemHistorico}>
             <View style={{flex: 1, paddingRight: 10}}>
@@ -239,7 +300,7 @@ export default function ResumoScreen() {
           </View>
         ))}
         {historicoRecente.length === 0 && (
-            <Text style={styles.avisoVazio}>{t('resumo.vazio')}</Text>
+            <Text style={styles.avisoVazio}>{t('resumo.vazio', {defaultValue: 'Nenhum recebimento encontrado.'})}</Text>
         )}
       </View>
       <View style={{height: 40}} />
@@ -264,7 +325,23 @@ const styles = StyleSheet.create({
   cardTitulo: { fontSize: 16, color: '#7f8c8d', fontWeight: '600' },
   cardValor: { fontSize: 28, fontWeight: 'bold' },
 
-  secaoHistorico: { marginTop: 30 },
+  // Estilos da nova seção de Previsão
+  secaoPrevisao: { marginTop: 30 },
+  cardPrevisao: {
+    backgroundColor: '#FFF',
+    padding: 15,
+    borderRadius: 12,
+    borderTopWidth: 4,
+    elevation: 2,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, shadowOffset: {width:0, height:1},
+    width: 150, 
+    marginRight: 12
+  },
+  cardPrevisaoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cardTituloPrevisao: { fontSize: 12, color: '#7f8c8d', fontWeight: 'bold' },
+  cardValorPrevisao: { fontSize: 18, fontWeight: 'bold' },
+
+  secaoHistorico: { marginTop: 20 },
   subTitulo: { fontSize: 18, fontWeight: 'bold', color: '#2c3e50', marginBottom: 15 },
   itemHistorico: {
     backgroundColor: '#FFF',
