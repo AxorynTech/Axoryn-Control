@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -40,10 +40,25 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
     }
   }, [visivel]);
 
-  const calcularParcela = () => {
-    if(!valorTotal || !qtdParcelas) return '0.00';
-    return (parseFloat(valorTotal) / parseInt(qtdParcelas)).toFixed(2);
-  };
+  // 🚀 ARQUITETO FIX: Função inteligente que prevê a parcela de ajuste para a tela
+  const resumoParcelas = useMemo(() => {
+    if(!valorTotal || !qtdParcelas) return null;
+    const total = parseFloat(valorTotal.replace(',', '.'));
+    const qtd = parseInt(qtdParcelas);
+    
+    if(isNaN(total) || isNaN(qtd) || qtd <= 0) return null;
+
+    const valorParcNormal = Number((total / qtd).toFixed(2));
+    const totalPagoAntesDaUltima = Number((valorParcNormal * (qtd - 1)).toFixed(2));
+    const valorUltimaParcela = Number((total - totalPagoAntesDaUltima).toFixed(2));
+
+    return {
+       qtd,
+       normal: valorParcNormal,
+       ultima: valorUltimaParcela,
+       temAjuste: qtd > 1 && valorParcNormal !== valorUltimaParcela
+    };
+  }, [valorTotal, qtdParcelas]);
 
   const handleConfirmar = () => {
     if (!valorTotal || !qtdParcelas) return Alert.alert(t('common.erro'), t('common.preenchaCampos'));
@@ -51,10 +66,10 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
     if (!data || data.length < 8) return Alert.alert(t('common.erro'), "Informe uma data válida (DD/MM/AAAA).");
 
     confirmar(
-      parseFloat(valorTotal), 
+      parseFloat(valorTotal.replace(',', '.')), 
       parseInt(qtdParcelas), 
       data, 
-      multa ? parseFloat(multa) : 0
+      multa ? parseFloat(multa.replace(',', '.')) : 0
     );
     
     setValorTotal(''); setQtdParcelas(''); setMulta('');
@@ -111,9 +126,22 @@ export default function ModalParcelamento({ visivel, fechar, confirmar }: Props)
               />
 
               <View style={styles.resumo}>
-                <Text style={styles.resumoTexto}>
-                  {t('modalParcelamento.serao')} {qtdParcelas || '0'}x {t('modalParcelamento.de')} <Text style={{fontWeight:'bold', color:'#8E44AD'}}>{moeda} {calcularParcela()}</Text>
-                </Text>
+                {resumoParcelas ? (
+                    resumoParcelas.temAjuste ? (
+                       <Text style={[styles.resumoTexto, { textAlign: 'center' }]}>
+                         {t('modalParcelamento.serao')} {resumoParcelas.qtd - 1}x {t('modalParcelamento.de')} <Text style={{fontWeight:'bold', color:'#8E44AD'}}>{moeda} {resumoParcelas.normal.toFixed(2)}</Text>
+                         {'\n'}+ 1x final de <Text style={{fontWeight:'bold', color:'#E67E22'}}>{moeda} {resumoParcelas.ultima.toFixed(2)}</Text> <Text style={{fontSize: 11}}>(Ajuste)</Text>
+                       </Text>
+                    ) : (
+                       <Text style={styles.resumoTexto}>
+                         {t('modalParcelamento.serao')} {resumoParcelas.qtd}x {t('modalParcelamento.de')} <Text style={{fontWeight:'bold', color:'#8E44AD'}}>{moeda} {resumoParcelas.normal.toFixed(2)}</Text>
+                       </Text>
+                    )
+                ) : (
+                    <Text style={styles.resumoTexto}>
+                      {t('modalParcelamento.serao')} 0x {t('modalParcelamento.de')} <Text style={{fontWeight:'bold', color:'#8E44AD'}}>{moeda} 0.00</Text>
+                    </Text>
+                )}
               </View>
               
               <TouchableOpacity style={styles.botaoConfirmar} onPress={handleConfirmar}>
@@ -138,7 +166,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center' 
   },
-  // Novo estilo para alinhar o conteúdo do scroll no centro
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -148,8 +175,8 @@ const styles = StyleSheet.create({
   card: { 
     backgroundColor: '#FFF', 
     width: '85%', 
-    minWidth: 300, // Garante largura mínima
-    maxWidth: 400, // Limita largura em telas grandes
+    minWidth: 300, 
+    maxWidth: 400, 
     borderRadius: 15, 
     overflow: 'hidden', 
     elevation: 5 

@@ -434,7 +434,6 @@ export function useClientes() {
       let vJuro = 0;
       const jurosSalvo = contrato.lucroJurosPorParcela || 0;
 
-      // 🔥 LÓGICA BLINDADA: Se quitar na última parcela, engole os centavos do lucro também!
       if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
           const isUltimaAcao = ((contrato.parcelasPagas || 0) + 1) >= (contrato.totalParcelas || 1);
           if (tipo !== 'RENOVAR' && isUltimaAcao && (contrato as any).valorUltimaParcela > 0) {
@@ -579,13 +578,10 @@ export function useClientes() {
       let lucroParc = arredondarMoeda(contrato.lucroJurosPorParcela || 0);
       let valorParc = arredondarMoeda(contrato.valorParcela || 0);
 
-      // 🔥 A MATEMÁTICA ABSOLUTA: Sem porcentagens, sem dízimas!
       if (isUltimaParcela && ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
           if ((contrato as any).valorUltimaParcela && (contrato as any).valorUltimaParcela > 0) {
               valorParc = arredondarMoeda((contrato as any).valorUltimaParcela);
           }
-          // O lucro da última parcela é O Valor Pago MENOS O que sobrou da dívida original.
-          // Isso zera o capital perfeitamente e joga os centavos pro lucro!
           lucroParc = arredondarMoeda(valorParc - (contrato.capital || 0));
       }
 
@@ -597,7 +593,6 @@ export function useClientes() {
       let msgPag = t('historico.recebido', { data: dataPagamento, valor: (valorParc + vMulta).toFixed(2) });
       if (vMulta > 0) msgPag += ` (${t('historico.comMulta', { valor: vMulta.toFixed(2) })})`;
       
-      // 🏷️ Etiqueta invisível de PDF
       msgPag += ` [L:${lucroParc.toFixed(2)}]`;
       h.unshift(msgPag);
 
@@ -671,11 +666,22 @@ export function useClientes() {
         const contrato = clientes.find(c => c.nome === nomeCliente)?.contratos.find(ct => ct.id === contratoId);
         const saldoAnt = contrato?.capital || 0;
         const lucroAcordo = arredondarMoeda(valorTotal - saldoAnt);
-        const valorParc = arredondarMoeda(valorTotal / qtd);
+        
+        // 🔥 FIX ACORDO: Agora tem a inteligência da Parcela de Ajuste!
+        const calcularParcelas = (totalDivida: number, qtdParcelas: number) => {
+            const valorParcNormal = arredondarMoeda(totalDivida / qtdParcelas);
+            const totalPagoAntesDaUltima = arredondarMoeda(valorParcNormal * (qtdParcelas - 1));
+            const valorUltimaParcela = arredondarMoeda(totalDivida - totalPagoAntesDaUltima);
+            return { valorParcNormal, valorUltimaParcela };
+        };
+
+        const { valorParcNormal, valorUltimaParcela } = calcularParcelas(valorTotal, qtd);
 
         const updates = {
             status: 'PARCELADO', capital: arredondarMoeda(valorTotal), total_parcelas: qtd, parcelas_pagas: 0,
-            valor_parcela: valorParc, valor_multa_diaria: multaDiaria,
+            valor_parcela: valorParcNormal, 
+            valor_ultima_parcela: valorUltimaParcela, // 🚀 SALVANDO NO BANCO!
+            valor_multa_diaria: multaDiaria,
             lucro_juros_por_parcela: lucroAcordo > 0 ? arredondarMoeda(lucroAcordo / qtd) : 0,
             proximo_vencimento: paraBancoISO(data),
             movimentacoes: [t('historico.acordo', { data, valor: valorTotal.toFixed(2), qtd }), ...(contrato?.movimentacoes || [])]
@@ -746,12 +752,20 @@ export function useClientes() {
             movimentacoes: h
         };
 
+        // 🔥 FIX ABATIMENTO: Também ganha a inteligência da Parcela de Ajuste!
         if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
             const parcelasRestantes = (contrato.totalParcelas || 1) - (contrato.parcelasPagas || 0);
             if (parcelasRestantes > 0) {
                 const novoJurosTotal = arredondarMoeda(novoCapital * (contrato.taxa / 100));
+                
+                const totalDividaAbatida = arredondarMoeda(novoCapital + novoJurosTotal);
+                const valorParcNormal = arredondarMoeda(totalDividaAbatida / parcelasRestantes);
+                const totalPagoAntesDaUltima = arredondarMoeda(valorParcNormal * (parcelasRestantes - 1));
+                const valorUltimaParcela = arredondarMoeda(totalDividaAbatida - totalPagoAntesDaUltima);
+
                 updates.lucro_juros_por_parcela = arredondarMoeda(novoJurosTotal / parcelasRestantes);
-                updates.valor_parcela = arredondarMoeda((novoCapital + novoJurosTotal) / parcelasRestantes);
+                updates.valor_parcela = valorParcNormal;
+                updates.valor_ultima_parcela = valorUltimaParcela; // 🚀 SALVANDO NO BANCO!
             }
         } else {
             updates.lucro_juros_por_parcela = arredondarMoeda(novoCapital * (contrato.taxa / 100));
