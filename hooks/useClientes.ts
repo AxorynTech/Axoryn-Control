@@ -9,6 +9,11 @@ export function useClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 🛡️ FUNÇÃO ARQUITETO: Mata dízimas infinitas e garante precisão exata de moeda (centavos cravados)
+  const arredondarMoeda = (valor: number) => {
+      return Number(Number(valor).toFixed(2));
+  };
+
   const lerDataLocal = useCallback((dataStr: string) => {
      if(!dataStr) return new Date();
      
@@ -162,15 +167,15 @@ export function useClientes() {
           capitalTotal += (con.capital || 0);
         }
         if (con.frequencia === 'PARCELADO') {
-            const recebidoParcelas = (con.parcelasPagas || 0) * (con.valorParcela || 0);
-            vendas += (recebidoParcelas + (con.multasPagas || 0));
+            const recebidoParcelas = arredondarMoeda((con.parcelasPagas || 0) * (con.valorParcela || 0));
+            vendas += arredondarMoeda(recebidoParcelas + (con.multasPagas || 0));
         } else {
-            lucro += (con.lucroTotal || 0);
-            multas += (con.multasPagas || 0);
+            lucro += arredondarMoeda(con.lucroTotal || 0);
+            multas += arredondarMoeda(con.multasPagas || 0);
         }
       });
     });
-    return { capital: capitalTotal, lucro, multas, vendas };
+    return { capital: arredondarMoeda(capitalTotal), lucro, multas, vendas };
   }, [clientes]);
 
   const adicionarCliente = useCallback(async (dados: Partial<Cliente>) => {
@@ -275,18 +280,19 @@ export function useClientes() {
 
         let valorJurosExato = 0;
 
+        // 🛡️ SANITIZAÇÃO DE ENTRADA: Trava a dízima no momento da criação
         if (novoContrato.valorJuros && Number(novoContrato.valorJuros) > 0) {
-            valorJurosExato = Number(novoContrato.valorJuros);
+            valorJurosExato = arredondarMoeda(Number(novoContrato.valorJuros));
             if (novoContrato.capital > 0) {
                novoContrato.taxa = (valorJurosExato / novoContrato.capital) * 100;
             }
         } else {
-            valorJurosExato = novoContrato.capital * (novoContrato.taxa / 100);
+            valorJurosExato = arredondarMoeda(novoContrato.capital * (novoContrato.taxa / 100));
         }
 
         let contratoDB: any = {
             cliente_id: cliente.id,
-            capital: novoContrato.capital,
+            capital: arredondarMoeda(novoContrato.capital),
             taxa: novoContrato.taxa,
             frequencia: novoContrato.frequencia,
             data_inicio: paraBancoISO(dataBaseStr),
@@ -301,41 +307,41 @@ export function useClientes() {
 
         if (freq === 'PARCELADO') {
             const parc = parseInt(novoContrato.totalParcelas || '1');
-            const total = novoContrato.capital + valorJurosExato;
-            const valorParc = total / parc;
+            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
+            const valorParc = arredondarMoeda(total / parc);
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = parc;
             contratoDB.valor_parcela = valorParc;
-            contratoDB.lucro_juros_por_parcela = valorJurosExato / parc;
+            contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / parc);
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
             contratoDB.movimentacoes = [t('historico.criadoParcelado', { data: dataBaseStr, tipo: descHist, qtd: parc, valor: valorParc.toFixed(2) })];
         
         } else if (freq === 'SEMANAL') {
             const qtd = novoContrato.qtdSemanas || novoContrato.totalParcelas || 4; 
-            const total = novoContrato.capital + valorJurosExato;
-            const parc = total / qtd; 
+            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
+            const parc = arredondarMoeda(total / qtd); 
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = qtd; 
             contratoDB.valor_parcela = parc;
-            contratoDB.lucro_juros_por_parcela = valorJurosExato / qtd; 
+            contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / qtd); 
             contratoDB.proximo_vencimento = addDias(dataBaseStr, 7);
             contratoDB.movimentacoes = [t('historico.criadoSemanal', { data: dataBaseStr, tipo: descHist, valor: parc.toFixed(2) })];
         
         } else if (freq === 'QUINZENAL') {
             const qtd = novoContrato.qtdQuinzenas || novoContrato.totalParcelas || 2;
-            const total = novoContrato.capital + valorJurosExato;
-            const parc = total / qtd;
+            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
+            const parc = arredondarMoeda(total / qtd);
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = qtd;
             contratoDB.valor_parcela = parc;
-            contratoDB.lucro_juros_por_parcela = valorJurosExato / qtd;
+            contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / qtd);
             contratoDB.proximo_vencimento = addDias(dataBaseStr, 15);
             contratoDB.movimentacoes = [`Criado Quinzenal - ${qtd} parcelas de R$ ${parc.toFixed(2)}`];
 
         } else if (freq === 'DIARIO' && novoContrato.diasDiario) {
             const dias = parseInt(novoContrato.diasDiario);
-            const total = novoContrato.capital + valorJurosExato;
-            const parc = total / dias;
+            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
+            const parc = arredondarMoeda(total / dias);
             contratoDB.status = 'PARCELADO';
             contratoDB.dias_diario = dias;
             contratoDB.dias_semana_diario = novoContrato.diasSemanaDiario; 
@@ -344,7 +350,7 @@ export function useClientes() {
             
             contratoDB.total_parcelas = dias;
             contratoDB.valor_parcela = parc;
-            contratoDB.lucro_juros_por_parcela = valorJurosExato / dias;
+            contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / dias);
             
             let nextDate = lerDataLocal(dataBaseStr);
             nextDate.setDate(nextDate.getDate() + 1);
@@ -369,7 +375,7 @@ export function useClientes() {
         } else {
             contratoDB.lucro_juros_por_parcela = valorJurosExato; 
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
-            contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: novoContrato.capital.toFixed(2) })];
+            contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: Number(novoContrato.capital).toFixed(2) })];
         }
 
         const { error } = await supabase.from('contratos').insert([contratoDB]);
@@ -387,7 +393,7 @@ export function useClientes() {
 
                   await supabase.from('fluxo_pessoal').insert([{
                     tipo: 'SAIDA',
-                    valor: Number(novoContrato.capital),
+                    valor: arredondarMoeda(novoContrato.capital),
                     descricao: `${descTipo} p/ ${nomeCliente}`,
                     data_movimento: paraBancoISO(dataBaseStr),
                     conta_id: idCarteira,
@@ -402,19 +408,16 @@ export function useClientes() {
 
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
     try {
-      // 🚀 MATEMÁTICA BLINDADA: SE EXISTIR VALOR FIXO SALVO, USA ELE. SE NÃO, USA A TAXA.
       let vJuro = 0;
       const jurosSalvo = contrato.lucroJurosPorParcela || 0;
 
       if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
-          vJuro = jurosSalvo;
+          vJuro = arredondarMoeda(jurosSalvo);
       } else {
-          // Se for MENSAL e tiver valor fixo cravado, usa o cravado.
           if (jurosSalvo > 0) {
-              vJuro = Number(jurosSalvo);
+              vJuro = arredondarMoeda(jurosSalvo);
           } else {
-              // Só calcula com porcentagem se for um empréstimo antigo que não tinha valor fixo
-              vJuro = contrato.capital * (contrato.taxa / 100);
+              vJuro = arredondarMoeda(contrato.capital * (contrato.taxa / 100));
           }
       }
 
@@ -429,7 +432,7 @@ export function useClientes() {
              dtVenc = lerDataLocal(contrato.proximoVencimento);
         }
         const diff = Math.ceil((dtPag.getTime() - dtVenc.getTime()) / (1000 * 60 * 60 * 24));
-        if (diff > 0) vMulta = diff * contrato.valorMultaDiaria;
+        if (diff > 0) vMulta = arredondarMoeda(diff * contrato.valorMultaDiaria);
       }
 
       let updates: any = {};
@@ -466,8 +469,8 @@ export function useClientes() {
           h.unshift(msg);
 
           updates = {
-             lucro_total: (contrato.lucroTotal||0) + vJuro,
-             multas_pagas: (contrato.multasPagas||0) + vMulta,
+             lucro_total: arredondarMoeda((contrato.lucroTotal||0) + vJuro),
+             multas_pagas: arredondarMoeda((contrato.multasPagas||0) + vMulta),
              proximo_vencimento: paraBancoISO(d.toLocaleDateString(i18n.language)),
              movimentacoes: h
           };
@@ -475,7 +478,7 @@ export function useClientes() {
           const idCarteira = await garantirCarteira();
           const userId = await getUserId();
           if (idCarteira && userId) {
-               const totalPago = vJuro + vMulta;
+               const totalPago = arredondarMoeda(vJuro + vMulta);
                await supabase.from('fluxo_pessoal').insert([{
                   tipo: 'ENTRADA',
                   valor: totalPago,
@@ -487,12 +490,12 @@ export function useClientes() {
           }
 
       } else {
-          const total = contrato.capital + vJuro + vMulta;
+          const total = arredondarMoeda(contrato.capital + vJuro + vMulta);
           let msgQuit = t('historico.quitado', { data: dataInformada, total: total.toFixed(2) });
           if (vMulta > 0) msgQuit += ` (${t('historico.comMulta', { valor: vMulta.toFixed(2) })})`;
           h.unshift(msgQuit);
 
-          updates = { status: 'QUITADO', capital: 0, lucro_total: (contrato.lucroTotal||0) + vJuro, multas_pagas: (contrato.multasPagas||0) + vMulta, movimentacoes: h };
+          updates = { status: 'QUITADO', capital: 0, lucro_total: arredondarMoeda((contrato.lucroTotal||0) + vJuro), multas_pagas: arredondarMoeda((contrato.multasPagas||0) + vMulta), movimentacoes: h };
           
           const idCarteira = await garantirCarteira();
           const userId = await getUserId(); 
@@ -516,7 +519,7 @@ export function useClientes() {
       const cliente = clientes.find(c => c.contratos.some(ct => ct.id === contrato.id));
       if (cliente?.id) await refreshCliente(cliente.id);
       
-      const val = tipo === 'RENOVAR' ? (vJuro + vMulta) : (contrato.capital + vJuro + vMulta);
+      const val = tipo === 'RENOVAR' ? arredondarMoeda(vJuro + vMulta) : arredondarMoeda(contrato.capital + vJuro + vMulta);
       const tipoTraduzido = tipo === 'RENOVAR' ? t('modalAcao.tipoRenovar') : t('modalAcao.tipoQuitar');
       Alert.alert(t('common.sucesso'), `${tipoTraduzido} ${t('common.sucesso')}!\n💰 R$ ${val.toFixed(2)}`);
 
@@ -536,21 +539,29 @@ export function useClientes() {
         }
         const dtPag = lerDataLocal(dataPagamento);
         const diff = Math.ceil((dtPag.getTime() - dtVenc.getTime()) / (1000 * 60 * 60 * 24));
-        if (diff > 0) vMulta = diff * contrato.valorMultaDiaria;
+        if (diff > 0) vMulta = arredondarMoeda(diff * contrato.valorMultaDiaria);
       }
 
       const qtdPagas = (contrato.parcelasPagas || 0) + 1;
-      const lucroParc = contrato.lucroJurosPorParcela || 0;
-      const amortizacao = (contrato.valorParcela || 0) - lucroParc;
-      let novoSaldo = (contrato.capital || 0) - amortizacao;
+      
+      // 🛡️ SANITIZAÇÃO NA HORA DE PAGAR: Impede que o Capital acumule dízimas ao subtrair a parcela
+      const lucroParc = arredondarMoeda(contrato.lucroJurosPorParcela || 0);
+      const valorParc = arredondarMoeda(contrato.valorParcela || 0);
+      const amortizacao = arredondarMoeda(valorParc - lucroParc);
+      let novoSaldo = arredondarMoeda((contrato.capital || 0) - amortizacao);
       if (novoSaldo < 0) novoSaldo = 0;
 
       let h = [...(contrato.movimentacoes || [])];
-      let msgPag = t('historico.recebido', { data: dataPagamento, valor: ((contrato.valorParcela||0)+vMulta).toFixed(2) });
+      let msgPag = t('historico.recebido', { data: dataPagamento, valor: (valorParc + vMulta).toFixed(2) });
       if (vMulta > 0) msgPag += ` (${t('historico.comMulta', { valor: vMulta.toFixed(2) })})`;
       h.unshift(msgPag);
 
-      let updates: any = { multas_pagas: (contrato.multasPagas || 0) + vMulta, lucro_total: (contrato.lucroTotal || 0) + lucroParc, parcelas_pagas: qtdPagas, movimentacoes: h };
+      let updates: any = { 
+          multas_pagas: arredondarMoeda((contrato.multasPagas || 0) + vMulta), 
+          lucro_total: arredondarMoeda((contrato.lucroTotal || 0) + lucroParc), 
+          parcelas_pagas: qtdPagas, 
+          movimentacoes: h 
+      };
 
       if (qtdPagas >= (contrato.totalParcelas || 0) || novoSaldo <= 0.1) {
          h.unshift(t('historico.finalizado', { data: dataPagamento }));
@@ -590,7 +601,7 @@ export function useClientes() {
       const idCarteira = await garantirCarteira();
       const userId = await getUserId(); 
       if (idCarteira && userId) {
-          const valorRecebido = (contrato.valorParcela || 0) + vMulta;
+          const valorRecebido = arredondarMoeda(valorParc + vMulta);
           let descTipo = t('cadastro.segEmprestimo');
           if (contrato.frequencia === 'PARCELADO') descTipo = t('relatorio.tipoVenda');
           await supabase.from('fluxo_pessoal').insert([{
@@ -606,7 +617,7 @@ export function useClientes() {
       const cliente = clientes.find(c => c.nome === nomeCliente);
       if(cliente?.id) await refreshCliente(cliente.id); 
 
-      Alert.alert(t('common.sucesso'), `${t('pastaCliente.pagarParcela')} OK!\n💰 R$ ${((contrato.valorParcela||0)+vMulta).toFixed(2)}`);
+      Alert.alert(t('common.sucesso'), `${t('pastaCliente.pagarParcela')} OK!\n💰 R$ ${(valorParc+vMulta).toFixed(2)}`);
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao pagar."); }
   }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
 
@@ -614,13 +625,13 @@ export function useClientes() {
     try {
         const contrato = clientes.find(c => c.nome === nomeCliente)?.contratos.find(ct => ct.id === contratoId);
         const saldoAnt = contrato?.capital || 0;
-        const lucroAcordo = valorTotal - saldoAnt;
-        const valorParc = valorTotal / qtd;
+        const lucroAcordo = arredondarMoeda(valorTotal - saldoAnt);
+        const valorParc = arredondarMoeda(valorTotal / qtd);
 
         const updates = {
-            status: 'PARCELADO', capital: valorTotal, total_parcelas: qtd, parcelas_pagas: 0,
+            status: 'PARCELADO', capital: arredondarMoeda(valorTotal), total_parcelas: qtd, parcelas_pagas: 0,
             valor_parcela: valorParc, valor_multa_diaria: multaDiaria,
-            lucro_juros_por_parcela: lucroAcordo > 0 ? (lucroAcordo / qtd) : 0,
+            lucro_juros_por_parcela: lucroAcordo > 0 ? arredondarMoeda(lucroAcordo / qtd) : 0,
             proximo_vencimento: paraBancoISO(data),
             movimentacoes: [t('historico.acordo', { data, valor: valorTotal.toFixed(2), qtd }), ...(contrato?.movimentacoes || [])]
         };
@@ -636,22 +647,21 @@ export function useClientes() {
 
   const abaterEmprestimo = useCallback(async (nomeCliente: string, contrato: Contrato, valorPago: number, multaPaga: number, dataPagamento: string) => {
     try {
-        // 🚀 MATEMÁTICA BLINDADA AQUI TAMBÉM 🚀
         let jurosAtual = 0;
         const jurosSalvo = contrato.lucroJurosPorParcela || 0;
 
         if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
-            jurosAtual = jurosSalvo;
+            jurosAtual = arredondarMoeda(jurosSalvo);
         } else {
             if (jurosSalvo > 0) {
-                jurosAtual = Number(jurosSalvo);
+                jurosAtual = arredondarMoeda(jurosSalvo);
             } else {
-                jurosAtual = contrato.capital * (contrato.taxa / 100);
+                jurosAtual = arredondarMoeda(contrato.capital * (contrato.taxa / 100));
             }
         }
         
-        const dividaTotal = contrato.capital + jurosAtual;
-        const novoCapital = dividaTotal - valorPago;
+        const dividaTotal = arredondarMoeda(contrato.capital + jurosAtual);
+        const novoCapital = arredondarMoeda(dividaTotal - valorPago);
 
         if (novoCapital <= 0) return Alert.alert(t('common.erro'), "O valor quita o contrato. Use a opção 'Quitar'.");
 
@@ -684,8 +694,8 @@ export function useClientes() {
 
         const updates: any = {
             capital: novoCapital,
-            lucro_total: (contrato.lucroTotal || 0) + lucroRegistrado,
-            multas_pagas: (contrato.multasPagas || 0) + multaPaga,
+            lucro_total: arredondarMoeda((contrato.lucroTotal || 0) + lucroRegistrado),
+            multas_pagas: arredondarMoeda((contrato.multasPagas || 0) + multaPaga),
             proximo_vencimento: paraBancoISO(d.toLocaleDateString(i18n.language)),
             movimentacoes: h
         };
@@ -693,13 +703,12 @@ export function useClientes() {
         if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
             const parcelasRestantes = (contrato.totalParcelas || 1) - (contrato.parcelasPagas || 0);
             if (parcelasRestantes > 0) {
-                const novoJurosTotal = novoCapital * (contrato.taxa / 100);
-                updates.lucro_juros_por_parcela = novoJurosTotal / parcelasRestantes;
-                updates.valor_parcela = (novoCapital + novoJurosTotal) / parcelasRestantes;
+                const novoJurosTotal = arredondarMoeda(novoCapital * (contrato.taxa / 100));
+                updates.lucro_juros_por_parcela = arredondarMoeda(novoJurosTotal / parcelasRestantes);
+                updates.valor_parcela = arredondarMoeda((novoCapital + novoJurosTotal) / parcelasRestantes);
             }
         } else {
-            // Recalcula o próximo Juro cravado no novo capital
-            updates.lucro_juros_por_parcela = novoCapital * (contrato.taxa / 100);
+            updates.lucro_juros_por_parcela = arredondarMoeda(novoCapital * (contrato.taxa / 100));
         }
 
         const { error } = await supabase.from('contratos').update(updates).eq('id', contrato.id);
@@ -708,7 +717,7 @@ export function useClientes() {
         const idCarteira = await garantirCarteira();
         const userId = await getUserId();
         if (idCarteira && userId) {
-            const totalEntrada = valorPago + multaPaga;
+            const totalEntrada = arredondarMoeda(valorPago + multaPaga);
             if (totalEntrada > 0) {
                 await supabase.from('fluxo_pessoal').insert([{
                     tipo: 'ENTRADA',
