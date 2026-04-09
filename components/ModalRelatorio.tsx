@@ -46,45 +46,48 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
   const analisarLog = (logStr: string) => {
       const lowerLog = logStr.toLowerCase();
       
+      // 🏷️ O PDF agora é inteligente: procura a etiqueta do lucro exato que salvamos!
+      const lucroMatch = logStr.match(/\[L:([\d\.,]+)\]/);
+      const lucroExato = lucroMatch ? limparValor(lucroMatch[1]) : null;
+      
       if (lowerLog.includes('iniciado') || lowerLog.includes('criado') || lowerLog.includes('empréstimo')) {
           let capitalStr = logStr.match(/(?:R\$\s?|valor:\s?)([\d\.,]+)/i);
           if (lowerLog.includes('parcelado') || lowerLog.match(/\dx de/)) {
                const matchParc = logStr.match(/(\d+)x de R\$\s?([\d\.,]+)/i);
                if (matchParc) {
-                   return { tipo: 'CRIACAO', valorTotal: 0, capital: 0, lucro: 0, multa: 0 }; 
+                   return { tipo: 'CRIACAO', valorTotal: 0, capital: 0, lucro: 0, multa: 0, lucroExato: null }; 
                }
           }
           const val = capitalStr ? limparValor(capitalStr[1]) : 0;
-          return { tipo: 'CRIACAO', valorTotal: val, capital: val, lucro: 0, multa: 0 };
+          return { tipo: 'CRIACAO', valorTotal: val, capital: val, lucro: 0, multa: 0, lucroExato: null };
       }
       
       if (lowerLog.includes('renova')) {
           const juros = extrairValor(logStr, /R\$\s?([\d\.,]+)/i); 
           const multa = lowerLog.includes('multa') ? extrairValor(logStr, /multa.*?R\$\s?([\d\.,]+)/i) : 0;
-          return { tipo: 'RENOVACAO', valorTotal: juros + multa, capital: 0, lucro: juros, multa: multa };
+          return { tipo: 'RENOVACAO', valorTotal: juros + multa, capital: 0, lucro: juros, multa: multa, lucroExato };
       }
       
-      // ⬇️ LÓGICA DE ABATIMENTO: FÓRMULA REVERSA ⬇️
       if (lowerLog.includes('abatimento')) {
           const recebido = extrairValor(logStr, /recebido r\$\s?([\d\.,]+)/i);
           const multa = lowerLog.includes('multa') ? extrairValor(logStr, /multa r\$\s?([\d\.,]+)/i) : 0;
           const novoCapital = extrairValor(logStr, /novo capital base: r\$\s?([\d\.,]+)/i);
-          return { tipo: 'ABATIMENTO', valorTotal: recebido + multa, capital: 0, lucro: 0, multa: multa, brutoParcela: recebido, novoCapital: novoCapital };
+          return { tipo: 'ABATIMENTO', valorTotal: recebido + multa, capital: 0, lucro: 0, multa: multa, brutoParcela: recebido, novoCapital: novoCapital, lucroExato };
       }
       
       if (lowerLog.includes('recebid')) {
           const parcelaBruta = extrairValor(logStr, /R\$\s?([\d\.,]+)/i);
           const multa = lowerLog.includes('multa') ? extrairValor(logStr, /multa.*?R\$\s?([\d\.,]+)/i) : 0;
-          return { tipo: 'PARCELA', valorTotal: parcelaBruta, capital: 0, lucro: 0, multa: multa, brutoParcela: parcelaBruta - multa };
+          return { tipo: 'PARCELA', valorTotal: parcelaBruta, capital: 0, lucro: 0, multa: multa, brutoParcela: parcelaBruta - multa, lucroExato };
       }
       
       if (lowerLog.includes('quitado')) {
            const totalPago = extrairValor(logStr, /R\$\s?([\d\.,]+)/i);
            const multa = lowerLog.includes('multa') ? extrairValor(logStr, /multa.*?R\$\s?([\d\.,]+)/i) : 0;
-           return { tipo: 'QUITACAO', valorTotal: totalPago, capital: 0, lucro: 0, multa: multa, brutoQuitacao: totalPago - multa };
+           return { tipo: 'QUITACAO', valorTotal: totalPago, capital: 0, lucro: 0, multa: multa, brutoQuitacao: totalPago - multa, lucroExato };
       }
 
-      return { tipo: 'OUTRO', valorTotal: 0, capital: 0, lucro: 0, multa: 0 };
+      return { tipo: 'OUTRO', valorTotal: 0, capital: 0, lucro: 0, multa: 0, lucroExato: null };
   };
 
   const gerarRelatorio = async () => {
@@ -141,10 +144,28 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
             }
 
             let capitalOriginal = con.capital || 0;
-            const logCriacao = movs.find(m => m.toLowerCase().includes('iniciado') || m.toLowerCase().includes('criado') || m.toLowerCase().includes('empréstimo'));
-            if (logCriacao) {
-                const val = extrairValor(logCriacao, /R\$\s?([\d\.,]+)/i);
-                if (val > 0) capitalOriginal = val;
+            
+            if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(con.frequencia || '')) {
+                const totParc = con.totalParcelas || 1;
+                const valParc = con.valorParcela || 0;
+                const lucParc = con.lucroJurosPorParcela || 0;
+                const capCalculado = parseFloat(((valParc - lucParc) * totParc).toFixed(2));
+                
+                if (capCalculado > 0) {
+                    capitalOriginal = capCalculado;
+                } else {
+                    const logCriacao = movs.find(m => m.toLowerCase().includes('iniciado') || m.toLowerCase().includes('criado') || m.toLowerCase().includes('empréstimo'));
+                    if (logCriacao) {
+                        const val = extrairValor(logCriacao, /R\$\s?([\d\.,]+)/i);
+                        if (val > 0) capitalOriginal = val;
+                    }
+                }
+            } else {
+                const logCriacao = movs.find(m => m.toLowerCase().includes('iniciado') || m.toLowerCase().includes('criado') || m.toLowerCase().includes('empréstimo'));
+                if (logCriacao) {
+                    const val = extrairValor(logCriacao, /R\$\s?([\d\.,]+)/i);
+                    if (val > 0) capitalOriginal = val;
+                }
             }
 
             if (!isNaN(dataInicioCon.getTime()) && dataInicioCon >= dtInicio && dataInicioCon <= dtFim) {
@@ -172,7 +193,7 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     let descDisplay = '';
 
                     if (analise.tipo === 'RENOVACAO') {
-                        valLucro = analise.lucro;
+                        valLucro = analise.lucroExato !== null ? analise.lucroExato : analise.lucro;
                         valCapitalRecuperado = 0;
                         descDisplay = t('relatorio.renovacao') || 'Renovação';
                     } 
@@ -181,7 +202,9 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                         const novoCap = analise.novoCapital!;
                         const dividaTotal = novoCap + bruto;
                         
-                        if (con.frequencia === 'PARCELADO' || con.frequencia === 'SEMANAL' || con.frequencia === 'QUINZENAL' || con.frequencia === 'DIARIO') {
+                        if (analise.lucroExato !== null) {
+                            valLucro = analise.lucroExato;
+                        } else if (con.frequencia === 'PARCELADO' || con.frequencia === 'SEMANAL' || con.frequencia === 'QUINZENAL' || con.frequencia === 'DIARIO') {
                             valLucro = con.lucroJurosPorParcela || 0;
                         } else {
                             valLucro = dividaTotal * (con.taxa / (100 + con.taxa));
@@ -198,7 +221,12 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     }
                     else if (analise.tipo === 'PARCELA') {
                         const bruto = analise.brutoParcela!;
-                        if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
+                        
+                        // 🎯 Lê o lucro da etiqueta! Se não tiver etiqueta, usa a matemática velha
+                        if (analise.lucroExato !== null) {
+                            valLucro = analise.lucroExato;
+                            valCapitalRecuperado = bruto - valLucro;
+                        } else if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
                             valLucro = con.lucroJurosPorParcela;
                             valCapitalRecuperado = bruto - valLucro;
                         } else {
@@ -209,7 +237,15 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                     }
                     else if (analise.tipo === 'QUITACAO') {
                         const bruto = analise.brutoQuitacao!;
-                        if (con.frequencia === 'PARCELADO' || con.frequencia === 'SEMANAL' || con.frequencia === 'QUINZENAL' || con.frequencia === 'DIARIO') {
+                        
+                        if (analise.lucroExato !== null) {
+                            valLucro = analise.lucroExato;
+                            valCapitalRecuperado = bruto - valLucro;
+                            if (valCapitalRecuperado < 0) {
+                                valCapitalRecuperado = bruto;
+                                valLucro = 0;
+                            }
+                        } else if (con.frequencia === 'PARCELADO' || con.frequencia === 'SEMANAL' || con.frequencia === 'QUINZENAL' || con.frequencia === 'DIARIO') {
                              if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
                                  valLucro = con.lucroJurosPorParcela;
                                  valCapitalRecuperado = bruto - valLucro;
@@ -217,8 +253,11 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                                  valCapitalRecuperado = bruto;
                              }
                         } else {
-                             // FÓRMULA REVERSA: Resolve até os erros de contratos antigos
-                             valLucro = bruto * (con.taxa / (100 + con.taxa));
+                             if (con.lucroJurosPorParcela && con.lucroJurosPorParcela > 0) {
+                                 valLucro = con.lucroJurosPorParcela;
+                             } else {
+                                 valLucro = bruto * (con.taxa / (100 + con.taxa));
+                             }
                              valCapitalRecuperado = bruto - valLucro;
                              
                              if (valCapitalRecuperado < 0) {
@@ -229,6 +268,9 @@ export default function ModalRelatorio({ visivel, fechar, clientes }: Props) {
                         descDisplay = t('relatorio.quitacao') || 'Quitação';
                         stats.qtdQuitados++;
                     }
+
+                    valLucro = parseFloat(valLucro.toFixed(2));
+                    valCapitalRecuperado = parseFloat(valCapitalRecuperado.toFixed(2));
 
                     if (valLucro < 0) valLucro = 0;
                     if (valCapitalRecuperado < 0) valCapitalRecuperado = 0;

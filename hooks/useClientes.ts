@@ -9,9 +9,16 @@ export function useClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 🛡️ FUNÇÃO ARQUITETO: Mata dízimas infinitas e garante precisão exata de moeda (centavos cravados)
+  // 🛡️ MATA DÍZIMAS INFINITAS
   const arredondarMoeda = (valor: number) => {
       return Number(Number(valor).toFixed(2));
+  };
+
+  // 🛡️ FORÇA LEITURA EXATA DE VÍRGULAS
+  const parseNumerico = (val: any) => {
+      if (val === undefined || val === null || val === '') return 0;
+      if (typeof val === 'string') return Number(val.replace(',', '.'));
+      return Number(val);
   };
 
   const lerDataLocal = useCallback((dataStr: string) => {
@@ -84,6 +91,7 @@ export function useClientes() {
           totalParcelas: c.total_parcelas,
           parcelasPagas: c.parcelas_pagas,
           valorParcela: c.valor_parcela,
+          valorUltimaParcela: c.valor_ultima_parcela,
           lucroJurosPorParcela: c.lucro_juros_por_parcela
         })).sort((a: any, b: any) => b.id - a.id)
       };
@@ -238,15 +246,16 @@ export function useClientes() {
         if (!tipoReal && novoContrato.garantia && novoContrato.garantia.startsWith('PRODUTO:')) tipoReal = 'VENDA';
         if (!tipoReal) tipoReal = (novoContrato.frequencia === 'PARCELADO') ? 'VENDA' : 'EMPRESTIMO';
 
+        const capitalLido = parseNumerico(novoContrato.capital);
+
         if (tipoReal === 'EMPRESTIMO') {
             const idCarteira = await garantirCarteira();
             if (idCarteira) {
                 const { data: contasSaldo } = await supabase.rpc('buscar_saldos_contas');
                 const carteira = contasSaldo?.find((c: any) => c.nome === 'Carteira');
                 const saldoAtual = carteira ? parseFloat(carteira.saldo) : 0;
-                const valorEmprestimo = Number(novoContrato.capital);
-
-                if (saldoAtual < valorEmprestimo) {
+                
+                if (saldoAtual < capitalLido) {
                     if (Platform.OS === 'web') {
                         const confirmacao = window.confirm(
                             `${t('fluxo.aviso')}\nSaldo insuficiente (R$ ${saldoAtual.toFixed(2)}). Continuar?`
@@ -278,26 +287,27 @@ export function useClientes() {
             return paraBancoISO(d.toLocaleDateString(i18n.language)); 
         };
 
+        const jurosLido = parseNumerico(novoContrato.valorJuros);
+        let taxaLida = parseNumerico(novoContrato.taxa);
         let valorJurosExato = 0;
 
-        // 🛡️ SANITIZAÇÃO DE ENTRADA: Trava a dízima no momento da criação
-        if (novoContrato.valorJuros && Number(novoContrato.valorJuros) > 0) {
-            valorJurosExato = arredondarMoeda(Number(novoContrato.valorJuros));
-            if (novoContrato.capital > 0) {
-               novoContrato.taxa = (valorJurosExato / novoContrato.capital) * 100;
+        if (jurosLido > 0) {
+            valorJurosExato = arredondarMoeda(jurosLido);
+            if (capitalLido > 0) {
+               taxaLida = (valorJurosExato / capitalLido) * 100;
             }
         } else {
-            valorJurosExato = arredondarMoeda(novoContrato.capital * (novoContrato.taxa / 100));
+            valorJurosExato = arredondarMoeda(capitalLido * (taxaLida / 100));
         }
 
         let contratoDB: any = {
             cliente_id: cliente.id,
-            capital: arredondarMoeda(novoContrato.capital),
-            taxa: novoContrato.taxa,
+            capital: arredondarMoeda(capitalLido),
+            taxa: taxaLida,
             frequencia: novoContrato.frequencia,
             data_inicio: paraBancoISO(dataBaseStr),
             garantia: novoContrato.garantia,
-            valor_multa_diaria: novoContrato.valorMultaDiaria || 0,
+            valor_multa_diaria: parseNumerico(novoContrato.valorMultaDiaria) || 0,
             status: 'ATIVO',
             lucro_total: 0, multas_pagas: 0, movimentacoes: []
         };
@@ -305,51 +315,64 @@ export function useClientes() {
         const freq = novoContrato.frequencia;
         const descHist = tipoReal === 'VENDA' ? t('relatorio.tipoVenda') : t('cadastro.segEmprestimo');
 
+        const calcularParcelas = (totalDivida: number, qtdParcelas: number) => {
+            const valorParcNormal = arredondarMoeda(totalDivida / qtdParcelas);
+            const totalPagoAntesDaUltima = arredondarMoeda(valorParcNormal * (qtdParcelas - 1));
+            const valorUltimaParcela = arredondarMoeda(totalDivida - totalPagoAntesDaUltima);
+            return { valorParcNormal, valorUltimaParcela };
+        };
+
         if (freq === 'PARCELADO') {
             const parc = parseInt(novoContrato.totalParcelas || '1');
-            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
-            const valorParc = arredondarMoeda(total / parc);
+            const total = arredondarMoeda(capitalLido + valorJurosExato);
+            const { valorParcNormal, valorUltimaParcela } = calcularParcelas(total, parc);
+            
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = parc;
-            contratoDB.valor_parcela = valorParc;
+            contratoDB.valor_parcela = valorParcNormal;
+            contratoDB.valor_ultima_parcela = valorUltimaParcela;
             contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / parc);
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
-            contratoDB.movimentacoes = [t('historico.criadoParcelado', { data: dataBaseStr, tipo: descHist, qtd: parc, valor: valorParc.toFixed(2) })];
+            contratoDB.movimentacoes = [t('historico.criadoParcelado', { data: dataBaseStr, tipo: descHist, qtd: parc, valor: valorParcNormal.toFixed(2) })];
         
         } else if (freq === 'SEMANAL') {
             const qtd = novoContrato.qtdSemanas || novoContrato.totalParcelas || 4; 
-            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
-            const parc = arredondarMoeda(total / qtd); 
+            const total = arredondarMoeda(capitalLido + valorJurosExato);
+            const { valorParcNormal, valorUltimaParcela } = calcularParcelas(total, qtd);
+
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = qtd; 
-            contratoDB.valor_parcela = parc;
+            contratoDB.valor_parcela = valorParcNormal;
+            contratoDB.valor_ultima_parcela = valorUltimaParcela;
             contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / qtd); 
             contratoDB.proximo_vencimento = addDias(dataBaseStr, 7);
-            contratoDB.movimentacoes = [t('historico.criadoSemanal', { data: dataBaseStr, tipo: descHist, valor: parc.toFixed(2) })];
+            contratoDB.movimentacoes = [t('historico.criadoSemanal', { data: dataBaseStr, tipo: descHist, valor: valorParcNormal.toFixed(2) })];
         
         } else if (freq === 'QUINZENAL') {
             const qtd = novoContrato.qtdQuinzenas || novoContrato.totalParcelas || 2;
-            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
-            const parc = arredondarMoeda(total / qtd);
+            const total = arredondarMoeda(capitalLido + valorJurosExato);
+            const { valorParcNormal, valorUltimaParcela } = calcularParcelas(total, qtd);
+
             contratoDB.status = 'PARCELADO';
             contratoDB.total_parcelas = qtd;
-            contratoDB.valor_parcela = parc;
+            contratoDB.valor_parcela = valorParcNormal;
+            contratoDB.valor_ultima_parcela = valorUltimaParcela;
             contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / qtd);
             contratoDB.proximo_vencimento = addDias(dataBaseStr, 15);
-            contratoDB.movimentacoes = [`Criado Quinzenal - ${qtd} parcelas de R$ ${parc.toFixed(2)}`];
+            contratoDB.movimentacoes = [`Criado Quinzenal - ${qtd} parcelas de R$ ${valorParcNormal.toFixed(2)}`];
 
         } else if (freq === 'DIARIO' && novoContrato.diasDiario) {
             const dias = parseInt(novoContrato.diasDiario);
-            const total = arredondarMoeda(Number(novoContrato.capital) + valorJurosExato);
-            const parc = arredondarMoeda(total / dias);
+            const total = arredondarMoeda(capitalLido + valorJurosExato);
+            const { valorParcNormal, valorUltimaParcela } = calcularParcelas(total, dias);
+
             contratoDB.status = 'PARCELADO';
             contratoDB.dias_diario = dias;
             contratoDB.dias_semana_diario = novoContrato.diasSemanaDiario; 
-            
             contratoDB.datas_excluidas = novoContrato.datasExcluidas; 
-            
             contratoDB.total_parcelas = dias;
-            contratoDB.valor_parcela = parc;
+            contratoDB.valor_parcela = valorParcNormal;
+            contratoDB.valor_ultima_parcela = valorUltimaParcela;
             contratoDB.lucro_juros_por_parcela = arredondarMoeda(valorJurosExato / dias);
             
             let nextDate = lerDataLocal(dataBaseStr);
@@ -370,12 +393,12 @@ export function useClientes() {
                 }
             }
             contratoDB.proximo_vencimento = paraBancoISO(nextDate.toLocaleDateString(i18n.language));
-            contratoDB.movimentacoes = [t('historico.criadoDiario', { data: dataBaseStr, tipo: descHist, dias: dias, valor: parc.toFixed(2) })];
+            contratoDB.movimentacoes = [t('historico.criadoDiario', { data: dataBaseStr, tipo: descHist, dias: dias, valor: valorParcNormal.toFixed(2) })];
         
         } else {
             contratoDB.lucro_juros_por_parcela = valorJurosExato; 
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
-            contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: Number(novoContrato.capital).toFixed(2) })];
+            contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: capitalLido.toFixed(2) })];
         }
 
         const { error } = await supabase.from('contratos').insert([contratoDB]);
@@ -393,7 +416,7 @@ export function useClientes() {
 
                   await supabase.from('fluxo_pessoal').insert([{
                     tipo: 'SAIDA',
-                    valor: arredondarMoeda(novoContrato.capital),
+                    valor: arredondarMoeda(capitalLido),
                     descricao: `${descTipo} p/ ${nomeCliente}`,
                     data_movimento: paraBancoISO(dataBaseStr),
                     conta_id: idCarteira,
@@ -411,8 +434,15 @@ export function useClientes() {
       let vJuro = 0;
       const jurosSalvo = contrato.lucroJurosPorParcela || 0;
 
+      // 🔥 LÓGICA BLINDADA: Se quitar na última parcela, engole os centavos do lucro também!
       if (['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
-          vJuro = arredondarMoeda(jurosSalvo);
+          const isUltimaAcao = ((contrato.parcelasPagas || 0) + 1) >= (contrato.totalParcelas || 1);
+          if (tipo !== 'RENOVAR' && isUltimaAcao && (contrato as any).valorUltimaParcela > 0) {
+              const valorParcUltima = arredondarMoeda((contrato as any).valorUltimaParcela);
+              vJuro = arredondarMoeda(valorParcUltima - (contrato.capital || 0));
+          } else {
+              vJuro = arredondarMoeda(jurosSalvo);
+          }
       } else {
           if (jurosSalvo > 0) {
               vJuro = arredondarMoeda(jurosSalvo);
@@ -465,7 +495,7 @@ export function useClientes() {
 
           let msg = t('historico.renovacao', { data: dataInformada, juros: vJuro.toFixed(2) });
           if(vMulta > 0) msg += ` + ${t('historico.comMulta', { valor: vMulta.toFixed(2) })}`;
-          msg += `)`;
+          msg += `) [L:${vJuro.toFixed(2)}]`; 
           h.unshift(msg);
 
           updates = {
@@ -493,6 +523,7 @@ export function useClientes() {
           const total = arredondarMoeda(contrato.capital + vJuro + vMulta);
           let msgQuit = t('historico.quitado', { data: dataInformada, total: total.toFixed(2) });
           if (vMulta > 0) msgQuit += ` (${t('historico.comMulta', { valor: vMulta.toFixed(2) })})`;
+          msgQuit += ` [L:${vJuro.toFixed(2)}]`; 
           h.unshift(msgQuit);
 
           updates = { status: 'QUITADO', capital: 0, lucro_total: arredondarMoeda((contrato.lucroTotal||0) + vJuro), multas_pagas: arredondarMoeda((contrato.multasPagas||0) + vMulta), movimentacoes: h };
@@ -543,10 +574,21 @@ export function useClientes() {
       }
 
       const qtdPagas = (contrato.parcelasPagas || 0) + 1;
+      const isUltimaParcela = qtdPagas >= (contrato.totalParcelas || 1);
       
-      // 🛡️ SANITIZAÇÃO NA HORA DE PAGAR: Impede que o Capital acumule dízimas ao subtrair a parcela
-      const lucroParc = arredondarMoeda(contrato.lucroJurosPorParcela || 0);
-      const valorParc = arredondarMoeda(contrato.valorParcela || 0);
+      let lucroParc = arredondarMoeda(contrato.lucroJurosPorParcela || 0);
+      let valorParc = arredondarMoeda(contrato.valorParcela || 0);
+
+      // 🔥 A MATEMÁTICA ABSOLUTA: Sem porcentagens, sem dízimas!
+      if (isUltimaParcela && ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '')) {
+          if ((contrato as any).valorUltimaParcela && (contrato as any).valorUltimaParcela > 0) {
+              valorParc = arredondarMoeda((contrato as any).valorUltimaParcela);
+          }
+          // O lucro da última parcela é O Valor Pago MENOS O que sobrou da dívida original.
+          // Isso zera o capital perfeitamente e joga os centavos pro lucro!
+          lucroParc = arredondarMoeda(valorParc - (contrato.capital || 0));
+      }
+
       const amortizacao = arredondarMoeda(valorParc - lucroParc);
       let novoSaldo = arredondarMoeda((contrato.capital || 0) - amortizacao);
       if (novoSaldo < 0) novoSaldo = 0;
@@ -554,6 +596,9 @@ export function useClientes() {
       let h = [...(contrato.movimentacoes || [])];
       let msgPag = t('historico.recebido', { data: dataPagamento, valor: (valorParc + vMulta).toFixed(2) });
       if (vMulta > 0) msgPag += ` (${t('historico.comMulta', { valor: vMulta.toFixed(2) })})`;
+      
+      // 🏷️ Etiqueta invisível de PDF
+      msgPag += ` [L:${lucroParc.toFixed(2)}]`;
       h.unshift(msgPag);
 
       let updates: any = { 
@@ -563,7 +608,7 @@ export function useClientes() {
           movimentacoes: h 
       };
 
-      if (qtdPagas >= (contrato.totalParcelas || 0) || novoSaldo <= 0.1) {
+      if (isUltimaParcela || novoSaldo <= 0.1) {
          h.unshift(t('historico.finalizado', { data: dataPagamento }));
          updates.status = 'QUITADO';
          updates.capital = 0;
@@ -671,6 +716,7 @@ export function useClientes() {
         let msg = `Abatimento Parcial: Recebido R$ ${valorPago.toFixed(2)}`;
         if (multaPaga > 0) msg += ` + Multa R$ ${multaPaga.toFixed(2)}`;
         msg += ` | Novo Capital Base: R$ ${novoCapital.toFixed(2)} em ${dataPagamento}`;
+        msg += ` [L:${lucroRegistrado.toFixed(2)}]`; 
         h.unshift(msg);
 
         const d = lerDataLocal(contrato.proximoVencimento || dataPagamento);
