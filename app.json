@@ -3,7 +3,7 @@
     "name": "Axoryn Control",
     "slug": "axoryn-control",
     "owner": "axoryntech",
-    "version": "1.0.14",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "axoryn",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.axoryn.control",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIBackgroundModes": [
@@ -34,7 +34,7 @@
         "backgroundColor": "#1a2a3a"
       },
       "package": "com.axoryn.control",
-      "versionCode": 15,
+      "versionCode": 16,
       "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "permissions": [
@@ -60,7 +60,18 @@
           "defaultChannel": "default"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "1652425572435939",
+          "clientToken": "653db828caeb16aac0bdefe262aa777a",
+          "displayName": "Axoryn Control",
+          "advertiserIDCollectionEnabled": true,
+          "autoLogAppEventsEnabled": true
+        }
+      ],
+      "expo-tracking-transparency"
     ],
     "experiments": {
       "typedRoutes": true
