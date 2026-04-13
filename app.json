@@ -19,13 +19,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.axoryn.control",
-      "buildNumber": "16",
+      "buildNumber": "17",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "O Axoryn Control precisa de acesso à câmera para permitir que você leia códigos de barras de produtos no PDV e capture fotos de documentos para os registros e cadastros.",
+        "NSPhotoLibraryUsageDescription": "O Axoryn Control precisa acessar sua galeria de fotos para que você possa selecionar e anexar imagens de documentos aos perfis de clientes e atualizar fotos do inventário."
       }
     },
     "android": {
@@ -34,7 +36,7 @@
         "backgroundColor": "#1a2a3a"
       },
       "package": "com.axoryn.control",
-      "versionCode": 16,
+      "versionCode": 17,
       "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "permissions": [
