@@ -6,14 +6,20 @@ type Props = {
   visivel: boolean;
   tipo: string; // 'RENOVAR' ou 'QUITAR'
   fechar: () => void;
-  confirmar: (dataInformada: string) => void;
+  // 🚀 ADICIONADO: confirmar agora envia a data e a multa (se houver)
+  confirmar: (dataInformada: string, multaCobrada?: number) => void;
+  // 🚀 ADICIONADO: contrato para poder calcular a multa na tela
+  contrato?: any; 
 };
 
-export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
+export default function ModalAcao({ visivel, tipo, fechar, confirmar, contrato }: Props) {
   const { t } = useTranslation(); // <--- Hook de tradução
   
   // Voltamos para string simples para digitação manual
   const [data, setData] = useState('');
+
+  // 🚀 ADICIONADO: Estado para controlar o valor da multa editável na tela
+  const [multaEditavel, setMultaEditavel] = useState('0');
 
   // Toda vez que abrir o modal, reseta a data para hoje (formatada DD/MM/AAAA)
   useEffect(() => {
@@ -25,6 +31,45 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
       setData(`${dia}/${mes}/${ano}`);
     }
   }, [visivel]);
+
+  // 🚀 ADICIONADO: Recalcula a multa se mudar a data
+  useEffect(() => {
+    if (contrato && contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
+        let dtPag = new Date();
+        const partesData = data.split('/');
+        if (partesData.length === 3 && partesData[2].length === 4) {
+            dtPag = new Date(Number(partesData[2]), Number(partesData[1]) - 1, Number(partesData[0]));
+        }
+
+        let dtVenc = new Date();
+        if(contrato.proximoVencimento.includes('-')) {
+             const [y, m, d] = contrato.proximoVencimento.split('-');
+             dtVenc = new Date(Number(y), Number(m)-1, Number(d));
+        } else {
+             const pVenc = contrato.proximoVencimento.split('/');
+             if (pVenc.length === 3 && pVenc[2].length === 4) {
+                 dtVenc = new Date(Number(pVenc[2]), Number(pVenc[1])-1, Number(pVenc[0])); 
+             }
+        }
+
+        const diff = Math.ceil((dtPag.getTime() - dtVenc.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff > 0 && !isNaN(diff)) {
+            const m = diff * contrato.valorMultaDiaria;
+            setMultaEditavel(m.toFixed(2));
+        } else {
+            setMultaEditavel('0');
+        }
+    } else {
+        setMultaEditavel('0');
+    }
+  }, [data, contrato]);
+
+  // 🚀 ADICIONADO: Função para processar o valor formatado ao confirmar
+  const handleConfirmar = () => {
+    let m = parseFloat(multaEditavel.replace(',', '.'));
+    if (isNaN(m)) m = 0;
+    confirmar(data, m);
+  };
 
   // Define a cor baseada no tipo de ação
   const corPrincipal = tipo === 'QUITAR' ? '#27AE60' : '#2980B9';
@@ -50,6 +95,20 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
 
           <View style={styles.corpo}>
             <Text style={styles.descricao}>{textoDescricao}</Text>
+
+            {/* 🚀 ADICIONADO: Campo editável de multa se houver */}
+            {(contrato && contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) ? (
+                <View style={{marginBottom: 15, alignItems: 'center'}}>
+                    <Text style={{fontSize: 12, fontWeight: 'bold', color: '#E74C3C', marginBottom: 5}}>Valor da Multa R$</Text>
+                    <TextInput 
+                      style={[styles.input, { borderColor: '#E74C3C', borderWidth: 1, paddingVertical: 8, marginBottom: 5 }]} 
+                      value={multaEditavel} 
+                      onChangeText={setMultaEditavel} 
+                      keyboardType="numeric"
+                    />
+                    <Text style={{fontSize: 10, color: '#7f8c8d'}}>(Edite o valor para dar desconto)</Text>
+                </View>
+            ) : null}
             
             <Text style={styles.label}>{t('modalAcao.labelData')}</Text>
             
@@ -65,7 +124,7 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar }: Props) {
             
             <TouchableOpacity 
               style={[styles.botaoConfirmar, { backgroundColor: corPrincipal }]} 
-              onPress={() => confirmar(data)}
+              onPress={handleConfirmar}
             >
               <Text style={styles.textoBotao}>
                 {t('modalAcao.btnConfirmar')} {tituloTraduzido}

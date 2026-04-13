@@ -594,7 +594,7 @@ export default function PastaCliente({
                 </View>
               ) : null}
 
-              {con.status === 'ATIVO' ? (
+              {con.status !== 'QUITADO' ? (
                 <TouchableOpacity onPress={() => aoNegociar(con)} style={styles.btnNegociar}><Text style={styles.txtBtn}>{t('pastaCliente.negociar')}</Text></TouchableOpacity>
               ) : null}
 

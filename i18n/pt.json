@@ -356,6 +356,16 @@
     "rodape2": "Este extrato serve para simples conferência.",
     "erroGerar": "Falha ao gerar PDF."
   },
+  "editarEmprestimo": {
+    "titulo": "Editar Empréstimo",
+    "capital": "Capital (Valor Emprestado)",
+    "taxa": "Taxa de Juros (%)",
+    "lucroTotal": "Lucro Total (Acumulado)",
+    "dataInicio": "Data de Início",
+    "proximoVencimento": "Próximo Vencimento",
+    "multaDiaria": "Multa por dia",
+    "btnSalvar": "SALVAR CORREÇÃO"
+  },
   "relatorio": {
     "tituloModal": "Gerar Relatório Master",
     "dataInicial": "Data Inicial",

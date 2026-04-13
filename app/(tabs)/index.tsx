@@ -167,9 +167,10 @@ export default function VertoApp() {
   const abrirEdicaoContrato = (con: any, nomeCli: string) => { setClienteEditandoNome(nomeCli); setContratoSendoEditado(con); setModalEditarCon(true); };
   const salvarEdicaoContrato = async (dados: any) => { await editarContrato(clienteEditandoNome, contratoSendoEditado.id, dados); setModalEditarCon(false); setContratoSendoEditado(null); };
 
-  const confirmarAcao = async (data: string) => {
+  // 🚀 ATUALIZADO: Agora repassa a multa (se houver) do Modal para o Hook
+  const confirmarAcao = async (data: string, multaCobrada?: number) => {
     const { tipo, contrato, cliente } = modalAcao;
-    if(contrato) await acaoRenovarQuitar(tipo, contrato, cliente, data);
+    if(contrato) await acaoRenovarQuitar(tipo, contrato, cliente, data, multaCobrada);
     setModalAcao({ visivel: false, tipo: '', contrato: null, cliente: '' });
   };
 
@@ -179,9 +180,10 @@ export default function VertoApp() {
     setModalParcelamento({ visivel: false, contrato: null, cliente: '' });
   };
 
-  const confirmarPagamentoParcela = async (data: string) => {
+  // 🚀 ATUALIZADO: Agora repassa a multa editada no Modal para o Hook
+  const confirmarPagamentoParcela = async (data: string, multaCobrada?: number) => {
     const { contrato, clienteNome } = modalPagarParcela;
-    if (contrato) await pagarParcela(clienteNome, contrato, data);
+    if (contrato) await pagarParcela(clienteNome, contrato, data, multaCobrada);
     setModalPagarParcela({ visivel: false, contrato: null, clienteNome: '' });
   };
 
@@ -281,7 +283,10 @@ export default function VertoApp() {
 
       <ModalEditarCliente visivel={modalEditarCliente} clienteOriginal={clienteSendoEditado} fechar={() => setModalEditarCliente(false)} salvar={salvarEdicaoCliente} />
       <ModalEditarEmprestimo visivel={modalEditarCon} contratoOriginal={contratoSendoEditado} fechar={() => setModalEditarCon(false)} salvar={salvarEdicaoContrato} />
-      <ModalAcao visivel={modalAcao.visivel} tipo={modalAcao.tipo} fechar={() => setModalAcao({visivel:false, tipo:'', contrato:null, cliente:''})} confirmar={confirmarAcao} />
+      
+      {/* 🚀 ATUALIZADO: Agora repassa o contrato para o ModalAcao ler a multa diária */}
+      <ModalAcao visivel={modalAcao.visivel} tipo={modalAcao.tipo} contrato={modalAcao.contrato} fechar={() => setModalAcao({visivel:false, tipo:'', contrato:null, cliente:''})} confirmar={confirmarAcao} />
+      
       <ModalParcelamento visivel={modalParcelamento.visivel} fechar={() => setModalParcelamento({visivel:false, contrato:null, cliente:''})} confirmar={confirmarParcelamento} />
       <ModalPagarParcela visivel={modalPagarParcela.visivel} contrato={modalPagarParcela.contrato} fechar={() => setModalPagarParcela({visivel:false, contrato:null, clienteNome:''})} confirmar={confirmarPagamentoParcela} />
       <ModalRelatorio visivel={modalRelatorio} fechar={() => setModalRelatorio(false)} clientes={clientes} />

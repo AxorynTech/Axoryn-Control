@@ -50,6 +50,9 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
   const [qtdSemanas, setQtdSemanas] = useState('4');
   const [qtdQuinzenas, setQtdQuinzenas] = useState('2'); // ⬅️ Adicionado para o Quinzenal
   
+  // 🚀 ADICIONADO: Estado para a quantidade de meses do empréstimo mensal parcelado
+  const [qtdMeses, setQtdMeses] = useState('1'); 
+  
   // ⬇️ NOVO CONTROLE DOS DIAS DA SEMANA (DIÁRIO) ⬇️
   // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
   const [diasSelecionados, setDiasSelecionados] = useState<number[]>([1, 2, 3, 4, 5, 6]); 
@@ -124,6 +127,7 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
       // Reseta os novos campos
       setQtdSemanas('4');
       setQtdQuinzenas('2');
+      setQtdMeses('1'); // 🚀 ADICIONADO: Reseta os meses para 1 ao abrir a tela
       setDiasSelecionados([1, 2, 3, 4, 5, 6]); // Padrão: Segunda a Sábado
       
       // ⬇️ INJETADO: Limpa as datas excluidas ao abrir ⬇️
@@ -180,22 +184,32 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
             parcelasFinal = isNaN(p) || p < 1 ? 1 : p;
         }
     } else {
-        frequenciaFinal = frequencia;
-        
-        // ⬇️ CORREÇÃO: AGORA O TOTAL DE PARCELAS É PREENCHIDO CORRETAMENTE ⬇️
-        if (frequencia === 'SEMANAL') {
+        // 🚀 ADICIONADO: Se for MENSAL e tiver mais de 1 mês, manda como PARCELADO pro banco saber fatiar
+        if (frequencia === 'MENSAL') {
+            const m = parseInt(qtdMeses);
+            if (!isNaN(m) && m > 1) {
+                frequenciaFinal = 'PARCELADO'; 
+                parcelasFinal = m;
+            } else {
+                frequenciaFinal = 'MENSAL'; 
+                parcelasFinal = null;
+            }
+        } else if (frequencia === 'SEMANAL') {
+            frequenciaFinal = frequencia;
             const s = parseInt(qtdSemanas);
             parcelasFinal = isNaN(s) || s < 1 ? 1 : s;
         } else if (frequencia === 'QUINZENAL') {
+            frequenciaFinal = frequencia;
             const q = parseInt(qtdQuinzenas);
             parcelasFinal = isNaN(q) || q < 1 ? 1 : q;
         } else if (frequencia === 'DIARIO') {
+            frequenciaFinal = frequencia;
             const d = parseInt(diasDiario);
             parcelasFinal = isNaN(d) || d < 1 ? 1 : d;
         } else {
-            parcelasFinal = null; // Mensal continua sem parcelas definidas
+            frequenciaFinal = frequencia;
+            parcelasFinal = null;
         }
-        // ⬆️ FIM DA CORREÇÃO ⬆️
     }
 
     // --- LÓGICA DO JUROS FIXO vs PORCENTAGEM ---
@@ -450,6 +464,14 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
                       </TouchableOpacity>
                 </View>
                 
+                {/* 🚀 ADICIONADO: BLOCO MENSAL COM QUANTOS MESES 🚀 */}
+                {frequencia === 'MENSAL' && (
+                   <View style={{marginTop: 10}}>
+                     <Text style={styles.label}>Quantos Meses? (1 = Apenas Juros Mensais)</Text>
+                     <TextInput style={styles.input} value={qtdMeses} onChangeText={setQtdMeses} keyboardType="numeric" placeholder="Ex: 3" />
+                   </View>
+                )}
+
                 {/* ⬇️ BLOCO QUINZENAL ⬇️ */}
                 {frequencia === 'QUINZENAL' && (
                    <View style={{marginTop: 10}}>

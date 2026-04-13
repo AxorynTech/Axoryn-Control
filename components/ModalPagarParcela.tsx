@@ -7,7 +7,8 @@ type Props = {
   visivel: boolean;
   contrato: Contrato | null;
   fechar: () => void;
-  confirmar: (data: string) => void;
+  // 🚀 ADICIONADO: O confirmar agora envia a data E o valor final da multa
+  confirmar: (data: string, multaCobrada: number) => void;
 };
 
 export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar }: Props) {
@@ -15,6 +16,9 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
   
   const moeda = t('common.moeda', { defaultValue: 'R$' });
   const [data, setData] = useState('');
+  
+  // 🚀 ADICIONADO: Estado para controlar o valor da multa editável na tela
+  const [multaEditavel, setMultaEditavel] = useState('0');
 
   useEffect(() => {
     if (visivel) {
@@ -26,8 +30,44 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
     }
   }, [visivel]);
 
+  // 🚀 ADICIONADO: Recalcula a multa original sempre que a data mudar
+  useEffect(() => {
+    if (contrato && contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
+        let dtPag = new Date();
+        const partesData = data.split('/');
+        if (partesData.length === 3 && partesData[2].length === 4) {
+            dtPag = new Date(Number(partesData[2]), Number(partesData[1]) - 1, Number(partesData[0]));
+        }
+
+        let dtVenc = new Date();
+        if(contrato.proximoVencimento.includes('-')) {
+             const [y, m, d] = contrato.proximoVencimento.split('-');
+             dtVenc = new Date(Number(y), Number(m)-1, Number(d));
+        } else {
+             const pVenc = contrato.proximoVencimento.split('/');
+             if (pVenc.length === 3 && pVenc[2].length === 4) {
+                 dtVenc = new Date(Number(pVenc[2]), Number(pVenc[1])-1, Number(pVenc[0])); 
+             }
+        }
+
+        const diff = Math.ceil((dtPag.getTime() - dtVenc.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff > 0 && !isNaN(diff)) {
+            const m = diff * contrato.valorMultaDiaria;
+            setMultaEditavel(m.toFixed(2));
+        } else {
+            setMultaEditavel('0');
+        }
+    } else {
+        setMultaEditavel('0');
+    }
+  }, [data, contrato]);
+
   const handleConfirmar = () => {
-      confirmar(data);
+      // Pega o valor que o usuário digitou (aceita vírgula ou ponto)
+      let m = parseFloat(multaEditavel.replace(',', '.'));
+      if (isNaN(m)) m = 0;
+      
+      confirmar(data, m);
   };
 
   let valorExibicao = contrato?.valorParcela || 0;
@@ -37,25 +77,24 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
       const numParcelaAtual = (contrato.parcelasPagas || 0) + 1;
       const isUltimaParcela = numParcelaAtual >= (contrato.totalParcelas || 1);
       
-      // 🚀 FIX: A Tela agora sabe que Acordos Mensais entram na regra dos centavos
       const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '') || (contrato.totalParcelas || 0) > 1;
 
       if (isUltimaParcela && isFracionado) {
-          
           const vUltima = Number((contrato as any).valorUltimaParcela);
-          
           if (vUltima && vUltima > 0) {
               valorExibicao = vUltima;
           } else {
               const lucroParcNormal = Number(contrato.lucroJurosPorParcela || 0);
               valorExibicao = Number((contrato.capital || 0)) + lucroParcNormal;
           }
-
-          if (valorExibicao !== Number(contrato.valorParcela || 0)) {
-              isAjuste = true;
-          }
+          if (valorExibicao !== Number(contrato.valorParcela || 0)) isAjuste = true;
       }
   }
+
+  // Calcula o total baseado na multa que está digitada agora
+  let valMultaFormatada = parseFloat(multaEditavel.replace(',', '.'));
+  if (isNaN(valMultaFormatada)) valMultaFormatada = 0;
+  const valorTotal = valorExibicao + valMultaFormatada;
 
   return (
     <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar}>
@@ -70,13 +109,31 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
               <Text style={styles.descricao}>
                 {t('pagarParcela.confirmarMsg')} <Text style={{fontWeight:'bold'}}>{(contrato.parcelasPagas || 0) + 1}/{contrato.totalParcelas}</Text>?
                 {'\n'}{t('pagarParcela.valor')}: <Text style={{fontWeight:'bold', color:'#27AE60'}}>{moeda} {valorExibicao.toFixed(2)}</Text>
-                
-                {isAjuste && (
-                    <Text style={{fontSize: 11, color: '#e67e22', fontWeight: 'bold'}}>
-                      {'\n'}(Ajuste Final de Centavos)
-                    </Text>
-                )}
               </Text>
+            )}
+
+            {/* 🚀 ADICIONADO: Campo editável de multa */}
+            {(contrato && contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) ? (
+                <View style={{marginBottom: 15, alignItems: 'center'}}>
+                    <Text style={{fontSize: 12, fontWeight: 'bold', color: '#E74C3C', marginBottom: 5}}>Valor da Multa R$</Text>
+                    <TextInput 
+                      style={[styles.input, { borderColor: '#E74C3C', borderWidth: 1, paddingVertical: 8, marginBottom: 5 }]} 
+                      value={multaEditavel} 
+                      onChangeText={setMultaEditavel} 
+                      keyboardType="numeric"
+                    />
+                    <Text style={{fontSize: 10, color: '#7f8c8d'}}>(Edite o valor para dar desconto)</Text>
+                </View>
+            ) : null}
+
+            <Text style={{color: '#2C3E50', fontWeight: 'bold', fontSize: 16, textAlign: 'center', marginBottom: 20}}>
+                Total a Receber: {moeda} {valorTotal.toFixed(2)}
+            </Text>
+
+            {isAjuste && (
+                <Text style={{fontSize: 11, color: '#e67e22', fontWeight: 'bold', textAlign: 'center', marginBottom: 15}}>
+                  (Ajuste Final de Centavos na Parcela)
+                </Text>
             )}
             
             <Text style={styles.label}>{t('pagarParcela.dataPagamento')}</Text>
@@ -113,13 +170,13 @@ const styles = StyleSheet.create({
   cabecalho: { backgroundColor: '#8E44AD', padding: 15, alignItems: 'center' },
   titulo: { fontSize: 16, fontWeight: 'bold', color: '#FFF' },
   corpo: { padding: 20 },
-  descricao: { textAlign: 'center', color: '#555', marginBottom: 20, fontSize: 14, lineHeight: 20 },
+  descricao: { textAlign: 'center', color: '#555', marginBottom: 15, fontSize: 14, lineHeight: 20 },
   label: { fontSize: 12, fontWeight: 'bold', color: '#333', marginBottom: 5, marginLeft: 2 },
   input: { 
     backgroundColor: '#F1F3F4', 
     padding: 14, 
     borderRadius: 8, 
-    marginBottom: 20, 
+    marginBottom: 15, 
     fontSize: 16,
     color: '#333',
     fontWeight: 'bold',

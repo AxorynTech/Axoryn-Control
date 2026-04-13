@@ -312,7 +312,13 @@ export function useClientes() {
             lucro_total: 0, multas_pagas: 0, movimentacoes: []
         };
 
-        const freq = novoContrato.frequencia;
+        // 🚀 INJETADO: Agora, se a tela enviar MENSAL mas com totalParcelas > 1, 
+        // ele trata como PARCELADO para dividir a dívida!
+        let freq = novoContrato.frequencia;
+        if (freq === 'MENSAL' && novoContrato.totalParcelas && parseInt(novoContrato.totalParcelas) > 1) {
+            freq = 'PARCELADO'; // Força a ser fatiado!
+        }
+
         const descHist = tipoReal === 'VENDA' ? t('relatorio.tipoVenda') : t('cadastro.segEmprestimo');
 
         const calcularParcelas = (totalDivida: number, qtdParcelas: number) => {
@@ -396,6 +402,7 @@ export function useClientes() {
             contratoDB.movimentacoes = [t('historico.criadoDiario', { data: dataBaseStr, tipo: descHist, dias: dias, valor: valorParcNormal.toFixed(2) })];
         
         } else {
+            // Este é o MENSAL ORIGINAL (Infinito, sem parcelas)
             contratoDB.lucro_juros_por_parcela = valorJurosExato; 
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
             contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: capitalLido.toFixed(2) })];
@@ -429,12 +436,11 @@ export function useClientes() {
     } catch (e: any) { Alert.alert(t('common.erro'), e.message); }
   }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
 
-  const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string) => {
+  const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string, multaCobrada?: number) => {
     try {
       let vJuro = 0;
       const jurosSalvo = contrato.lucroJurosPorParcela || 0;
 
-      // 🔥 LÓGICA DE IDENTIFICAÇÃO UNIVERSAL: Se tiver mais de 1 parcela, trata como parcelado
       const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(contrato.frequencia || '') || (contrato.totalParcelas || 0) > 1;
 
       if (isFracionado) {
@@ -454,7 +460,9 @@ export function useClientes() {
       }
 
       let vMulta = 0;
-      if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
+      if (multaCobrada !== undefined) {
+          vMulta = arredondarMoeda(multaCobrada);
+      } else if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
         const dtPag = lerDataLocal(dataInformada);
         let dtVenc = new Date();
         if(contrato.proximoVencimento.includes('-')) {
@@ -559,10 +567,13 @@ export function useClientes() {
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao processar."); }
   }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
 
-  const pagarParcela = useCallback(async (nomeCliente: string, contrato: Contrato, dataPagamento: string) => {
+  const pagarParcela = useCallback(async (nomeCliente: string, contrato: Contrato, dataPagamento: string, multaCobrada?: number) => {
     try {
+      
       let vMulta = 0;
-      if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
+      if (multaCobrada !== undefined) {
+          vMulta = arredondarMoeda(multaCobrada);
+      } else if (contrato.valorMultaDiaria && contrato.valorMultaDiaria > 0) {
         let dtVenc = new Date();
         if(contrato.proximoVencimento.includes('-')) {
              const [y, m, d] = contrato.proximoVencimento.split('-');
