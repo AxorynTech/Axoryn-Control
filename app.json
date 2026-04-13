@@ -3,7 +3,7 @@
     "name": "Axoryn Control",
     "slug": "axoryn-control",
     "owner": "axoryntech",
-    "version": "1.0.13",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "axoryn",
@@ -19,13 +19,15 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.axoryn.control",
-      "buildNumber": "14",
+      "buildNumber": "17",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "O Axoryn Control precisa de acesso à câmera para permitir que você leia códigos de barras de produtos no PDV e capture fotos de documentos para os registros e cadastros.",
+        "NSPhotoLibraryUsageDescription": "O Axoryn Control precisa acessar sua galeria de fotos para que você possa selecionar e anexar imagens de documentos aos perfis de clientes e atualizar fotos do inventário."
       }
     },
     "android": {
@@ -34,7 +36,7 @@
         "backgroundColor": "#1a2a3a"
       },
       "package": "com.axoryn.control",
-      "versionCode": 14,
+      "versionCode": 17,
       "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "permissions": [
@@ -60,7 +62,18 @@
           "defaultChannel": "default"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "1652425572435939",
+          "clientToken": "653db828caeb16aac0bdefe262aa777a",
+          "displayName": "Axoryn Control",
+          "advertiserIDCollectionEnabled": true,
+          "autoLogAppEventsEnabled": true
+        }
+      ],
+      "expo-tracking-transparency"
     ],
     "experiments": {
       "typedRoutes": true

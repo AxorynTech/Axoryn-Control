@@ -102,7 +102,14 @@ export default function PastaCliente({
   };
 
   const abrirWhatsapp = (numero: string) => {
-    if (!numero) return Alert.alert("Ops", t('pastaCliente.erroZap') || "Cliente sem número cadastrado.");
+    if (!numero) {
+        if (Platform.OS === 'web') {
+            window.alert(`Ops\n${t('pastaCliente.erroZap') || "Cliente sem número cadastrado."}`);
+            return;
+        } else {
+            return Alert.alert("Ops", t('pastaCliente.erroZap') || "Cliente sem número cadastrado.");
+        }
+    }
     const apenasNumeros = numero.replace(/\D/g, '');
     Linking.openURL(`https://wa.me/55${apenasNumeros}`);
   };
@@ -114,10 +121,15 @@ export default function PastaCliente({
 
   const handleNovoEmprestimo = () => {
     if (cliente.bloqueado) {
-      return Alert.alert(
-        t('pastaCliente.bloqueadoTitulo') || "🚫 Cliente Bloqueado", 
-        t('pastaCliente.bloqueadoMsg') || "Este cliente possui um bloqueio administrativo. Remova o cadeado para criar novos empréstimos."
-      );
+      const titulo = t('pastaCliente.bloqueadoTitulo') || "🚫 Cliente Bloqueado";
+      const msg = t('pastaCliente.bloqueadoMsg') || "Este cliente possui um bloqueio administrativo. Remova o cadeado para criar novos empréstimos.";
+      
+      if (Platform.OS === 'web') {
+          window.alert(`${titulo}\n${msg}`);
+          return;
+      } else {
+          return Alert.alert(titulo, msg);
+      }
     }
     aoNovoEmprestimo();
   };
@@ -198,7 +210,11 @@ export default function PastaCliente({
           if (aoAbaterEmprestimo) {
               await aoAbaterEmprestimo(cliente.nome, contratoParaAbater, valorCap, valorJur, data);
           } else {
-              Alert.alert("Aviso", "Função de abater não está conectada na tela principal.");
+              if (Platform.OS === 'web') {
+                  window.alert("Aviso\nFunção de abater não está conectada na tela principal.");
+              } else {
+                  Alert.alert("Aviso", "Função de abater não está conectada na tela principal.");
+              }
           }
       }, 500);
   };
@@ -346,7 +362,11 @@ export default function PastaCliente({
 
     } catch (error) { 
       console.log(error);
-      Alert.alert(t('common.erro'), t('pdf.erroGerar') || "Falha ao gerar PDF."); 
+      if (Platform.OS === 'web') {
+          window.alert(`${t('common.erro')}\n${t('pdf.erroGerar') || "Falha ao gerar PDF."}`);
+      } else {
+          Alert.alert(t('common.erro'), t('pdf.erroGerar') || "Falha ao gerar PDF."); 
+      }
     }
   };
   

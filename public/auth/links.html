@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Axoryn Control | Links Oficiais</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #1a2a3a;
+            --card-bg: #243447;
+            --accent-color: #3498db;
+            --text-color: #ffffff;
+            --text-secondary: #a0aec0;
+            --success-color: #2ecc71;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 30px 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+
+        .logo {
+            width: 90px;
+            height: 90px;
+            border-radius: 22px;
+            margin-bottom: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        h1 { font-size: 1.6rem; margin-bottom: 5px; }
+        .tagline { color: var(--accent-color); font-weight: 600; margin-bottom: 20px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        .info-item {
+            background: var(--card-bg);
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .info-item i { color: var(--accent-color); margin-bottom: 5px; display: block; font-size: 1.2rem; }
+
+        .pricing-card {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            color: white;
+            box-shadow: 0 10px 20px rgba(46, 204, 113, 0.2);
+        }
+
+        .pricing-card h4 { font-size: 1.1rem; margin-bottom: 5px; }
+        .pricing-card p { font-size: 0.85rem; opacity: 0.9; }
+
+        /* LISTA ÚNICA DE LINKS PADRONIZADOS */
+        .links-list { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            margin-bottom: 30px; 
+        }
+
+        .link-item {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 14px;
+            text-decoration: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            transition: 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .link-item:hover { 
+            transform: translateY(-3px); 
+            background: #2d3f55; 
+            border-color: var(--accent-color); 
+        }
+
+        .link-item i { 
+            width: 30px; 
+            font-size: 1.3rem; 
+            margin-right: 15px; 
+            text-align: center; 
+        }
+
+        .app-section {
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid var(--card-bg);
+        }
+
+        .screenshot {
+            width: 100%;
+            border-radius: 12px;
+            margin: 15px 0;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+        }
+
+        footer { margin-top: 40px; font-size: 0.7rem; color: var(--text-secondary); line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <img src="logo.png" alt="Axoryn Logo" class="logo">
+        <h1>Axoryn Control</h1>
+        <p class="tagline">Gestão de Carteira e Vendas</p>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <i class="fas fa-globe-americas"></i>
+                175+ Países
+            </div>
+            <div class="info-item">
+                <i class="fas fa-language"></i>
+                PT | EN | ES | HI
+            </div>
+            <div class="info-item">
+                <i class="fas fa-users"></i>
+                Cadastro Clientes
+            </div>
+            <div class="info-item">
+                <i class="fas fa-hand-holding-usd"></i>
+                Empréstimos|Vendas|Controle
+            </div>
+        </div>
+
+        <div class="pricing-card">
+            <h4>14 Dias Grátis</h4>
+            <p>Plano Mensal: R$ 14,99 | Anual: R$ 149,90</p>
+        </div>
+
+        <div class="links-list">
+            <a href="https://play.google.com/store/apps/details?id=com.axoryn.control" target="_blank" class="link-item">
+                <i class="fab fa-google-play" style="color: #3bccff;"></i> Baixar na Google Play
+            </a>
+            <a href="https://apps.apple.com/br/app/axoryn-control/id6759492048" target="_blank" class="link-item">
+                <i class="fab fa-apple"></i> Baixar na App Store
+            </a>
+
+            <a href="https://wa.me/5515996292295" target="_blank" class="link-item">
+                <i class="fab fa-whatsapp" style="color: #25d366;"></i> WhatsApp Oficial
+            </a>
+            <a href="https://instagram.com/axoryncontrol" target="_blank" class="link-item">
+                <i class="fab fa-instagram" style="color: #e4405f;"></i> Siga no Instagram
+            </a>
+            <a href="https://tiktok.com/@axoryn.control" target="_blank" class="link-item">
+                <i class="fab fa-tiktok"></i> Dicas no TikTok
+            </a>
+            <a href="mailto:axoryncontrol@gmail.com" class="link-item">
+                <i class="fas fa-envelope" style="color: #f1c40f;"></i> Suporte por E-mail
+            </a>
+        </div>
+
+        <div class="app-section">
+            <p style="font-weight: 600; font-size: 0.9rem;">Interface Moderna e Intuitiva</p>
+            <img src="app-screen.png" alt="Axoryn Control App" class="screenshot">
+        </div>
+
+        <footer>
+            © 2026 Axoryn Tecnologia LTDA<br>
+            A melhor solução para pequenos e médios lojistas.
+        </footer>
+    </div>
+
+</body>
+</html>

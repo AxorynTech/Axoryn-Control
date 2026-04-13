@@ -87,7 +87,12 @@ export default function TelaProdutos() {
     if (!permissaoCamera?.granted) {
       const { granted } = await pedirPermissaoCamera();
       if (!granted) {
-        return Alert.alert(t('estoque.atencao'), "Precisamos de permissão para usar a câmera.");
+        if (Platform.OS === 'web') {
+          window.alert(`${t('estoque.atencao')}\nPrecisamos de permissão para usar a câmera.`);
+          return;
+        } else {
+          return Alert.alert(t('estoque.atencao'), "Precisamos de permissão para usar a câmera.");
+        }
       }
     }
 
@@ -127,9 +132,17 @@ export default function TelaProdutos() {
           
           if (produtoEncontrado) {
              adicionarAoCarrinho(produtoEncontrado);
-             Alert.alert("Adicionado!", `${produtoEncontrado.nome} foi para o carrinho.`);
+             if (Platform.OS === 'web') {
+                 window.alert(`Adicionado!\n${produtoEncontrado.nome} foi para o carrinho.`);
+             } else {
+                 Alert.alert("Adicionado!", `${produtoEncontrado.nome} foi para o carrinho.`);
+             }
           } else {
-             Alert.alert("Não Encontrado", `Nenhum produto cadastrado com o código:\n${data}`);
+             if (Platform.OS === 'web') {
+                 window.alert(`Não Encontrado\nNenhum produto cadastrado com o código:\n${data}`);
+             } else {
+                 Alert.alert("Não Encontrado", `Nenhum produto cadastrado com o código:\n${data}`);
+             }
           }
         } else if (modoScannerRef.current === 'CADASTRO') {
           setProdutoEmEdicao((prev) => ({ ...prev, codigo_barras: data }));
@@ -171,11 +184,22 @@ export default function TelaProdutos() {
 
   const handleCaixaInicial = async () => {
     const valor = parseFloat(valorCaixaInicial.replace(',', '.'));
-    if (!valor || valor <= 0) return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
+    if (!valor || valor <= 0) {
+        if (Platform.OS === 'web') {
+            window.alert(`${t('estoque.atencao')}\n${t('estoque.valorInvalido')}`);
+            return;
+        } else {
+            return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
+        }
+    }
     
     const sucesso = await registrarCaixaInicial(valor);
     if (sucesso) {
-        Alert.alert(t('estoque.sucesso'), t('estoque.caixaInicialSucesso'));
+        if (Platform.OS === 'web') {
+            window.alert(`${t('estoque.sucesso')}\n${t('estoque.caixaInicialSucesso')}`);
+        } else {
+            Alert.alert(t('estoque.sucesso'), t('estoque.caixaInicialSucesso'));
+        }
         setModalCaixaInicial(false);
         setValorCaixaInicial('');
     }
@@ -183,7 +207,14 @@ export default function TelaProdutos() {
 
   const handleSangria = async () => {
     const valor = parseFloat(valorSangria.replace(',', '.'));
-    if (!valor || valor <= 0) return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
+    if (!valor || valor <= 0) {
+        if (Platform.OS === 'web') {
+            window.alert(`${t('estoque.atencao')}\n${t('estoque.valorInvalido')}`);
+            return;
+        } else {
+            return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
+        }
+    }
     
     let sucesso = false;
     if (pedidoSelecionado && pedidoSelecionado.status === 'SANGRIA') {
@@ -193,7 +224,11 @@ export default function TelaProdutos() {
     }
 
     if (sucesso) {
-        Alert.alert(t('estoque.sucesso'), t('estoque.msgSangriaSucesso'));
+        if (Platform.OS === 'web') {
+            window.alert(`${t('estoque.sucesso')}\n${t('estoque.msgSangriaSucesso')}`);
+        } else {
+            Alert.alert(t('estoque.sucesso'), t('estoque.msgSangriaSucesso'));
+        }
         setModalSangria(false);
         setValorSangria('');
         setMotivoSangria('');
@@ -242,7 +277,14 @@ export default function TelaProdutos() {
         const dataVenda = new Date(v.criado_em);
         return dataVenda >= inicio && dataVenda <= fim;
     });
-    if (vendasFiltradas.length === 0) return Alert.alert(t('estoque.atencao'), t('estoque.nenhumaVendaPeriodo'));
+    if (vendasFiltradas.length === 0) {
+        if (Platform.OS === 'web') {
+            window.alert(`${t('estoque.atencao')}\n${t('estoque.nenhumaVendaPeriodo')}`);
+            return;
+        } else {
+            return Alert.alert(t('estoque.atencao'), t('estoque.nenhumaVendaPeriodo'));
+        }
+    }
     const totalFiltrado = vendasFiltradas.reduce((acc, v) => acc + v.total, 0);
     await gerarRelatorioPDF(vendasFiltradas, inicio, fim, totalFiltrado, t, i18n.language);
   };
@@ -268,7 +310,14 @@ export default function TelaProdutos() {
 
   const salvarProdutoComTexto = async () => {
     const precoNumerico = parseFloat(precoInput.replace(',', '.'));
-    if (isNaN(precoNumerico)) return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
+    if (isNaN(precoNumerico)) {
+        if (Platform.OS === 'web') {
+            window.alert(`${t('estoque.atencao')}\n${t('estoque.valorInvalido')}`);
+            return;
+        } else {
+            return Alert.alert(t('estoque.atencao'), t('estoque.valorInvalido'));
+        }
+    }
     await salvarProduto({ ...produtoEmEdicao, preco: precoNumerico });
     setModalProduto(false);
     listarProdutos();
@@ -352,7 +401,14 @@ export default function TelaProdutos() {
         sucesso = true;
     } else {
         if (tipo === 'COMANDA') {
-            if (!nomeCliente) return Alert.alert(t('estoque.atencao'), t('estoque.digiteNome'));
+            if (!nomeCliente) {
+                if (Platform.OS === 'web') {
+                    window.alert(`${t('estoque.atencao')}\n${t('estoque.digiteNome')}`);
+                    return;
+                } else {
+                    return Alert.alert(t('estoque.atencao'), t('estoque.digiteNome'));
+                }
+            }
             sucesso = await criarPedido(nomeCliente, 'ABERTO') || false;
         } else {
             sucesso = await criarPedido(nomeCliente, 'PAGO', tipo) || false;
