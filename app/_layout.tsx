@@ -1,11 +1,18 @@
+import FontAwesome from '@expo/vector-icons/FontAwesome'; // ✅ Adicionado
+import Ionicons from '@expo/vector-icons/Ionicons'; // ✅ Adicionado
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'; // ✅ Adicionado
 import { Session } from '@supabase/supabase-js';
+import { useFonts } from 'expo-font'; // ✅ Adicionado
 import * as Notifications from 'expo-notifications';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router'; // ✅ SplashScreen adicionado
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import Purchases, { CustomerInfo, LOG_LEVEL } from 'react-native-purchases';
 import '../i18n';
 import { supabase } from '../services/supabase';
+
+// ✅ Segura a tela de splash enquanto fontes e serviços carregam
+SplashScreen.preventAutoHideAsync();
 
 // ✅ SUAS CHAVES DO REVENUECAT
 const API_KEY_GOOGLE = 'goog_eIEPHdCOVMCoYvxMxJwuJqtzqqw'; 
@@ -20,6 +27,25 @@ export default function RootLayout() {
   const [isRevenueCatLoaded, setIsRevenueCatLoaded] = useState(false); // ✅ RevenueCat confirmou o status?
   const [isPro, setIsPro] = useState(false); // Status da Assinatura
   
+  // 👇 INÍCIO DA ADIÇÃO: Carregamento de Fontes para os ícones na Web 👇
+  const [fontsLoaded, fontError] = useFonts({
+    ...FontAwesome.font,
+    ...Ionicons.font,
+    ...MaterialIcons.font,
+  });
+
+  useEffect(() => {
+    if (fontError) throw fontError;
+  }, [fontError]);
+
+  useEffect(() => {
+    // Esconde a Splash apenas quando tudo (Fontes, RevenueCat e Supabase) estiver pronto
+    if (fontsLoaded && isReady && isRevenueCatLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, isReady, isRevenueCatLoaded]);
+  // 👆 FIM DA ADIÇÃO 👆
+
   const router = useRouter();
   const segments = useSegments();
 
@@ -129,8 +155,9 @@ export default function RootLayout() {
     }
   }, [session, isReady, isRevenueCatLoaded, isPro, segments]); 
 
-  // Tela de Loading (Exibida enquanto Supabase ou RevenueCat carregam)
-  if (!isReady || !isRevenueCatLoaded) {
+  // Tela de Loading (Exibida enquanto Supabase, RevenueCat ou Fontes carregam)
+  // ✅ Adicionado !fontsLoaded na validação abaixo
+  if (!isReady || !isRevenueCatLoaded || !fontsLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#2C3E50" />

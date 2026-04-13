@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -71,7 +72,11 @@ export default function TelaCadastro({ aoSalvar }: Props) {
           : await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permission.status !== 'granted') {
-          Alert.alert(t('radar.atencao'), t('common.erroPermissao', { defaultValue: `Precisamos de permissão para acessar a ${source}.` }));
+          if (Platform.OS === 'web') {
+              window.alert(`${t('radar.atencao')}\n${t('common.erroPermissao', { defaultValue: `Precisamos de permissão para acessar a ${source}.` })}`);
+          } else {
+              Alert.alert(t('radar.atencao'), t('common.erroPermissao', { defaultValue: `Precisamos de permissão para acessar a ${source}.` }));
+          }
           return;
       }
 
@@ -92,40 +97,65 @@ export default function TelaCadastro({ aoSalvar }: Props) {
   };
 
   const escolherFonte = (tipo: 'com_doc' | 'apenas_doc') => {
-      Alert.alert(t('cadastro.selecionarFoto', { defaultValue: 'Selecionar Foto' }), t('cadastro.deOndePegar', { defaultValue: 'De onde deseja pegar a imagem?' }), [
-          { text: t('cadastro.tirarFoto', { defaultValue: 'Tirar Foto (Câmera)' }), onPress: () => capturarFoto(tipo, 'camera') },
-          { text: t('cadastro.escolherGaleria', { defaultValue: 'Escolher da Galeria' }), onPress: () => capturarFoto(tipo, 'galeria') },
-          { text: t('common.cancelar'), style: 'cancel' }
-      ]);
+      if (Platform.OS === 'web') {
+          const usarCamera = window.confirm(`${t('cadastro.selecionarFoto', { defaultValue: 'Selecionar Foto' })}\n${t('cadastro.deOndePegar', { defaultValue: 'De onde deseja pegar a imagem?' })}\n\n[OK] = Tirar Foto (Câmera)\n[Cancelar] = Escolher da Galeria`);
+          if (usarCamera) {
+              capturarFoto(tipo, 'camera');
+          } else {
+              capturarFoto(tipo, 'galeria');
+          }
+      } else {
+          Alert.alert(t('cadastro.selecionarFoto', { defaultValue: 'Selecionar Foto' }), t('cadastro.deOndePegar', { defaultValue: 'De onde deseja pegar a imagem?' }), [
+              { text: t('cadastro.tirarFoto', { defaultValue: 'Tirar Foto (Câmera)' }), onPress: () => capturarFoto(tipo, 'camera') },
+              { text: t('cadastro.escolherGaleria', { defaultValue: 'Escolher da Galeria' }), onPress: () => capturarFoto(tipo, 'galeria') },
+              { text: t('common.cancelar'), style: 'cancel' }
+          ]);
+      }
   };
 
-  // 🚀 ARQUITETURA IOS BLINDADA: Upload via FormData (Streaming Nativo resolve o "Network request failed")
   const realizarUploadArquivo = async (uri: string, prefixo: string, userId: string): Promise<string> => {
       let ext = uri.split('.').pop()?.toLowerCase() || 'jpeg';
       if (ext === 'jpg') ext = 'jpeg'; 
       
       const path = `${userId}/${prefixo}_${Date.now()}.${ext}`;
       
-      // Cria um formulário de dados padrão, suportado nativamente pelo motor de rede do iOS/Android
-      const formData = new FormData();
-      formData.append('file', {
-          uri: uri, // O Expo ImagePicker já entrega a URI pronta para uso
-          name: `${prefixo}_${Date.now()}.${ext}`,
-          type: `image/${ext}`
-      } as any); // Cast para 'any' contorna a tipagem restrita do RN para arquivos em FormData
-      
-      // Enviamos o formData diretamente para o Supabase
-      const { error } = await supabase.storage
-          .from('documentos_clientes')
-          .upload(path, formData); 
+      if (Platform.OS === 'web') {
+          // ✅ SOLUÇÃO APENAS PARA WEB: Transforma a URI (blob local) num arquivo (Blob) real para o Supabase
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          
+          const { error } = await supabase.storage
+              .from('documentos_clientes')
+              .upload(path, blob); 
 
-      if (error) throw error;
+          if (error) throw error;
+      } else {
+          // 🚀 ARQUITETURA IOS/ANDROID BLINDADA: SEU CÓDIGO INTACTO AQUI!
+          const formData = new FormData();
+          formData.append('file', {
+              uri: uri, 
+              name: `${prefixo}_${Date.now()}.${ext}`,
+              type: `image/${ext}`
+          } as any); 
+          
+          const { error } = await supabase.storage
+              .from('documentos_clientes')
+              .upload(path, formData); 
+
+          if (error) throw error;
+      }
+
       return path;
   };
 
   const handleSalvar = async () => {
     if (!nome.trim()) {
-       return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
+       if (Platform.OS === 'web') {
+           window.alert(`${t('common.erro')}\n${t('modalEditarCliente.erroNome')}`);
+           return;
+       } else {
+           return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
+       }
     }
     
     setCarregandoUpload(true);
@@ -159,7 +189,11 @@ export default function TelaCadastro({ aoSalvar }: Props) {
         }
     } catch (e) {
         console.log("Erro no upload", e);
-        Alert.alert(t('radar.atencao'), t('cadastro.erroUploadAviso', { defaultValue: "Houve um problema ao subir as fotos, mas o cliente será salvo." }));
+        if (Platform.OS === 'web') {
+            window.alert(`${t('radar.atencao')}\n${t('cadastro.erroUploadAviso', { defaultValue: "Houve um problema ao subir as fotos, mas o cliente será salvo." })}`);
+        } else {
+            Alert.alert(t('radar.atencao'), t('cadastro.erroUploadAviso', { defaultValue: "Houve um problema ao subir as fotos, mas o cliente será salvo." }));
+        }
     }
     setCarregandoUpload(false);
 
@@ -188,7 +222,11 @@ export default function TelaCadastro({ aoSalvar }: Props) {
     setUriFotoComDoc(null);
     setUriFotoApenasDoc(null);
 
-    Alert.alert(t('common.sucesso'), t('cadastro.msgSucesso'));
+    if (Platform.OS === 'web') {
+        window.alert(`${t('common.sucesso')}\n${t('cadastro.msgSucesso')}`);
+    } else {
+        Alert.alert(t('common.sucesso'), t('cadastro.msgSucesso'));
+    }
   };
 
   return (

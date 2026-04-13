@@ -88,7 +88,11 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
           : await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permission.status !== 'granted') {
-          Alert.alert('Atenção', `Precisamos de permissão para acessar a ${source}.`);
+          if (Platform.OS === 'web') {
+              window.alert(`Atenção\nPrecisamos de permissão para acessar a ${source}.`);
+          } else {
+              Alert.alert('Atenção', `Precisamos de permissão para acessar a ${source}.`);
+          }
           return;
       }
 
@@ -114,11 +118,20 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
   };
 
   const escolherFonte = (tipo: 'com_doc' | 'apenas_doc') => {
-      Alert.alert('Selecionar Foto KYC', 'De onde deseja pegar a imagem do documento?', [
-          { text: 'Tirar Foto (Câmera)', onPress: () => capturarFoto(tipo, 'camera') },
-          { text: 'Escolher da Galeria', onPress: () => capturarFoto(tipo, 'galeria') },
-          { text: 'Cancelar', style: 'cancel' }
-      ]);
+      if (Platform.OS === 'web') {
+          const usarCamera = window.confirm(`Selecionar Foto KYC\nDe onde deseja pegar a imagem do documento?\n\n[OK] = Tirar Foto (Câmera)\n[Cancelar] = Escolher da Galeria`);
+          if (usarCamera) {
+              capturarFoto(tipo, 'camera');
+          } else {
+              capturarFoto(tipo, 'galeria');
+          }
+      } else {
+          Alert.alert('Selecionar Foto KYC', 'De onde deseja pegar a imagem do documento?', [
+              { text: 'Tirar Foto (Câmera)', onPress: () => capturarFoto(tipo, 'camera') },
+              { text: 'Escolher da Galeria', onPress: () => capturarFoto(tipo, 'galeria') },
+              { text: 'Cancelar', style: 'cancel' }
+          ]);
+      }
   };
 
   // 🚀 ARQUITETURA IOS BLINDADA: Upload via FormData (Streaming Nativo resolve o "Network request failed")
@@ -128,23 +141,44 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
       
       const path = `${userId}/${prefixo}_${Date.now()}.${ext}`;
       
-      const formData = new FormData();
-      formData.append('file', {
-          uri: uri, 
-          name: `${prefixo}_${Date.now()}.${ext}`,
-          type: `image/${ext}`
-      } as any); 
-      
-      const { error } = await supabase.storage
-          .from('documentos_clientes')
-          .upload(path, formData); 
+      if (Platform.OS === 'web') {
+          // ✅ SOLUÇÃO APENAS PARA WEB: Transforma a URI (blob local) num arquivo (Blob) real para o Supabase
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          
+          const { error } = await supabase.storage
+              .from('documentos_clientes')
+              .upload(path, blob); 
 
-      if (error) throw error;
+          if (error) throw error;
+      } else {
+          // 🚀 ARQUITETURA IOS/ANDROID BLINDADA: SEU CÓDIGO INTACTO AQUI!
+          const formData = new FormData();
+          formData.append('file', {
+              uri: uri, 
+              name: `${prefixo}_${Date.now()}.${ext}`,
+              type: `image/${ext}`
+          } as any); 
+          
+          const { error } = await supabase.storage
+              .from('documentos_clientes')
+              .upload(path, formData); 
+
+          if (error) throw error;
+      }
+      
       return path;
   };
 
   const handleSalvar = async () => {
-    if (!nome.trim()) return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
+    if (!nome.trim()) {
+        if (Platform.OS === 'web') {
+            window.alert(`${t('common.erro')}\n${t('modalEditarCliente.erroNome')}`);
+            return;
+        } else {
+            return Alert.alert(t('common.erro'), t('modalEditarCliente.erroNome'));
+        }
+    }
     
     setCarregandoUpload(true);
     let pathFotoComDoc = clienteOriginal.foto_com_documento; 
@@ -176,7 +210,11 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
         }
     } catch (e) {
         console.log("Erro no upload ao editar", e);
-        Alert.alert("Atenção", "Problema ao atualizar as fotos. Os outros dados serão salvos.");
+        if (Platform.OS === 'web') {
+            window.alert("Atenção\nProblema ao atualizar as fotos. Os outros dados serão salvos.");
+        } else {
+            Alert.alert("Atenção", "Problema ao atualizar as fotos. Os outros dados serão salvos.");
+        }
     }
     setCarregandoUpload(false);
 

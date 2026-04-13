@@ -1,17 +1,21 @@
 ﻿﻿import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native'; // <--- Importação adicionada aqui
 import i18n from '../i18n'; // <--- Importação direta da instância de tradução
 import { Cliente } from '../types';
 
 // Configuração da Notificação
 // CORREÇÃO: Removemos 'shouldShowAlert' que estava obsoleto.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true, // Faz aparecer o pop-up no topo da tela
-    shouldShowList: true,   // Faz aparecer na lista de notificações
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// 🚀 PROTEÇÃO WEB: Só configura o handler se não for Web
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true, // Faz aparecer o pop-up no topo da tela
+      shouldShowList: true,   // Faz aparecer na lista de notificações
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 // 🛡️ MATA DÍZIMAS INFINITAS
 const arredondarMoeda = (valor: number) => {
@@ -19,6 +23,11 @@ const arredondarMoeda = (valor: number) => {
 };
 
 export async function verificarNotificacoes(clientes: Cliente[]) {
+  // 🚀 BLOQUEIO WEB: O navegador não suporta notificações locais do Expo.
+  // Colocamos esse retorno vazio para evitar o erro e blindar a Web,
+  // enquanto o iOS e Android continuam rodando o código abaixo perfeitamente!
+  if (Platform.OS === 'web') return;
+
   // 1. Pede permissão (se ainda não tiver)
   const { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') {
