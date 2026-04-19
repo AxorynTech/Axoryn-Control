@@ -41,56 +41,87 @@ export function useFluxoPessoal() {
     };
   }, []);
 
+  // 🔥 MÁGICA DA CARTEIRA: Identifica se usa a conta do Dono ou a Própria
+  const getActiveUserId = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('team_id, permissoes')
+        .eq('user_id', user.id)
+        .single();
+
+    if (profile?.team_id && profile.permissoes?.includes('compartilhar_carteira')) {
+        const { data: team } = await supabase.from('teams').select('owner_id').eq('id', profile.team_id).single();
+        if (team?.owner_id) {
+            return team.owner_id; // Devolve o ID do Patrão!
+        }
+    }
+    
+    return user.id; // Se for separado, devolve o próprio ID
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
+      const activeUserId = await getActiveUserId();
+      if (!activeUserId) return;
       
-      // 1. Busca saldos (RPC)
-      let { data: contasComSaldo, error: errContas } = await supabase.rpc('buscar_saldos_contas');
+      // 1. Busca as contas apenas do usuário ativo (Dono ou Membro)
+      let { data: contasDB, error: errContas } = await supabase
+        .from('contas_pessoais')
+        .select('*')
+        .eq('user_id', activeUserId);
       
-      if (errContas) {
-        console.error("Erro RPC:", errContas);
-        throw errContas;
-      }
+      if (errContas) throw errContas;
 
-      // --- AUTO-CORREÇÃO: Se não tiver Carteira, cria agora! ---
-      const temCarteira = contasComSaldo?.some((c: any) => c.nome === 'Carteira');
+      // --- AUTO-CORREÇÃO: Se não tiver Carteira no ID ativo, cria agora! ---
+      const temCarteira = contasDB?.some((c: any) => c.nome === 'Carteira');
       
       if (!temCarteira) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-              const { error: errCriar } = await supabase.from('contas_pessoais').insert([{
-                  nome: 'Carteira',
-                  instituicao: 'Dinheiro em Mãos',
-                  user_id: user.id
-              }]);
-              
-              if (!errCriar) {
-                  const retry = await supabase.rpc('buscar_saldos_contas');
-                  contasComSaldo = retry.data;
-              }
+          const { error: errCriar } = await supabase.from('contas_pessoais').insert([{
+              nome: 'Carteira',
+              instituicao: 'Dinheiro em Mãos',
+              user_id: activeUserId
+          }]);
+          
+          if (!errCriar) {
+              const retry = await supabase.from('contas_pessoais').select('*').eq('user_id', activeUserId);
+              contasDB = retry.data;
           }
       }
       
-      // 2. Busca Movimentos (últimos 100)
+      // 2. Busca TODOS os movimentos do usuário ativo para calcular o saldo real 
+      // (Substituiu a RPC 'buscar_saldos_contas' para evitar bloqueios de segurança (RLS))
       const { data: dataMov, error: errMov } = await supabase
         .from('fluxo_pessoal')
         .select('*')
-        .order('data_movimento', { ascending: false })
-        .limit(100);
+        .eq('user_id', activeUserId)
+        .order('data_movimento', { ascending: false });
       
       if (errMov) throw errMov;
 
-      // 3. Formata e Calcula
-      const contasFormatadas = (contasComSaldo || []).map((c: any) => ({
+      // 3. Calcula os saldos manualmente no aplicativo
+      const saldosPorConta: Record<number, number> = {};
+      
+      dataMov?.forEach(mov => {
+          if (!saldosPorConta[mov.conta_id]) saldosPorConta[mov.conta_id] = 0;
+          
+          if (mov.tipo === 'ENTRADA') saldosPorConta[mov.conta_id] += Number(mov.valor);
+          else if (mov.tipo === 'SAIDA') saldosPorConta[mov.conta_id] -= Number(mov.valor);
+      });
+
+      // 4. Formata as contas com o saldo calculado
+      const contasFormatadas = (contasDB || []).map((c: any) => ({
         ...c,
-        saldo: parseFloat(c.saldo) || 0
+        saldo: saldosPorConta[c.id] || 0
       }));
 
       const totalGeral = contasFormatadas.reduce((acc: number, c: any) => acc + c.saldo, 0);
 
       setContas(contasFormatadas);
-      setMovimentos(dataMov || []);
+      setMovimentos(dataMov ? dataMov.slice(0, 100) : []); // Mostra apenas os últimos 100 na lista
       setSaldoGeral(totalGeral);
 
     } catch (error) { 
@@ -100,17 +131,12 @@ export function useFluxoPessoal() {
     }
   };
 
-  const getUserId = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user?.id;
-  };
-
   const adicionarConta = async (nome: string, instituicao: string) => {
-    const userId = await getUserId();
+    const activeUserId = await getActiveUserId();
     const { error } = await supabase.from('contas_pessoais').insert([{ 
       nome, 
       instituicao,
-      user_id: userId 
+      user_id: activeUserId 
     }]);
     if (!error) await fetchData();
     else Alert.alert(t('common.erro'), t('fluxo.falhaCriarConta'));
@@ -123,7 +149,7 @@ export function useFluxoPessoal() {
   };
 
   const adicionarMovimento = async (dados: any) => {
-    const userId = await getUserId();
+    const activeUserId = await getActiveUserId();
 
     const { error } = await supabase.from('fluxo_pessoal').insert([{
         conta_id: dados.conta_id, 
@@ -131,7 +157,7 @@ export function useFluxoPessoal() {
         descricao: dados.descricao, 
         data_movimento: dados.data, 
         tipo: dados.tipo,
-        user_id: userId 
+        user_id: activeUserId 
     }]);
     
     if (error) {
@@ -165,16 +191,16 @@ export function useFluxoPessoal() {
   const transferir = async (origemId: number, destinoId: number, valor: number, data: string, descricao: string) => {
     try {
         if (origemId === destinoId) { Alert.alert(t('common.erro'), t('fluxo.origemDestinoIguais')); return false; }
-        const userId = await getUserId();
+        const activeUserId = await getActiveUserId();
 
         const [res1, res2] = await Promise.all([
           supabase.from('fluxo_pessoal').insert([{ 
               conta_id: origemId, tipo: 'SAIDA', valor, data_movimento: data, descricao: `Transf. Env: ${descricao}`,
-              user_id: userId 
+              user_id: activeUserId 
           }]),
           supabase.from('fluxo_pessoal').insert([{ 
               conta_id: destinoId, tipo: 'ENTRADA', valor, data_movimento: data, descricao: `Transf. Rec: ${descricao}`,
-              user_id: userId 
+              user_id: activeUserId 
           }])
         ]);
 

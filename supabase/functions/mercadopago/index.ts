@@ -9,9 +9,10 @@ const corsHeaders = {
 // 1. CONFIGURAÇÃO DOS PLANOS (BRL)
 // Centraliza os valores e regras para evitar fraudes no Frontend
 const PLANS: any = {
-  'mensal':  { price: 14.99,  title: 'Assinatura Mensal (Premium)', credits: 0 },
-  'anual':   { price: 149.90, title: 'Assinatura Anual (Premium)',  credits: 0 },
-  'recarga': { price: 20.00,  title: 'Recarga 10 Consultas',        credits: 10 }
+  'mensal':      { price: 14.99,  title: 'Assinatura Mensal (Premium)', credits: 0 },
+  'anual':       { price: 149.90, title: 'Assinatura Anual (Premium)',  credits: 0 },
+  'corporativo': { price: 49.90,  title: 'Add-on Corporativo (4 Vagas)', credits: 0 }, // ✅ MÓDULO ADICIONAL INCLUÍDO
+  'recarga':     { price: 20.00,  title: 'Recarga 10 Consultas',        credits: 10 }
 };
 
 Deno.serve(async (req: Request) => {
@@ -84,7 +85,7 @@ Deno.serve(async (req: Request) => {
         // Metadados para o Webhook saber o que fazer depois
         metadata: {
           user_id: body.user_id,
-          type: body.type, // 'mensal', 'anual' ou 'recarga'
+          type: body.type, // 'mensal', 'anual', 'corporativo' ou 'recarga'
           credits: selectedPlan.credits
         },
         notification_url: notificationUrl
@@ -118,8 +119,7 @@ Deno.serve(async (req: Request) => {
         const pData = await res.json()
         if (pData.status === 'approved') {
           
-          // 🛡️ NOVO: PROTEÇÃO CONTRA DUPLICIDADE 🛡️
-          // Verifica se esse paymentId já foi processado antes
+          // 🛡️ PROTEÇÃO CONTRA DUPLICIDADE
           const { data: transacaoJaExiste } = await supabase
             .from('historico_transacoes')
             .select('id')
@@ -128,16 +128,13 @@ Deno.serve(async (req: Request) => {
 
           if (transacaoJaExiste) {
             console.log(`Pagamento ${paymentId} já processado anteriormente. Ignorando.`);
-            // Retorna sucesso para o Mercado Pago parar de enviar
             return new Response(JSON.stringify({ success: true, status: 'already_processed' }), { 
               status: 200, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
             });
           }
           
-          // Recupera os dados salvos nos metadados da preferência
           const meta = pData.metadata || {};
-          // Fallback: se não tiver metadata, usa external_reference e assume mensal
           const userId = meta.user_id || pData.external_reference;
           const type = meta.type || 'mensal';
           const creditsToAdd = Number(meta.credits || 0);
@@ -146,7 +143,7 @@ Deno.serve(async (req: Request) => {
 
           if (userId) {
 
-            // 🛡️ NOVO: REGISTRA A TRANSAÇÃO PARA NÃO PROCESSAR DE NOVO 🛡️
+            // REGISTRA A TRANSAÇÃO
             await supabase.from('historico_transacoes').insert({
                 user_id: userId,
                 payment_id_externo: String(paymentId),
@@ -155,7 +152,7 @@ Deno.serve(async (req: Request) => {
             });
 
             if (type === 'recarga' && creditsToAdd > 0) {
-              // --- LÓGICA DE RECARGA ---
+              // --- RECARGAS ---
               const { data: currentData } = await supabase
                 .from('user_credits')
                 .select('consultas_restantes')
@@ -171,23 +168,55 @@ Deno.serve(async (req: Request) => {
               });
               console.log(`Recarga efetuada. Novo saldo: ${novoSaldo}`);
 
-            } else {
-              // --- LÓGICA DE ASSINATURA ---
+            } else if (type === 'corporativo') {
+              // --- MÓDULO CORPORATIVO ---
               await supabase.from('assinaturas').upsert({
                 user_id: userId,
                 payment_id: String(paymentId),
                 status: 'approved',
                 valor: pData.transaction_amount,
-                plano: type // Salva 'mensal' ou 'anual' para o Frontend saber a validade
-              })
-              console.log(`Assinatura ${type} liberada.`)
+                plano: type 
+              });
+
+              // Libera 4 vagas e adiciona 30 dias de validade NA EQUIPE
+              const dataFimCorp = new Date();
+              dataFimCorp.setDate(dataFimCorp.getDate() + 30);
+              
+              await supabase.from('teams').update({ 
+                  limite_membros: 4,
+                  data_vencimento: dataFimCorp.toISOString()
+              }).eq('owner_id', userId);
+              
+              console.log(`Add-on Corporativo liberado. Validade: ${dataFimCorp.toISOString()}`);
+
+            } else {
+              // --- ASSINATURA BASE (MENSAL/ANUAL) ---
+              const diasSoma = (type === 'anual') ? 365 : 30;
+              const dataFim = new Date();
+              dataFim.setDate(dataFim.getDate() + diasSoma);
+
+              await supabase.from('assinaturas').upsert({
+                user_id: userId,
+                payment_id: String(paymentId),
+                status: 'approved',
+                valor: pData.transaction_amount,
+                plano: type 
+              });
+
+              await supabase.from('profiles').update({ 
+                data_fim_assinatura: dataFim.toISOString() 
+              }).eq('user_id', userId);
+
+              // ✅ ALTERADO: Se pagou apenas a assinatura base, zera o limite da equipe
+              await supabase.from('teams').update({ limite_membros: 0 }).eq('owner_id', userId);
+              
+              console.log(`Assinatura ${type} liberada. Validade do App: ${dataFim.toISOString()}. Vagas zeradas.`);
             }
           }
         }
       }
     }
 
-    // Resposta padrão
     return new Response(JSON.stringify({ success: true }), { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

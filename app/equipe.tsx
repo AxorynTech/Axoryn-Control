@@ -2,15 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 // import * as Clipboard from 'expo-clipboard'; // Descomente se configurou o native
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // ✅ Importado
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     Alert,
     Image,
+    Linking, // ✅ Adicionado para abrir o WhatsApp
+    Modal,
     RefreshControl,
     ScrollView,
     Share,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     TouchableOpacity,
@@ -20,7 +23,7 @@ import { useAssinatura } from '../hooks/useAssinatura';
 import { supabase } from '../services/supabase';
 
 export default function EquipeScreen() {
-  const { t } = useTranslation(); // ✅ Hook de tradução
+  const { t } = useTranslation();
   const router = useRouter();
   const { isPremium } = useAssinatura();
   
@@ -29,7 +32,21 @@ export default function EquipeScreen() {
   const [membros, setMembros] = useState<any[]>([]); 
   const [nomeEquipeInput, setNomeEquipeInput] = useState('');
   const [idConviteInput, setIdConviteInput] = useState('');
-  const [currentUserId, setCurrentUserId] = useState<string>(''); // ✅ Novo: Saber quem eu sou
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+
+  // ✅ ESTADOS PARA O MODAL DE PERMISSÕES
+  const [modalPermissoesVisivel, setModalPermissoesVisivel] = useState(false);
+  const [membroSelecionado, setMembroSelecionado] = useState<any>(null);
+  const [permissoesAtuais, setPermissoesAtuais] = useState<string[]>([]);
+  const [salvandoPermissoes, setSalvandoPermissoes] = useState(false);
+
+  // ✅ LISTA DE PERMISSÕES ATUALIZADA COM A CARTEIRA COMPARTILHADA
+  const OPCOES_PERMISSAO = [
+      { id: 'compartilhar_carteira', label: t('equipe.permCarteira', 'Espelhar Visão do Líder (Carteira Compartilhada)') },
+      { id: 'cadastrar_cliente', label: t('equipe.permCadastrar', 'Cadastrar e Editar Clientes') },
+      { id: 'gerar_contrato', label: t('equipe.permContrato', 'Gerar Contratos') },
+      { id: 'cobrar', label: t('equipe.permCobrar', 'Realizar Cobranças e Baixas') }
+  ];
 
   useEffect(() => {
     carregarEquipe();
@@ -41,17 +58,15 @@ export default function EquipeScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       
-      setCurrentUserId(user.id); // ✅ Salva meu ID para comparar depois
+      setCurrentUserId(user.id);
 
       console.log("🔍 [1/3] Buscando equipe...");
       let equipeId = null;
 
-      // 1. Tenta pelo Perfil
       const { data: profile } = await supabase.from('profiles').select('team_id').eq('user_id', user.id).single();
       if (profile?.team_id) {
         equipeId = profile.team_id;
       } else {
-        // 2. Tenta pelo Dono
         const { data: timeDoDono } = await supabase.from('teams').select('id').eq('owner_id', user.id).limit(1).single();
         if (timeDoDono) {
             console.log("⚠️ Recuperado pelo Dono!");
@@ -61,18 +76,15 @@ export default function EquipeScreen() {
       }
 
       if (equipeId) {
-        // 3. Busca Dados da Equipe
         const { data: equipe } = await supabase.from('teams').select('*').eq('id', equipeId).single();
         if (equipe) {
             console.log("✅ [2/3] Equipe encontrada:", equipe.name);
             setMinhaEquipe(equipe);
 
-            // 4. Busca Membros
             const { data: listaMembros } = await supabase.from('profiles').select('*').eq('team_id', equipeId);
             setMembros(listaMembros || []);
-            console.log("👥 [3/3] Membros:", listaMembros?.length);
+            console.log("👥 [3/3] Memembros:", listaMembros?.length);
 
-            // Validação Premium
             if (equipe.owner_id === user.id && isPremium && !equipe.is_premium) {
                 await supabase.from('teams').update({ is_premium: true }).eq('id', equipe.id);
             }
@@ -98,7 +110,7 @@ export default function EquipeScreen() {
       
       const { data: novaEquipe, error } = await supabase
         .from('teams')
-        .insert({ name: nomeEquipeInput, owner_id: user?.id, is_premium: isPremium })
+        .insert({ name: nomeEquipeInput, owner_id: user?.id, is_premium: isPremium }) // Novo padrão no banco é 0
         .select()
         .single();
 
@@ -117,6 +129,7 @@ export default function EquipeScreen() {
     }
   }
 
+  // ✅ TRAVA DE LIMITE INJETADA AQUI (Com fallback para 0)
   async function entrarNaEquipe() {
     const codigoLimpo = idConviteInput.trim();
     if (!codigoLimpo) return Alert.alert(t('equipe.alertErro'), t('equipe.erroCodigo'));
@@ -126,11 +139,22 @@ export default function EquipeScreen() {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
 
-      console.log("Tentando entrar:", codigoLimpo);
-
-      const { data: equipe, error } = await supabase.from('teams').select('*').eq('id', codigoLimpo).single();
+      // Busca a equipe junto com a contagem de membros (profiles)
+      const { data: equipe, error } = await supabase.from('teams').select('*, profiles(count)').eq('id', codigoLimpo).single();
       
       if (error || !equipe) return Alert.alert(t('equipe.erroNaoEncontrada'), t('equipe.erroVerifique'));
+
+      // Verifica o limite de membros
+      const qtdMembrosAtuais = equipe.profiles[0].count - 1; // -1 para não contar o dono
+      // ✅ ALTERADO: Se limite for nulo, assume 0
+      const limite = equipe.limite_membros || 0;
+
+      if (qtdMembrosAtuais >= limite) {
+          return Alert.alert(
+              "Equipe Lotada 🚫", 
+              "Esta equipe atingiu o limite máximo de funcionários. O gestor precisa liberar vagas via Add-on Corporativo."
+          );
+      }
 
       const { error: updateError } = await supabase
         .from('profiles')
@@ -144,14 +168,12 @@ export default function EquipeScreen() {
       await carregarEquipe();
 
     } catch (error: any) {
-      console.log("Erro ao entrar:", error);
       Alert.alert(t('equipe.alertErro'), "Não foi possível entrar.");
     } finally {
       setLoading(false);
     }
   }
 
-  // ✅ NOVA FUNÇÃO: EXCLUIR EQUIPE (PARA O DONO)
   async function excluirEquipe() {
     Alert.alert(
         t('equipe.alertExcluirTitulo'), 
@@ -159,22 +181,19 @@ export default function EquipeScreen() {
         [
             { text: t('common.cancelar', 'Cancelar'), style: "cancel" },
             { 
-                text: t('equipe.excluir'), // Traduzido: "Sim, Excluir"
+                text: t('equipe.excluir'), 
                 style: "destructive", 
                 onPress: async () => {
                     try {
                         setLoading(true);
-                        // Apaga a equipe (o banco solta os membros automaticamente com o SQL do Passo 1)
                         const { error } = await supabase.from('teams').delete().eq('id', minhaEquipe.id);
-                        
                         if (error) throw error;
 
                         setMinhaEquipe(null);
                         setMembros([]);
                         Alert.alert("Encerrada", t('equipe.alertExcluida'));
-                        await carregarEquipe(); // Recarrega para garantir
+                        await carregarEquipe(); 
                     } catch (e: any) { 
-                        console.log(e);
                         Alert.alert(t('equipe.alertErro'), "Falha ao excluir equipe: " + e.message);
                     } finally { 
                         setLoading(false); 
@@ -204,9 +223,48 @@ export default function EquipeScreen() {
     if (minhaEquipe?.id) await Share.share({ message: `Código da Equipe Axoryn: ${minhaEquipe.id}` });
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2980B9" /></View>;
+  // ✅ FUNÇÕES DE GESTÃO DE PERMISSÕES
+  function abrirModalPermissoes(membro: any) {
+      setMembroSelecionado(membro);
+      // Carrega as permissões do banco, ou vazio se for a primeira vez
+      setPermissoesAtuais(membro.permissoes || []); 
+      setModalPermissoesVisivel(true);
+  }
 
-  const isOwner = minhaEquipe?.owner_id === currentUserId; // ✅ Verifica se sou dono
+  function togglePermissao(idPermissao: string) {
+      if (permissoesAtuais.includes(idPermissao)) {
+          // Remove se já tem
+          setPermissoesAtuais(prev => prev.filter(p => p !== idPermissao));
+      } else {
+          // Adiciona se não tem
+          setPermissoesAtuais(prev => [...prev, idPermissao]);
+      }
+  }
+
+  async function salvarPermissoes() {
+      if (!membroSelecionado) return;
+      try {
+          setSalvandoPermissoes(true);
+          const { error } = await supabase
+              .from('profiles')
+              .update({ permissoes: permissoesAtuais })
+              .eq('user_id', membroSelecionado.user_id);
+          
+          if (error) throw error;
+
+          Alert.alert(t('equipe.alertSucesso', 'Sucesso'), t('equipe.permSalvas', 'Permissões atualizadas com sucesso!'));
+          setModalPermissoesVisivel(false);
+          await carregarEquipe(); // Recarrega para mostrar visualmente a atualização
+      } catch (error: any) {
+          Alert.alert(t('equipe.alertErro', 'Erro'), error.message);
+      } finally {
+          setSalvandoPermissoes(false);
+      }
+  }
+
+  if (loading && !salvandoPermissoes) return <View style={styles.center}><ActivityIndicator size="large" color="#2980B9" /></View>;
+
+  const isOwner = minhaEquipe?.owner_id === currentUserId;
 
   return (
     <View style={styles.container}>
@@ -251,7 +309,6 @@ export default function EquipeScreen() {
                             <Text style={styles.btnTextSmall}>{t('equipe.convidar')}</Text>
                         </TouchableOpacity>
 
-                        {/* ✅ BOTÃO INTELIGENTE: EXCLUIR (DONO) OU SAIR (MEMBRO) */}
                         {isOwner ? (
                             <TouchableOpacity style={[styles.actionBtn, {backgroundColor:'#C0392B'}]} onPress={excluirEquipe}>
                                 <Ionicons name="trash-outline" size={20} color="#FFF" />
@@ -267,9 +324,29 @@ export default function EquipeScreen() {
                 </View>
 
                 <View style={styles.membersSection}>
+                    {/* ✅ BOTÃO DO WHATSAPP INJETADO NO HEADER DA LISTA */}
                     <View style={styles.membersHeader}>
-                        <Text style={styles.membersTitle}>{t('equipe.membros')} ({membros.length})</Text>
-                        <TouchableOpacity onPress={carregarEquipe}><Ionicons name="refresh" size={18} color="#2980B9" /></TouchableOpacity>
+                        <View>
+                            <Text style={styles.membersTitle}>{t('equipe.membros')} ({membros.length})</Text>
+                            {isOwner && minhaEquipe && (
+                                <Text style={{fontSize: 12, color: '#7F8C8D'}}>
+                                    {/* ✅ ALTERADO: Fallback para 0 nas vagas */}
+                                    Vagas: {membros.length - 1} de {minhaEquipe.limite_membros || 0}
+                                </Text>
+                            )}
+                        </View>
+                        
+                        <View style={{flexDirection: 'row', gap: 15, alignItems: 'center'}}>
+                            {isOwner && (
+                                <TouchableOpacity 
+                                    style={{backgroundColor: '#27AE60', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6}}
+                                    onPress={() => Linking.openURL('https://wa.me/5515996292295?text=Olá!%20Gostaria%20de%20adicionar%20mais%20vagas%20na%20minha%20equipe%20do%20Axoryn%20Control.')}
+                                >
+                                    <Text style={{color: '#FFF', fontSize: 12, fontWeight: 'bold'}}>+ Vagas</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity onPress={carregarEquipe}><Ionicons name="refresh" size={18} color="#2980B9" /></TouchableOpacity>
+                        </View>
                     </View>
 
                     {membros.map((membro, index) => {
@@ -283,6 +360,16 @@ export default function EquipeScreen() {
                                     <Text style={styles.memberEmail} numberOfLines={1}>{membro.email || "Usuário"}</Text>
                                     <Text style={styles.memberRole}>{isMemberOwner ? t('equipe.lider') : t('equipe.membro')}</Text>
                                 </View>
+
+                                {/* ✅ NOVO: BOTÃO DE ENGRENAGEM (Visível apenas para o Dono em relação aos membros) */}
+                                {isOwner && !isMemberOwner && (
+                                    <TouchableOpacity 
+                                        style={styles.settingsBtn} 
+                                        onPress={() => abrirModalPermissoes(membro)}
+                                    >
+                                        <Ionicons name="settings-outline" size={22} color="#7F8C8D" />
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         );
                     })}
@@ -327,6 +414,59 @@ export default function EquipeScreen() {
             </>
         )}
       </ScrollView>
+
+      {/* ✅ NOVO: MODAL DE PERMISSÕES */}
+      <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalPermissoesVisivel}
+          onRequestClose={() => setModalPermissoesVisivel(false)}
+      >
+          <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>{t('equipe.gerirPermissoes', 'Gerir Permissões')}</Text>
+                      <TouchableOpacity onPress={() => setModalPermissoesVisivel(false)}>
+                          <Ionicons name="close" size={24} color="#7F8C8D" />
+                      </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.modalSubtitle}>
+                      {t('equipe.perfilDe', 'Acessos de:')} {membroSelecionado?.email}
+                  </Text>
+
+                  <View style={styles.permissionsList}>
+                      {OPCOES_PERMISSAO.map((permissao) => {
+                          const ativo = permissoesAtuais.includes(permissao.id);
+                          return (
+                              <View key={permissao.id} style={styles.permissionItem}>
+                                  <Text style={styles.permissionLabel}>{permissao.label}</Text>
+                                  <Switch 
+                                      value={ativo} 
+                                      onValueChange={() => togglePermissao(permissao.id)}
+                                      trackColor={{ false: "#D0D3D4", true: "#27AE60" }}
+                                      thumbColor="#FFF"
+                                  />
+                              </View>
+                          )
+                      })}
+                  </View>
+
+                  <TouchableOpacity 
+                      style={styles.savePermBtn} 
+                      onPress={salvarPermissoes}
+                      disabled={salvandoPermissoes}
+                  >
+                      {salvandoPermissoes ? (
+                          <ActivityIndicator color="#FFF" />
+                      ) : (
+                          <Text style={styles.savePermText}>{t('common.salvar', 'Salvar Alterações')}</Text>
+                      )}
+                  </TouchableOpacity>
+              </View>
+          </View>
+      </Modal>
+
     </View>
   );
 }
@@ -359,12 +499,26 @@ const styles = StyleSheet.create({
   memberAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#EEE' },
   memberEmail: { fontSize: 14, fontWeight: '600', color: '#2C3E50' },
   memberRole: { fontSize: 12, color: '#7F8C8D' },
+  settingsBtn: { padding: 8 }, // Novo estilo para o ícone de engrenagem
   cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#2C3E50', marginBottom: 8 },
   cardDesc: { fontSize: 14, color: '#7F8C8D', marginBottom: 20, lineHeight: 20 },
   input: { backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D0D3D4', borderRadius: 10, padding: 14, fontSize: 16, marginBottom: 15, color: '#333' },
   createBtn: { backgroundColor: '#27AE60', padding: 16, borderRadius: 10, alignItems: 'center' },
+  btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
   joinBtn: { backgroundColor: '#FFF', borderWidth: 2, borderColor: '#2980B9', padding: 14, borderRadius: 10, alignItems: 'center' },
   joinText: { color: '#2980B9', fontWeight: 'bold', fontSize: 16 },
   infoBox: { flexDirection: 'row', backgroundColor: '#FEF5E7', padding: 20, borderRadius: 12, alignItems: 'center', gap: 15, marginBottom: 20, borderWidth: 1, borderColor: '#FDEBD0' },
-  infoText: { flex: 1, color: '#D35400', fontSize: 14, lineHeight: 20 }
+  infoText: { flex: 1, color: '#D35400', fontSize: 14, lineHeight: 20 },
+
+  // Estilos do Modal de Permissões
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#2C3E50' },
+  modalSubtitle: { fontSize: 14, color: '#7F8C8D', marginBottom: 20 },
+  permissionsList: { backgroundColor: '#F8F9FA', borderRadius: 12, padding: 10, marginBottom: 20, borderWidth: 1, borderColor: '#EAECEE' },
+  permissionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#EAECEE' },
+  permissionLabel: { fontSize: 15, color: '#34495E', fontWeight: '500', flex: 1, paddingRight: 10 },
+  savePermBtn: { backgroundColor: '#2980B9', padding: 16, borderRadius: 10, alignItems: 'center' },
+  savePermText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 });

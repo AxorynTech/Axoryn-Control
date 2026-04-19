@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
+import Purchases from 'react-native-purchases'; // ✅ NOVO IMPORT DO REVENUECAT
 
 // 🚀 ARQUITETURA IOS: Removidos os imports antigos de base64 e legacy FileSystem.
 
@@ -42,6 +43,7 @@ export default function Perfil() {
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [restoring, setRestoring] = useState(false); // ✅ ESTADO PARA O BOTÃO DE RESTAURAR
 
   let textoBadge = t('perfil.usuarioRegistrado');
   if (isPremium) {
@@ -162,6 +164,29 @@ export default function Perfil() {
     const mensagem = t('perfil.msgSuporte', "Olá, preciso de ajuda com o suporte do App.");
     const url = `https://wa.me/${telefone}?text=${encodeURIComponent(mensagem)}`;
     Linking.openURL(url).catch(() => Alert.alert("Erro", "WhatsApp não instalado."));
+  };
+
+  // ✅ NOVA FUNÇÃO: RESTAURAR COMPRAS
+  const restaurarAssinatura = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert("Aviso", "A restauração de compras nas lojas (Apple/Google) só está disponível pelo aplicativo do celular.");
+      return;
+    }
+    
+    try {
+      setRestoring(true);
+      const customerInfo = await Purchases.restorePurchases();
+      if (customerInfo.entitlements.active['premium']) {
+        Alert.alert("Sucesso!", "Sua assinatura foi restaurada e validada.");
+        await refreshAssinatura(); // Força a atualização do painel
+      } else {
+        Alert.alert("Ops", "Não encontramos nenhuma assinatura ativa associada a esta conta da Apple/Google.");
+      }
+    } catch (e: any) {
+      Alert.alert("Erro", "Falha ao restaurar compras.");
+    } finally {
+      setRestoring(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -325,6 +350,15 @@ export default function Perfil() {
             <Ionicons name="help" size={20} color="#fff" />
           </View>
           <Text style={styles.menuText}>{t('perfil.suporte')}</Text>
+          <Ionicons name="chevron-forward" size={20} color="#CCC" />
+        </TouchableOpacity>
+
+        {/* ✅ NOVO BOTÃO: RESTAURAR COMPRAS */}
+        <TouchableOpacity style={styles.menuItem} onPress={restaurarAssinatura} disabled={restoring}>
+          <View style={[styles.menuIconConfig, { backgroundColor: '#F39C12' }]}>
+            {restoring ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="sync" size={20} color="#fff" />}
+          </View>
+          <Text style={styles.menuText}>{t('perfil.restaurarCompras', 'Restaurar Compras')}</Text>
           <Ionicons name="chevron-forward" size={20} color="#CCC" />
         </TouchableOpacity>
 

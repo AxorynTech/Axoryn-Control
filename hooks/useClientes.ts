@@ -3,11 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { Alert, Platform } from 'react-native';
 import { supabase } from '../services/supabase';
 import { Cliente, Contrato } from '../types';
+import { usePermissoes } from './usePermissoes'; // ✅ Importando as Travas
 
 export function useClientes() {
   const { t, i18n } = useTranslation();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // ✅ Puxando a verificação de permissão
+  const { temPermissao } = usePermissoes();
 
   // 🛡️ MATA DÍZIMAS INFINITAS
   const arredondarMoeda = (valor: number) => {
@@ -133,14 +137,30 @@ export function useClientes() {
       } catch (e) { console.log("Erro refreshCliente", e); }
   }, [processarClienteRaw]);
 
-  const getUserId = async () => {
+  // 🔥 MÁGICA DA CARTEIRA
+  const getActiveUserId = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    return user?.id;
+    if (!user) return null;
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('team_id, permissoes')
+        .eq('user_id', user.id)
+        .single();
+
+    if (profile?.team_id && profile.permissoes?.includes('compartilhar_carteira')) {
+        const { data: team } = await supabase.from('teams').select('owner_id').eq('id', profile.team_id).single();
+        if (team?.owner_id) {
+            return team.owner_id; 
+        }
+    }
+    
+    return user.id; 
   };
 
   const garantirCarteira = async () => {
     try {
-        const userId = await getUserId();
+        const userId = await getActiveUserId(); 
         if (!userId) return null;
 
         const { data } = await supabase
@@ -186,9 +206,15 @@ export function useClientes() {
     return { capital: arredondarMoeda(capitalTotal), lucro, multas, vendas };
   }, [clientes]);
 
+  // 🔒 TRAVA: CADASTRAR CLIENTE
   const adicionarCliente = useCallback(async (dados: Partial<Cliente>) => {
+    if (!temPermissao('cadastrar_cliente')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para cadastrar clientes.");
+    }
     try {
+      const activeUserId = await getActiveUserId(); 
       const { error } = await supabase.from('clientes').insert([{
+        user_id: activeUserId, 
         nome: dados.nome, whatsapp: dados.whatsapp, cpf: dados.cpf, endereco: dados.endereco, indicacao: dados.indicacao,
         reputacao: dados.reputacao || 'NEUTRA', segmento: dados.segmento,
         foto_com_documento: (dados as any).foto_com_documento,
@@ -197,9 +223,13 @@ export function useClientes() {
       if (error) throw error;
       await fetchData(); 
     } catch (e) { Alert.alert(t('common.erro'), "Falha ao salvar"); }
-  }, [fetchData, t]);
+  }, [fetchData, t, temPermissao]);
 
+  // 🔒 TRAVA: EDITAR CLIENTE
   const editarCliente = useCallback(async (nomeAntigo: string, dados: Partial<Cliente>) => {
+    if (!temPermissao('cadastrar_cliente')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para editar clientes.");
+    }
     const cliente = clientes.find(c => c.nome === nomeAntigo);
     if (!cliente?.id) return;
     try {
@@ -212,9 +242,13 @@ export function useClientes() {
         if (error) throw error;
         await fetchData();
     } catch(e) { Alert.alert(t('common.erro'), "Falha ao editar"); }
-  }, [clientes, fetchData, t]);
+  }, [clientes, fetchData, t, temPermissao]);
 
+  // 🔒 TRAVA: EXCLUIR CLIENTE
   const excluirCliente = useCallback(async (nomeCliente: string) => {
+    if (!temPermissao('cadastrar_cliente')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para excluir clientes.");
+    }
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return;
     
@@ -225,9 +259,13 @@ export function useClientes() {
     } catch (e) {
         Alert.alert(t('common.erro'), "Falha ao excluir cliente. Tente novamente.");
     }
-  }, [clientes, fetchData, t]);
+  }, [clientes, fetchData, t, temPermissao]);
 
+  // 🔒 TRAVA: BLOQUEAR CLIENTE
   const alternarBloqueio = useCallback(async (cliente: Cliente) => {
+    if (!temPermissao('cadastrar_cliente')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para bloquear clientes.");
+    }
     try {
         if (!cliente.id) return; 
         const novoStatus = !cliente.bloqueado;
@@ -235,9 +273,13 @@ export function useClientes() {
         if (error) throw error;
         await refreshCliente(cliente.id);
     } catch (e) { Alert.alert(t('common.erro'), "Não foi possível alterar o bloqueio."); }
-  }, [refreshCliente, t]);
+  }, [refreshCliente, t, temPermissao]);
 
+  // 🔒 TRAVA: GERAR CONTRATO
   const adicionarContrato = useCallback(async (nomeCliente: string, novoContrato: any) => {
+    if (!temPermissao('gerar_contrato')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para criar novos contratos.");
+    }
     const cliente = clientes.find(c => c.nome === nomeCliente);
     if (!cliente?.id) return Alert.alert(t('common.erro'), t('novoContrato.erroCliente'));
 
@@ -251,9 +293,17 @@ export function useClientes() {
         if (tipoReal === 'EMPRESTIMO') {
             const idCarteira = await garantirCarteira();
             if (idCarteira) {
-                const { data: contasSaldo } = await supabase.rpc('buscar_saldos_contas');
-                const carteira = contasSaldo?.find((c: any) => c.nome === 'Carteira');
-                const saldoAtual = carteira ? parseFloat(carteira.saldo) : 0;
+                // 🔥 SOLUÇÃO: Busca o saldo real da conta no momento, sem usar RPC antiga!
+                const { data: dataMov } = await supabase
+                    .from('fluxo_pessoal')
+                    .select('tipo, valor')
+                    .eq('conta_id', idCarteira);
+                
+                let saldoAtual = 0;
+                dataMov?.forEach(m => {
+                    if (m.tipo === 'ENTRADA') saldoAtual += Number(m.valor);
+                    else if (m.tipo === 'SAIDA') saldoAtual -= Number(m.valor);
+                });
                 
                 if (saldoAtual < capitalLido) {
                     if (Platform.OS === 'web') {
@@ -312,11 +362,9 @@ export function useClientes() {
             lucro_total: 0, multas_pagas: 0, movimentacoes: []
         };
 
-        // 🚀 INJETADO: Agora, se a tela enviar MENSAL mas com totalParcelas > 1, 
-        // ele trata como PARCELADO para dividir a dívida!
         let freq = novoContrato.frequencia;
         if (freq === 'MENSAL' && novoContrato.totalParcelas && parseInt(novoContrato.totalParcelas) > 1) {
-            freq = 'PARCELADO'; // Força a ser fatiado!
+            freq = 'PARCELADO'; 
         }
 
         const descHist = tipoReal === 'VENDA' ? t('relatorio.tipoVenda') : t('cadastro.segEmprestimo');
@@ -402,7 +450,6 @@ export function useClientes() {
             contratoDB.movimentacoes = [t('historico.criadoDiario', { data: dataBaseStr, tipo: descHist, dias: dias, valor: valorParcNormal.toFixed(2) })];
         
         } else {
-            // Este é o MENSAL ORIGINAL (Infinito, sem parcelas)
             contratoDB.lucro_juros_por_parcela = valorJurosExato; 
             contratoDB.proximo_vencimento = addMes(dataBaseStr, 1);
             contratoDB.movimentacoes = [t('historico.criadoMensal', { data: dataBaseStr, tipo: descHist, valor: capitalLido.toFixed(2) })];
@@ -413,8 +460,8 @@ export function useClientes() {
 
         if (tipoReal === 'EMPRESTIMO') {
             const idCarteira = await garantirCarteira();
-            const userId = await getUserId();
-            if (idCarteira && userId) {
+            const activeUserId = await getActiveUserId(); 
+            if (idCarteira && activeUserId) {
                   let descTipo = t('cadastro.segEmprestimo');
                   if (freq === 'SEMANAL') descTipo += ` ${t('novoContrato.freqSEMANAL')}`;
                   else if (freq === 'DIARIO') descTipo += ` ${t('novoContrato.freqDIARIO')}`;
@@ -427,16 +474,20 @@ export function useClientes() {
                     descricao: `${descTipo} p/ ${nomeCliente}`,
                     data_movimento: paraBancoISO(dataBaseStr),
                     conta_id: idCarteira,
-                    user_id: userId
+                    user_id: activeUserId 
                 }]);
             }
         }
 
         if (cliente.id) await refreshCliente(cliente.id); 
     } catch (e: any) { Alert.alert(t('common.erro'), e.message); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
 
+  // 🔒 TRAVA: RENOVAR/QUITAR (COBRAR)
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string, multaCobrada?: number) => {
+    if (!temPermissao('cobrar')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para renovar ou quitar contratos.");
+    }
     try {
       let vJuro = 0;
       const jurosSalvo = contrato.lucroJurosPorParcela || 0;
@@ -516,8 +567,8 @@ export function useClientes() {
           };
 
           const idCarteira = await garantirCarteira();
-          const userId = await getUserId();
-          if (idCarteira && userId) {
+          const activeUserId = await getActiveUserId(); 
+          if (idCarteira && activeUserId) {
                const totalPago = arredondarMoeda(vJuro + vMulta);
                await supabase.from('fluxo_pessoal').insert([{
                   tipo: 'ENTRADA',
@@ -525,7 +576,7 @@ export function useClientes() {
                   descricao: `Renovação - ${nomeCliente}`,
                   data_movimento: paraBancoISO(dataInformada),
                   conta_id: idCarteira,
-                  user_id: userId
+                  user_id: activeUserId 
               }]);
           }
 
@@ -539,8 +590,8 @@ export function useClientes() {
           updates = { status: 'QUITADO', capital: 0, lucro_total: arredondarMoeda((contrato.lucroTotal||0) + vJuro), multas_pagas: arredondarMoeda((contrato.multasPagas||0) + vMulta), movimentacoes: h };
           
           const idCarteira = await garantirCarteira();
-          const userId = await getUserId(); 
-          if (idCarteira && userId) {
+          const activeUserId = await getActiveUserId(); 
+          if (idCarteira && activeUserId) {
                let descTipo = t('cadastro.segEmprestimo');
                if (contrato.frequencia === 'PARCELADO') descTipo = t('relatorio.tipoVenda'); 
                await supabase.from('fluxo_pessoal').insert([{
@@ -549,7 +600,7 @@ export function useClientes() {
                   descricao: `${t('relatorio.quitacao')} ${descTipo} - ${nomeCliente}`,
                   data_movimento: paraBancoISO(dataInformada),
                   conta_id: idCarteira,
-                  user_id: userId 
+                  user_id: activeUserId 
               }]);
           }
       }
@@ -565,9 +616,13 @@ export function useClientes() {
       Alert.alert(t('common.sucesso'), `${tipoTraduzido} ${t('common.sucesso')}!\n💰 R$ ${val.toFixed(2)}`);
 
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao processar."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
 
+  // 🔒 TRAVA: PAGAR PARCELA (COBRAR)
   const pagarParcela = useCallback(async (nomeCliente: string, contrato: Contrato, dataPagamento: string, multaCobrada?: number) => {
+    if (!temPermissao('cobrar')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para baixar parcelas.");
+    }
     try {
       
       let vMulta = 0;
@@ -664,8 +719,8 @@ export function useClientes() {
       if(error) throw error;
 
       const idCarteira = await garantirCarteira();
-      const userId = await getUserId(); 
-      if (idCarteira && userId) {
+      const activeUserId = await getActiveUserId(); 
+      if (idCarteira && activeUserId) {
           const valorRecebido = arredondarMoeda(valorParc + vMulta);
           let descTipo = t('cadastro.segEmprestimo');
           if (contrato.frequencia === 'PARCELADO') descTipo = t('relatorio.tipoVenda');
@@ -675,7 +730,7 @@ export function useClientes() {
               descricao: `Receb. ${descTipo} ${qtdPagas}/${contrato.totalParcelas || '?'} - ${nomeCliente}`,
               data_movimento: paraBancoISO(dataPagamento),
               conta_id: idCarteira,
-              user_id: userId 
+              user_id: activeUserId 
           }]);
       }
 
@@ -684,9 +739,13 @@ export function useClientes() {
 
       Alert.alert(t('common.sucesso'), `${t('pastaCliente.pagarParcela')} OK!\n💰 R$ ${(valorParc+vMulta).toFixed(2)}`);
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao pagar."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
 
+  // 🔒 TRAVA: CRIAR ACORDO (COBRAR)
   const criarAcordo = useCallback(async (nomeCliente: string, contratoId: number, valorTotal: number, qtd: number, data: string, multaDiaria: number) => {
+    if (!temPermissao('cobrar')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para fazer acordos.");
+    }
     try {
         const contrato = clientes.find(c => c.nome === nomeCliente)?.contratos.find(ct => ct.id === contratoId);
         
@@ -707,7 +766,6 @@ export function useClientes() {
 
         const updates = {
             status: 'PARCELADO', 
-            // 🔥 REMOVIDO: A frequência original do cliente é preservada para não virar "VENDA"
             capital: novoCapitalBase, 
             total_parcelas: qtd, 
             parcelas_pagas: 0,
@@ -726,9 +784,13 @@ export function useClientes() {
 
         Alert.alert(t('common.sucesso'), "Acordo realizado!");
     } catch(e) { Alert.alert(t('common.erro'), "Falha no acordo"); }
-  }, [clientes, paraBancoISO, refreshCliente, t]);
+  }, [clientes, paraBancoISO, refreshCliente, t, temPermissao]);
 
+  // 🔒 TRAVA: ABATER EMPRÉSTIMO (COBRAR)
   const abaterEmprestimo = useCallback(async (nomeCliente: string, contrato: Contrato, valorPago: number, multaPaga: number, dataPagamento: string) => {
+    if (!temPermissao('cobrar')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para realizar abatimentos.");
+    }
     try {
         let jurosAtual = 0;
         const jurosSalvo = contrato.lucroJurosPorParcela || 0;
@@ -808,8 +870,8 @@ export function useClientes() {
         if (error) throw error;
 
         const idCarteira = await garantirCarteira();
-        const userId = await getUserId();
-        if (idCarteira && userId) {
+        const activeUserId = await getActiveUserId(); 
+        if (idCarteira && activeUserId) {
             const totalEntrada = arredondarMoeda(valorPago + multaPaga);
             if (totalEntrada > 0) {
                 await supabase.from('fluxo_pessoal').insert([{
@@ -818,7 +880,7 @@ export function useClientes() {
                     descricao: `Abatimento - ${nomeCliente}`,
                     data_movimento: paraBancoISO(dataPagamento),
                     conta_id: idCarteira,
-                    user_id: userId
+                    user_id: activeUserId 
                 }]);
             }
         }
@@ -828,9 +890,13 @@ export function useClientes() {
 
         Alert.alert(t('common.sucesso'), `Abatimento concluído!\nO Novo Capital Base é R$ ${novoCapital.toFixed(2)} e o vencimento foi atualizado.`);
     } catch (e) { Alert.alert(t('common.erro'), "Falha ao abater valor."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
   
+  // 🔒 TRAVA: EDITAR CONTRATO
   const editarContrato = useCallback(async (nomeCliente: string, id: number, dados: any) => { 
+      if (!temPermissao('gerar_contrato')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para editar contratos.");
+      }
       try {
           let dataInicioDB = dados.dataInicio;
           if (dataInicioDB && dataInicioDB.includes('/')) {
@@ -865,12 +931,16 @@ export function useClientes() {
       } catch (e) { 
           Alert.alert(t('common.erro'), "Falha ao editar empréstimo."); 
       }
-  }, [clientes, paraBancoISO, refreshCliente, t]);
+  }, [clientes, paraBancoISO, refreshCliente, t, temPermissao]);
   
+  // 🔒 TRAVA: EXCLUIR CONTRATO
   const excluirContrato = useCallback(async (id: number) => { 
+      if (!temPermissao('gerar_contrato')) {
+        return Alert.alert(t('common.erro'), "Você não tem permissão para excluir contratos.");
+      }
       const { error } = await supabase.from('contratos').delete().eq('id', id);
       if(!error) await fetchData(); 
-  }, [fetchData]);
+  }, [fetchData, temPermissao]);
   
   const importarDados = useCallback((d: any) => {}, []);
 

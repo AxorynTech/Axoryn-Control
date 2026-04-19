@@ -102,13 +102,15 @@
         .country-btn i { font-size: 18px; }
 
         /* Cards de Pagamento */
-        .plans-grid { display: flex; gap: 10px; margin-top: 15px; }
-        .plan-card { flex: 1; border: 1px solid #DDD; border-radius: 10px; padding: 15px 10px; cursor: pointer; transition: 0.2s; position: relative; background: white; }
+        .plans-grid { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; } /* Ajustado para coluna */
+        .plans-row { display: flex; gap: 10px; } /* Mantém Mensal e Anual lado a lado */
+        .plan-card { flex: 1; border: 1px solid #DDD; border-radius: 10px; padding: 15px 10px; cursor: pointer; transition: 0.2s; position: relative; background: white; text-align: center;}
         .plan-card:hover { border-color: var(--primary); background: #F4FAFF; }
         .plan-title { font-size: 13px; font-weight: bold; color: #555; }
         .plan-price { font-size: 20px; font-weight: bold; color: var(--primary); margin: 5px 0; }
         .plan-period { font-size: 11px; color: #999; }
         .best-value { position: absolute; top: -10px; right: 50%; transform: translateX(50%); background: var(--success); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: bold; }
+        .tag-team { position: absolute; top: -10px; right: 50%; transform: translateX(50%); background: var(--primary); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: bold; }
 
         /* Estilo Recargas */
         .card-recarga { border-color: #FDEBD0; }
@@ -228,17 +230,26 @@
                 <p style="font-weight:bold; margin-bottom:10px; color:#2C3E50; font-size:14px;" data-i18n="renew_title">Renovar Assinatura:</p>
                 
                 <div class="plans-grid">
-                    <div class="plan-card" onclick="pagar('mensal')">
-                        <div class="plan-title" data-i18n="plan_monthly">MENSAL</div>
-                        <div class="plan-price" id="priceMensal">R$ 14,99</div>
-                        <div class="plan-period" data-i18n="period_monthly">Cobrado todo mês</div>
+                    <div class="plans-row">
+                        <div class="plan-card" onclick="pagar('mensal')">
+                            <div class="plan-title" data-i18n="plan_monthly">MENSAL</div>
+                            <div class="plan-price" id="priceMensal">R$ 14,99</div>
+                            <div class="plan-period" data-i18n="period_monthly">Cobrado todo mês</div>
+                        </div>
+                        
+                        <div class="plan-card" onclick="pagar('anual')">
+                            <div class="best-value">-15% OFF</div>
+                            <div class="plan-title" data-i18n="plan_annual">ANUAL</div>
+                            <div class="plan-price" id="priceAnual">R$ 149,90</div>
+                            <div class="plan-period" data-i18n="period_annual">Cobrado uma vez</div>
+                        </div>
                     </div>
                     
-                    <div class="plan-card" onclick="pagar('anual')">
-                        <div class="best-value">-15% OFF</div>
-                        <div class="plan-title" data-i18n="plan_annual">ANUAL</div>
-                        <div class="plan-price" id="priceAnual">R$ 149,90</div>
-                        <div class="plan-period" data-i18n="period_annual">Cobrado uma vez</div>
+                    <div class="plan-card" onclick="pagar('corporativo')" style="border: 2px dashed var(--primary); background: #F4FAFF;">
+                        <div class="tag-team" data-i18n="tag_team">ADD-ON (MÓDULO)</div>
+                        <div class="plan-title" data-i18n="plan_corp" style="color: var(--primary);">EQUIPE CORPORATIVA</div>
+                        <div class="plan-price" id="priceCorp">R$ 49,90</div>
+                        <div class="plan-period" data-i18n="period_corp">Requer Assinatura Base Ativa</div>
                     </div>
                 </div>
             </div>
@@ -313,12 +324,13 @@
     </div>
 
     <script>
-        // --- TRADUÇÕES COMPLETAS (COM MODAL E ALERTAS E HINDI) ---
+        // --- TRADUÇÕES COMPLETAS COM AS NOVAS CHAVES DA EQUIPE ---
         const translations = {
             pt: {
                 portal_subtitle: "Portal do Cliente", label_email: "E-MAIL", label_password: "SENHA", forgot_password: "Esqueceu a senha?", btn_login: "Acessar Conta",
                 hello: "Olá", current_plan: "Plano Atual", expiration: "Vencimento", status_title: "Situação", renew_title: "Renovar Assinatura:",
                 plan_monthly: "MENSAL", period_monthly: "Cobrado todo mês", plan_annual: "ANUAL", period_annual: "Cobrado uma vez",
+                plan_corp: "EQUIPE CORPORATIVA", period_corp: "Requer Assinatura Base Ativa", tag_team: "ADD-ON (MÓDULO)",
                 refills_title: "Recargas Axoryn Shield:", tag_pack: "PACOTE", pack_10: "10 CONSULTAS", btn_logout: "Sair da conta",
                 camouf_title: "Conta Ativada com Sucesso", camouf_msg: "Aproveite o Axoryn Control!", premium_active: "Conta Premium Ativa", resources_unlocked: "Todos os recursos liberados.",
                 msg_new_account: "Sua conta está ativa e verificada.", msg_premium: "Sua assinatura está válida.", msg_trial: "Período de teste ativo.", msg_expired: "Seu período gratuito acabou.",
@@ -336,6 +348,7 @@
                 portal_subtitle: "Client Portal", label_email: "EMAIL", label_password: "PASSWORD", forgot_password: "Forgot password?", btn_login: "Login",
                 hello: "Hello", current_plan: "Current Plan", expiration: "Expiration", status_title: "Status", renew_title: "Renew Subscription:",
                 plan_monthly: "MONTHLY", period_monthly: "Billed monthly", plan_annual: "ANNUAL", period_annual: "Billed once",
+                plan_corp: "CORPORATE TEAM", period_corp: "Requires Active Base Plan", tag_team: "ADD-ON",
                 refills_title: "Axoryn Shield Credits:", tag_pack: "PACK", pack_10: "10 LOOKUPS", btn_logout: "Logout",
                 camouf_title: "Account Activated", camouf_msg: "Enjoy Axoryn Control!", premium_active: "Premium Active", resources_unlocked: "All features unlocked.",
                 msg_new_account: "Your account is active and verified.", msg_premium: "Your subscription is valid.", msg_trial: "Free trial active.", msg_expired: "Your trial has ended.",
@@ -353,6 +366,7 @@
                 portal_subtitle: "Portal del Cliente", label_email: "CORREO", label_password: "CONTRASEÑA", forgot_password: "¿Olvidaste tu contraseña?", btn_login: "Acceder",
                 hello: "Hola", current_plan: "Plan Actual", expiration: "Vencimiento", status_title: "Situación", renew_title: "Renovar Suscripción:",
                 plan_monthly: "MENSUAL", period_monthly: "Cobrado cada mes", plan_annual: "ANUAL", period_annual: "Cobrado una vez",
+                plan_corp: "EQUIPO CORPORATIVO", period_corp: "Requiere Plan Base Activo", tag_team: "MÓDULO EXTRA",
                 refills_title: "Recargas Axoryn Shield:", tag_pack: "PAQUETE", pack_10: "10 CONSULTAS", btn_logout: "Cerrar Sesión",
                 camouf_title: "Cuenta Activada", camouf_msg: "¡Disfruta Axoryn Control!", premium_active: "Premium Activo", resources_unlocked: "Todos los recursos liberados.",
                 msg_new_account: "Tu cuenta está activa y verificada.", msg_premium: "Tu suscripción es válida.", msg_trial: "Prueba gratuita activa.", msg_expired: "Tu periodo gratuito ha terminado.",
@@ -370,6 +384,7 @@
                 portal_subtitle: "ग्राहक पोर्टल", label_email: "ईमेल", label_password: "पासवर्ड", forgot_password: "पासवर्ड भूल गए?", btn_login: "लॉग इन करें",
                 hello: "नमस्ते", current_plan: "वर्तमान योजना", expiration: "समाप्ति", status_title: "स्थिति", renew_title: "सदस्यता नवीनीकरण:",
                 plan_monthly: "मासिक", period_monthly: "हर महीने बिल किया जाता है", plan_annual: "वार्षिक", period_annual: "एक बार बिल किया जाता है",
+                plan_corp: "कॉर्पोरेट टीम", period_corp: "सक्रिय बेस योजना आवश्यक है", tag_team: "ऐड-ऑन",
                 refills_title: "Axoryn Shield रिचार्ज:", tag_pack: "पैक", pack_10: "10 परामर्श", btn_logout: "लॉग आउट",
                 camouf_title: "खाता सक्रिय", camouf_msg: "Axoryn Control का आनंद लें!", premium_active: "प्रीमियम सक्रिय", resources_unlocked: "सभी सुविधाएं अनलॉक।",
                 msg_new_account: "आपका खाता सक्रिय और सत्यापित है।", msg_premium: "आपकी सदस्यता वैध है।", msg_trial: "नि:शुल्क परीक्षण सक्रिय।", msg_expired: "आपका परीक्षण समाप्त हो गया है।",
@@ -455,6 +470,7 @@
                 // --- PREÇOS BRASIL (MERCADO PAGO) ---
                 document.getElementById('priceMensal').innerText = "R$ 14,99";
                 document.getElementById('priceAnual').innerText = "R$ 149,90";
+                document.getElementById('priceCorp').innerText = "R$ 49,90"; // NOVO PLANO
                 document.getElementById('priceRecarga').innerText = "R$ 20,00";
                 document.getElementById('textRecarga').innerText = "R$ 2,00 " + suffix;
             } else {
@@ -467,6 +483,7 @@
                 // --- PREÇOS INTERNACIONAL (STRIPE) ---
                 document.getElementById('priceMensal').innerText = "$ 9.90";
                 document.getElementById('priceAnual').innerText = "$ 99.00";
+                document.getElementById('priceCorp').innerText = "$ 29.90"; // NOVO PLANO
                 document.getElementById('priceRecarga').innerText = "$ 10.00";
                 document.getElementById('textRecarga').innerText = "$ 1.00 " + suffix;
             }
@@ -533,7 +550,6 @@
             let mostrarQuarentena = false;
 
             // Reseta visualização
-            // INCLUÍDO 'areaSeletor' no reset
             ['areaPagamento', 'areaQuarentena', 'areaPremium', 'areaRecargas', 'progressContainer', 'areaSeletor'].forEach(id => document.getElementById(id).classList.add('hidden'));
 
             if (DEVE_CAMUFLAR) {
@@ -541,7 +557,6 @@
                 statusBadge = "ATIVO"; statusBadgeClass = "bg-green-light";
                 mensagemKey = "msg_new_account";
                 document.getElementById('areaQuarentena').classList.remove('hidden');
-                // CAMUFLAGEM: Mantém a data oculta e NÃO remove o hidden do areaSeletor
                 document.getElementById('infoDate').innerText = "--/--/----";
 
             } else if (fimAssinatura && fimAssinatura > hoje) {
@@ -550,10 +565,12 @@
                 mensagemKey = "msg_premium";
                 document.getElementById('areaPremium').classList.remove('hidden');
                 document.getElementById('areaRecargas').classList.remove('hidden');
-                // PREMIUM VÊ O SELETOR DE MOEDAS (PARA RECARGAS)
                 document.getElementById('areaSeletor').classList.remove('hidden');
                 
                 document.getElementById('infoDate').innerText = fimAssinatura.toLocaleDateString('pt-BR');
+                
+                // Mostra a área de pagamento se ele já for premium (para poder adicionar o módulo Corporativo)
+                document.getElementById('areaPagamento').classList.remove('hidden');
 
             } else {
                 const diasUso = (hoje - dataCriacao) / (1000 * 3600 * 24);
@@ -563,7 +580,6 @@
                     mensagemKey = "msg_trial";
                     mostrarBarra = true;
                     document.getElementById('progressContainer').classList.remove('hidden');
-                    // ALTERADO AQUI PARA 30 DIAS
                     document.getElementById('progressBar').style.width = ((diasUso / 30) * 100) + "%";
                     document.getElementById('areaRecargas').classList.remove('hidden'); 
                     document.getElementById('areaPagamento').classList.remove('hidden');
@@ -571,7 +587,6 @@
                     document.getElementById('areaPagamento').classList.remove('hidden');
                     document.getElementById('areaRecargas').classList.remove('hidden');
                 }
-                // USUÁRIO GRÁTIS VÊ O SELETOR DE MOEDAS
                 document.getElementById('areaSeletor').classList.remove('hidden');
                 
                 document.getElementById('infoDate').innerText = "--/--/----";
@@ -582,9 +597,6 @@
             document.getElementById('badgeStatus').innerText = statusBadge;
             document.getElementById('badgeStatus').className = "status-badge " + statusBadgeClass;
             document.getElementById('statusMessage').innerText = translations[currentLang][mensagemKey];
-            
-            // ALTERAÇÃO: Comentado para não exibir na tela, mas mantendo a lógica se precisar reverter
-            // document.getElementById('debugInfo').innerText = "ID: " + user.id.slice(0,8) + " | Camuflagem: " + DEVE_CAMUFLAR;
         }
 
         // --- FUNÇÕES DO MODAL ---
