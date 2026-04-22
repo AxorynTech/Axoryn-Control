@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Axoryn - Marketing Push</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-900 flex items-center justify-center min-h-screen">
+
+    <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full border-t-8 border-purple-600">
+        <h2 class="text-2xl font-black text-center text-gray-800 mb-2 italic">AXORYN TECH</h2>
+        <p class="text-center text-gray-500 mb-8 uppercase text-xs tracking-widest font-bold">Central de Transmissão</p>
+
+        <div class="space-y-5">
+            <div>
+                <label class="block text-xs font-black text-gray-400 uppercase mb-1">Título do Push</label>
+                <input type="text" id="titulo" placeholder="Ex: Novidade no Axoryn Control!" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none font-medium">
+            </div>
+
+            <div>
+                <label class="block text-xs font-black text-gray-400 uppercase mb-1">Mensagem para o Cliente</label>
+                <textarea id="mensagem" rows="4" placeholder="Escreva aqui..." class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none font-medium"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase mb-1">Destinatário</label>
+                    <input type="text" id="destinatario" value="todos" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none font-bold text-purple-600">
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-red-400 uppercase mb-1">Senha Mestra</label>
+                    <input type="password" id="senhaMestra" class="w-full px-4 py-3 bg-red-50 border border-red-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none">
+                </div>
+            </div>
+
+            <button id="btnEnviar" onclick="dispararNotificacao()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-4 px-4 rounded-xl transition duration-300 shadow-lg shadow-purple-200 uppercase tracking-tighter">
+                <span id="btnText">Enviar Notificação Agora</span>
+            </button>
+        </div>
+
+        <div id="statusBox" class="mt-6 hidden p-4 rounded-xl text-sm text-center font-bold"></div>
+    </div>
+
+    <script>
+        // Credenciais Axoryn configuradas
+        const SUPABASE_URL = 'https://pcbywklgjmampecvgkqf.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjYnl3a2xnam1hbXBlY3Zna3FmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODA5NzU2NiwiZXhwIjoyMDgzNjczNTY2fQ.YcbGbOdTTJv4eVVUuNZ3JuC39oL20oAcXKuJON1ITac';
+
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function dispararNotificacao() {
+            const titulo = document.getElementById('titulo').value;
+            const mensagem = document.getElementById('mensagem').value;
+            const destinatario = document.getElementById('destinatario').value;
+            const senhaMestra = document.getElementById('senhaMestra').value;
+            const btn = document.getElementById('btnEnviar');
+            const btnText = document.getElementById('btnText');
+            const statusBox = document.getElementById('statusBox');
+
+            if (!titulo || !mensagem || !senhaMestra) {
+                mostrarStatus('Preencha todos os campos!', 'bg-red-100 text-red-700');
+                return;
+            }
+
+            if (!confirm("Confirmar disparo para a base de dados?")) return;
+
+            btn.disabled = true;
+            btnText.innerText = 'PROCESSANDO...';
+
+            try {
+                const { data, error } = await _supabase.functions.invoke('push-manual', {
+                    body: { titulo, mensagem, destinatarioId: destinatario, senhaMestra }
+                });
+
+                if (error) throw new Error(error.message);
+                mostrarStatus(`SUCESSO! Enviado para ${data.disparos} dispositivos.`, 'bg-green-100 text-green-700');
+            } catch (err) {
+                mostrarStatus(`ERRO: ${err.message}`, 'bg-red-100 text-red-700');
+            } finally {
+                btn.disabled = false;
+                btnText.innerText = 'Enviar Notificação Agora';
+            }
+        }
+
+        function mostrarStatus(texto, classes) {
+            const statusBox = document.getElementById('statusBox');
+            statusBox.className = `mt-6 p-4 rounded-xl text-sm text-center font-bold ${classes}`;
+            statusBox.innerText = texto;
+            statusBox.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
