@@ -10,9 +10,10 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ message: "Ignorado" }), { status: 200 });
     }
 
-    const userId = event.app_user_id; // Esse é o ID do Supabase que enviamos via App!
-    const tipoEvento = event.type; // INITIAL_PURCHASE, RENEWAL, EXPIRATION, etc.
+    const userId = event.app_user_id; 
+    const tipoEvento = event.type; 
     const expirationAtMs = event.expiration_at_ms;
+    const productId = event.product_id || '';
 
     // Conecta ao Supabase usando a chave de administrador
     const supabase = createClient(
@@ -20,28 +21,63 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Se foi uma compra ou renovação aprovada
+    // ============================================================
+    // 1. EVENTO: COMPRA INICIAL OU RENOVAÇÃO
+    // ============================================================
     if (tipoEvento === 'INITIAL_PURCHASE' || tipoEvento === 'RENEWAL') {
       const dataFim = new Date(expirationAtMs).toISOString();
+      
+      // Identifica o plano pelo ID do produto
+      const ehAnual = productId.toLowerCase().includes('anual') || productId.toLowerCase().includes('year');
+      const planoNome = ehAnual ? 'anual' : 'mensal';
 
-      // Atualiza a validade do App no perfil do usuário
+      // A. Atualiza o Perfil (Libera o App)
       await supabase.from('profiles').update({ 
-        data_fim_assinatura: dataFim 
+        data_fim_assinatura: dataFim,
+        status: 'premium',
+        plano: planoNome
       }).eq('user_id', userId);
 
-      console.log(`RC: Assinatura atualizada para ${userId}. Válida até ${dataFim}`);
+      // B. Grava o Histórico Financeiro (A memória que faltava)
+      await supabase.from('assinaturas').insert({
+        user_id: userId,
+        plano: planoNome,
+        status: 'approved',
+        valor: event.price || 0,
+        metodo_pagamento: 'loja_app',
+        transaction_id: event.transaction_id || event.id
+      });
+
+      // C. Garante que a Equipe também fique Premium
+      const { data: prof } = await supabase.from('profiles').select('team_id').eq('user_id', userId).single();
+      if (prof?.team_id) {
+        await supabase.from('teams').update({ is_premium: true }).eq('id', prof.team_id);
+      }
+
+      console.log(`RC: Sucesso! Assinatura ${planoNome} gravada para ${userId}.`);
     } 
-    // Se a assinatura expirou
+
+    // ============================================================
+    // 2. EVENTO: EXPIRAÇÃO (Fim do Prazo ou Cancelamento)
+    // ============================================================
     else if (tipoEvento === 'EXPIRATION') {
-      // Volta a data para o passado (ontem), bloqueando o acesso na Web
       const dataPassada = new Date(Date.now() - 86400000).toISOString(); 
       
+      // A. Bloqueia o Perfil
       await supabase.from('profiles').update({ 
-        data_fim_assinatura: dataPassada 
+        data_fim_assinatura: dataPassada,
+        status: 'gratis',
+        plano: 'expirado'
       }).eq('user_id', userId);
 
-      // Zera a catraca da equipe por falta de pagamento do plano base
-      await supabase.from('teams').update({ limite_membros: 0 }).eq('owner_id', userId);
+      // B. Bloqueia a Equipe e zera limites
+      const { data: prof } = await supabase.from('profiles').select('team_id').eq('user_id', userId).single();
+      if (prof?.team_id) {
+        await supabase.from('teams').update({ 
+          is_premium: false,
+          limite_membros: 0 
+        }).eq('id', prof.team_id);
+      }
 
       console.log(`RC: Assinatura expirada para ${userId}. Acesso cortado.`);
     }
