@@ -1,19 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next'; // <--- Importação da tradução
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { ActivityIndicator, Alert, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+// 🔒 IMPORT DA TRAVA DE PERMISSÃO
+import { usePermissoes } from '../hooks/usePermissoes';
 
 type Props = {
   visivel: boolean;
   tipo: string; // 'RENOVAR' ou 'QUITAR'
   fechar: () => void;
   // 🚀 ADICIONADO: confirmar agora envia a data e a multa (se houver)
-  confirmar: (dataInformada: string, multaCobrada?: number) => void;
+  confirmar: (dataInformada: string, multaCobrada?: number) => Promise<void> | void;
   // 🚀 ADICIONADO: contrato para poder calcular a multa na tela
   contrato?: any; 
 };
 
 export default function ModalAcao({ visivel, tipo, fechar, confirmar, contrato }: Props) {
-  const { t } = useTranslation(); // <--- Hook de tradução
+  const { t } = useTranslation(); 
+  
+  // 🔒 PUXAR O VERIFICADOR EM TEMPO REAL
+  const { loadingPermissoes, verificarPermissaoRealTime } = usePermissoes();
+  const [salvando, setSalvando] = useState(false);
   
   // Voltamos para string simples para digitação manual
   const [data, setData] = useState('');
@@ -65,10 +72,33 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar, contrato }
   }, [data, contrato]);
 
   // 🚀 ADICIONADO: Função para processar o valor formatado ao confirmar
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
+    if (loadingPermissoes) return;
+    
+    setSalvando(true);
+
+    // 🔒 CONSULTA EM TEMPO REAL NO SUPABASE PARA COBRAR
+    const temAcesso = await verificarPermissaoRealTime('cobrar');
+    if (!temAcesso) {
+        setSalvando(false);
+        if (Platform.OS === 'web') {
+            window.alert("Acesso Negado\nO seu líder não liberou permissão para renovar ou quitar.");
+        } else {
+            Alert.alert("Acesso Negado", "O seu líder não liberou permissão para renovar ou quitar.");
+        }
+        return;
+    }
+
     let m = parseFloat(multaEditavel.replace(',', '.'));
     if (isNaN(m)) m = 0;
-    confirmar(data, m);
+    
+    try {
+        await confirmar(data, m);
+    } catch (e) {
+        console.log("Erro confirmar", e);
+    } finally {
+        setSalvando(false);
+    }
   };
 
   // Define a cor baseada no tipo de ação
@@ -125,13 +155,18 @@ export default function ModalAcao({ visivel, tipo, fechar, confirmar, contrato }
             <TouchableOpacity 
               style={[styles.botaoConfirmar, { backgroundColor: corPrincipal }]} 
               onPress={handleConfirmar}
+              disabled={salvando || loadingPermissoes}
             >
-              <Text style={styles.textoBotao}>
-                {t('modalAcao.btnConfirmar')} {tituloTraduzido}
-              </Text>
+              {salvando || loadingPermissoes ? (
+                  <ActivityIndicator color="#FFF" />
+              ) : (
+                  <Text style={styles.textoBotao}>
+                    {t('modalAcao.btnConfirmar')} {tituloTraduzido}
+                  </Text>
+              )}
             </TouchableOpacity>
             
-            <TouchableOpacity onPress={fechar} style={styles.botaoCancelar}>
+            <TouchableOpacity onPress={fechar} style={styles.botaoCancelar} disabled={salvando}>
               <Text style={styles.textoCancelar}>{t('common.cancelar')}</Text>
             </TouchableOpacity>
           </View>

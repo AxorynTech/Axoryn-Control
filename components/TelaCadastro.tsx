@@ -19,12 +19,18 @@ import * as ImagePicker from 'expo-image-picker';
 // ATENÇÃO: Confirme se este é o caminho correto para o seu arquivo supabase!
 import { supabase } from '../services/supabase';
 
+// 🔒 IMPORT DA TRAVA DE PERMISSÃO
+import { usePermissoes } from '../hooks/usePermissoes';
+
 type Props = {
-  aoSalvar: (dados: any) => void;
+  aoSalvar: (dados: any) => Promise<void> | void;
 };
 
 export default function TelaCadastro({ aoSalvar }: Props) {
   const { t, i18n } = useTranslation();
+  
+  // 🔒 PUXAR O VERIFICADOR EM TEMPO REAL
+  const { loadingPermissoes, verificarPermissaoRealTime } = usePermissoes();
   
   // Estados do Formulário
   const [nome, setNome] = useState('');
@@ -40,10 +46,8 @@ export default function TelaCadastro({ aoSalvar }: Props) {
   const [uriFotoApenasDoc, setUriFotoApenasDoc] = useState<string | null>(null);
   const [carregandoUpload, setCarregandoUpload] = useState(false);
 
-  // Verifica se é usuário brasileiro
   const isBrasil = i18n.language.startsWith('pt');
 
-  // Máscara de Documento Inteligente (CPF e CNPJ)
   const handleDocumentoChange = (text: string) => {
     if (isBrasil) {
         let v = text.replace(/\D/g, ''); 
@@ -83,7 +87,7 @@ export default function TelaCadastro({ aoSalvar }: Props) {
       const options: ImagePicker.ImagePickerOptions = {
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
           allowsEditing: false,
-          quality: 0.3, // Qualidade baixa ajuda na velocidade do upload
+          quality: 0.3,
       };
 
       const result = source === 'camera'
@@ -120,7 +124,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
       const path = `${userId}/${prefixo}_${Date.now()}.${ext}`;
       
       if (Platform.OS === 'web') {
-          // ✅ SOLUÇÃO APENAS PARA WEB: Transforma a URI (blob local) num arquivo (Blob) real para o Supabase
           const response = await fetch(uri);
           const blob = await response.blob();
           
@@ -130,7 +133,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
 
           if (error) throw error;
       } else {
-          // 🚀 ARQUITETURA IOS/ANDROID BLINDADA: SEU CÓDIGO INTACTO AQUI!
           const formData = new FormData();
           formData.append('file', {
               uri: uri, 
@@ -149,7 +151,25 @@ export default function TelaCadastro({ aoSalvar }: Props) {
   };
 
   const handleSalvar = async () => {
+    if (loadingPermissoes) return;
+
+    // 🔥 Gira a bolinha para mascarar o tempo que o sistema vai ao banco de dados perguntar se pode.
+    setCarregandoUpload(true); 
+
+    // 🔒 CONSULTA EM TEMPO REAL NO SUPABASE
+    const temAcesso = await verificarPermissaoRealTime('cadastrar_cliente');
+    if (!temAcesso) {
+        setCarregandoUpload(false);
+        if (Platform.OS === 'web') {
+            window.alert("Acesso Negado\nO seu líder não liberou permissão para cadastrar clientes.");
+        } else {
+            Alert.alert("Acesso Negado", "O seu líder não liberou permissão para cadastrar clientes.");
+        }
+        return;
+    }
+
     if (!nome.trim()) {
+       setCarregandoUpload(false);
        if (Platform.OS === 'web') {
            window.alert(`${t('common.erro')}\n${t('modalEditarCliente.erroNome')}`);
            return;
@@ -158,7 +178,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
        }
     }
     
-    setCarregandoUpload(true);
     let pathFotoComDoc = null;
     let pathFotoApenasDoc = null;
 
@@ -166,7 +185,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-            // Uploads em Paralelo
             const promessasUpload = [];
             
             if (uriFotoComDoc) {
@@ -182,50 +200,45 @@ export default function TelaCadastro({ aoSalvar }: Props) {
                 );
             }
 
-            // Aguarda ambos finalizarem
             if (promessasUpload.length > 0) {
                 await Promise.all(promessasUpload);
             }
         }
-    } catch (e) {
-        console.log("Erro no upload", e);
+
+        // 🔥 O AWAIT SEGURA A TELA ATÉ O BANCO SALVAR O CLIENTE
+        await aoSalvar({
+            nome: nome.trim().toUpperCase(),
+            cpf: cpf, 
+            whatsapp: whatsapp.trim(),
+            endereco: endereco.trim(),
+            indicacao: indicacao.trim(),
+            reputacao: reputacao.trim(),
+            segmento,
+            foto_com_documento: pathFotoComDoc,
+            foto_apenas_documento: pathFotoApenasDoc
+        });
+
+        // Limpar campos
+        setNome(''); 
+        setCpf(''); 
+        setWhatsapp(''); 
+        setEndereco(''); 
+        setIndicacao(''); 
+        setReputacao(''); 
+        setSegmento('EMPRESTIMO');
+        setUriFotoComDoc(null);
+        setUriFotoApenasDoc(null);
+
         if (Platform.OS === 'web') {
-            window.alert(`${t('radar.atencao')}\n${t('cadastro.erroUploadAviso', { defaultValue: "Houve um problema ao subir as fotos, mas o cliente será salvo." })}`);
+            window.alert(`${t('common.sucesso')}\n${t('cadastro.msgSucesso')}`);
         } else {
-            Alert.alert(t('radar.atencao'), t('cadastro.erroUploadAviso', { defaultValue: "Houve um problema ao subir as fotos, mas o cliente será salvo." }));
+            Alert.alert(t('common.sucesso'), t('cadastro.msgSucesso'));
         }
-    }
-    setCarregandoUpload(false);
 
-    aoSalvar({
-      nome: nome.trim().toUpperCase(),
-      cpf: cpf, 
-      whatsapp: whatsapp.trim(),
-      endereco: endereco.trim(),
-      indicacao: indicacao.trim(),
-      reputacao: reputacao.trim(),
-      segmento,
-      foto_com_documento: pathFotoComDoc,
-      foto_apenas_documento: pathFotoApenasDoc
-    });
-
-    // Limpar campos
-    setNome(''); 
-    setCpf(''); 
-    setWhatsapp(''); 
-    setEndereco(''); 
-    setIndicacao(''); 
-    setReputacao(''); 
-    setSegmento('EMPRESTIMO');
-    
-    // Limpar as fotos após o sucesso
-    setUriFotoComDoc(null);
-    setUriFotoApenasDoc(null);
-
-    if (Platform.OS === 'web') {
-        window.alert(`${t('common.sucesso')}\n${t('cadastro.msgSucesso')}`);
-    } else {
-        Alert.alert(t('common.sucesso'), t('cadastro.msgSucesso'));
+    } catch (e) {
+        console.log("Erro no processo de salvar", e);
+    } finally {
+        setCarregandoUpload(false);
     }
   };
 
@@ -320,7 +333,6 @@ export default function TelaCadastro({ aoSalvar }: Props) {
               </TouchableOpacity>
           </View>
 
-          {/* PREVIEWS DAS FOTOS ANTES DE SALVAR */}
           {(uriFotoComDoc || uriFotoApenasDoc) && (
               <View style={styles.rowPreviews}>
                   {uriFotoComDoc && (
@@ -342,8 +354,9 @@ export default function TelaCadastro({ aoSalvar }: Props) {
               </View>
           )}
 
-          <TouchableOpacity style={styles.btnSalvar} onPress={handleSalvar} disabled={carregandoUpload}>
-            {carregandoUpload ? (
+          {/* Botão bloqueado enquanto carrega permissões iniciais e uploads */}
+          <TouchableOpacity style={styles.btnSalvar} onPress={handleSalvar} disabled={carregandoUpload || loadingPermissoes}>
+            {carregandoUpload || loadingPermissoes ? (
                 <ActivityIndicator color="#FFF" />
             ) : (
                 <Text style={styles.txtBtn}>{t('cadastro.btnSalvar')}</Text>

@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons'; // ⬅️ INJETADO PARA O ÍCONE DE ADICIONAR/REMOVER DATAS
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react'; // 🚀 ADICIONADO useMemo
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -14,16 +15,24 @@ import {
   View
 } from 'react-native';
 
+// 🔒 IMPORT DA TRAVA DE PERMISSÃO
+import { usePermissoes } from '../hooks/usePermissoes';
+
 type Props = {
   visivel: boolean;
   clientes: any[];
   clientePreSelecionado?: string;
   fechar: () => void;
-  salvar: (clienteId: string, dados: any) => void;
+  salvar: (clienteId: string, dados: any) => Promise<void> | void; // Alterado para aceitar Promise caso a função 'salvar' espere o banco
 };
 
 export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelecionado, fechar, salvar }: Props) {
   const { t } = useTranslation();
+  
+  // 🔒 PUXAR O VERIFICADOR EM TEMPO REAL
+  const { loadingPermissoes, verificarPermissaoRealTime } = usePermissoes();
+  const [salvando, setSalvando] = useState(false); // 🔒 Controle visual do botão ao clicar
+
   const [tipoOperacao, setTipoOperacao] = useState<'EMPRESTIMO' | 'VENDA'>('EMPRESTIMO');
 
   const [clienteId, setClienteId] = useState('');
@@ -151,7 +160,77 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
     setDataInicio(text);
   };
 
-  const handleSalvar = () => {
+  // 🛡️ Função à prova de bala para ler os valores (evita erro com 1.000,00)
+  const lerNumero = (val: string) => {
+    if (!val) return 0;
+    if (val.includes(',')) {
+       return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    return parseFloat(val) || 0;
+  };
+
+  // 🚀 ADICIONADO: CÁLCULO DE SIMULAÇÃO EM TEMPO REAL 🚀
+  const simulacao = useMemo(() => {
+    const valCap = lerNumero(capital);
+    const valTx = lerNumero(taxa);
+    
+    let jurosExato = 0;
+    if (tipoOperacao === 'EMPRESTIMO') {
+        if (tipoJuros === 'FIXO') {
+            jurosExato = valTx;
+        } else {
+            jurosExato = valCap * (valTx / 100);
+        }
+    } else {
+        jurosExato = valCap * (valTx / 100); // Vendas usa %
+    }
+
+    const total = valCap + jurosExato;
+
+    let numParcelas = 1;
+    let isParcelado = false;
+
+    if (tipoOperacao === 'VENDA') {
+        if (modVenda === 'PRAZO') {
+            numParcelas = parseInt(qtdParcelasVenda) || 1;
+            isParcelado = true;
+        }
+    } else {
+        if (frequencia === 'MENSAL') {
+            const m = parseInt(qtdMeses) || 1;
+            if (m > 1) { numParcelas = m; isParcelado = true; }
+        } else if (frequencia === 'SEMANAL') {
+            numParcelas = parseInt(qtdSemanas) || 1;
+            isParcelado = true;
+        } else if (frequencia === 'QUINZENAL') {
+            numParcelas = parseInt(qtdQuinzenas) || 1;
+            isParcelado = true;
+        } else if (frequencia === 'DIARIO') {
+            numParcelas = parseInt(diasDiario) || 1;
+            isParcelado = true;
+        }
+    }
+
+    let valorParcela = total;
+    if (isParcelado && numParcelas > 0) {
+        valorParcela = total / numParcelas;
+    } else {
+        valorParcela = jurosExato; // Mensal puro = paga só os juros
+    }
+
+    return { 
+        valCap, 
+        jurosExato, 
+        total, 
+        numParcelas, 
+        valorParcela,
+        isMensalPuro: !isParcelado && frequencia === 'MENSAL' && tipoOperacao === 'EMPRESTIMO'
+    };
+  }, [capital, taxa, tipoJuros, tipoOperacao, modVenda, qtdParcelasVenda, frequencia, qtdMeses, qtdSemanas, qtdQuinzenas, diasDiario]);
+
+  const handleSalvar = async () => {
+    if (loadingPermissoes) return;
+
     if (!clienteId) return Alert.alert(t('common.erro'), t('novoContrato.erroCliente') || "Selecione um cliente.");
     if (!capital) return Alert.alert(t('common.erro'), t('novoContrato.erroValor') || "Digite o valor.");
     
@@ -160,12 +239,24 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
         return Alert.alert(t('common.erro'), t('novoContrato.erroData') || "Informe a data corretamente.");
     }
 
-    const valCapital = parseFloat(capital.replace(',', '.') || '0');
-    
-    // O valor digitado no campo de juros (pode ser % ou $)
-    const valInputJuros = parseFloat(taxa.replace(',', '.') || '0');
-    
-    const valMulta = parseFloat(multa.replace(',', '.') || '0');
+    // 🔒 Gira o botão para verificar permissão
+    setSalvando(true);
+
+    // 🔒 CONSULTA EM TEMPO REAL NO SUPABASE PARA GERAR CONTRATO
+    const temAcesso = await verificarPermissaoRealTime('gerar_contrato');
+    if (!temAcesso) {
+        setSalvando(false);
+        if (Platform.OS === 'web') {
+            window.alert("Acesso Negado\nO seu líder não liberou permissão para gerar contratos.");
+        } else {
+            Alert.alert("Acesso Negado", "O seu líder não liberou permissão para gerar contratos.");
+        }
+        return;
+    }
+
+    const valCapital = lerNumero(capital);
+    const valInputJuros = lerNumero(taxa);
+    const valMulta = lerNumero(multa);
 
     const textoDescritivo = tipoOperacao === 'VENDA' 
       ? `${t('modalNovoEmprestimo.produtoPrefix')}${produtos || t('modalNovoEmprestimo.vendaDiversa')}` 
@@ -242,34 +333,41 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
         taxaParaEnviar = valInputJuros;
     }
 
-    salvar(clienteId, {
-      tipo: tipoOperacao,
-      capital: valCapital,
-      
-      taxa: taxaParaEnviar,
-      valorJuros: valorJurosFixo,
-      tipoJuros: tipoOperacao === 'EMPRESTIMO' ? tipoJuros : null, 
-      
-      // 🚀 INJETADO: Enviamos a parcela cravada para o Supabase obedecer
-      valorParcela: valorParcelaForcado > 0 ? valorParcelaForcado : null,
+    try {
+        await salvar(clienteId, {
+          tipo: tipoOperacao,
+          capital: valCapital,
+          
+          taxa: taxaParaEnviar,
+          valorJuros: valorJurosFixo,
+          tipoJuros: tipoOperacao === 'EMPRESTIMO' ? tipoJuros : null, 
+          
+          // 🚀 INJETADO: Enviamos a parcela cravada para o Supabase obedecer
+          valorParcela: valorParcelaForcado > 0 ? valorParcelaForcado : null,
 
-      frequencia: frequenciaFinal,
-      garantia: textoDescritivo,
-      diasDiario: frequencia === 'DIARIO' ? parseInt(diasDiario) : null,
-      
-      qtdSemanas: frequencia === 'SEMANAL' ? parseInt(qtdSemanas) : null,
-      qtdQuinzenas: frequencia === 'QUINZENAL' ? parseInt(qtdQuinzenas) : null,
-      
-      // Envia os dias separados por vírgula. Ex: "1,2,3,4,5,6"
-      diasSemanaDiario: frequencia === 'DIARIO' ? diasSelecionados.join(',') : null, 
-      
-      // ⬇️ INJETADO: Envia as datas de feriados separadas por vírgula ⬇️
-      datasExcluidas: frequencia === 'DIARIO' ? datasExcluidas.join(',') : null,
-      
-      totalParcelas: parcelasFinal, // Vai para o banco de dados e resolve o erro
-      dataInicio, 
-      valorMultaDiaria: valMulta
-    });
+          frequencia: frequenciaFinal,
+          garantia: textoDescritivo,
+          diasDiario: frequencia === 'DIARIO' ? parseInt(diasDiario) : null,
+          
+          qtdSemanas: frequencia === 'SEMANAL' ? parseInt(qtdSemanas) : null,
+          qtdQuinzenas: frequencia === 'QUINZENAL' ? parseInt(qtdQuinzenas) : null,
+          
+          // Envia os dias separados por vírgula. Ex: "1,2,3,4,5,6"
+          diasSemanaDiario: frequencia === 'DIARIO' ? diasSelecionados.join(',') : null, 
+          
+          // ⬇️ INJETADO: Envia as datas de feriados separadas por vírgula ⬇️
+          datasExcluidas: frequencia === 'DIARIO' ? datasExcluidas.join(',') : null,
+          
+          totalParcelas: parcelasFinal, // Vai para o banco de dados e resolve o erro
+          dataInicio, 
+          valorMultaDiaria: valMulta
+        });
+        fechar(); // Fecha modal após sucesso
+    } catch (e) {
+        console.log("Erro ao salvar contrato", e);
+    } finally {
+        setSalvando(false);
+    }
   };
 
   return (
@@ -540,14 +638,49 @@ export default function ModalNovoEmprestimo({ visivel, clientes, clientePreSelec
               </>
             )}
 
-            <TouchableOpacity style={styles.btnSalvar} onPress={handleSalvar}>
-              <Text style={styles.txtSalvar}>
-                {tipoOperacao === 'VENDA' ? t('novoContrato.btnConfirmarVenda') : t('novoContrato.btnConfirmarEmprestimo')}
-              </Text>
+            {/* 🚀 CAIXA DE SIMULAÇÃO SEMPRE VISÍVEL 🚀 */}
+            <View style={styles.boxSimulacao}>
+              <Text style={styles.simulacaoTitulo}>📊 Resumo da Operação</Text>
+              
+              <View style={styles.simulacaoLinha}>
+                  <Text style={styles.simulacaoLabel}>Capital Emprestado:</Text>
+                  <Text style={styles.simulacaoValor}>R$ {simulacao.valCap.toFixed(2)}</Text>
+              </View>
+              
+              <View style={styles.simulacaoLinha}>
+                  <Text style={styles.simulacaoLabel}>Juros Total Acordado:</Text>
+                  <Text style={styles.simulacaoValor}>R$ {simulacao.jurosExato.toFixed(2)}</Text>
+              </View>
+              
+              <View style={[styles.simulacaoLinha, styles.simulacaoDestaque]}>
+                  <Text style={styles.simulacaoLabelDestaque}>Dívida Total Final:</Text>
+                  <Text style={styles.simulacaoValorDestaque}>R$ {simulacao.total.toFixed(2)}</Text>
+              </View>
+
+              {simulacao.isMensalPuro ? (
+                  <Text style={styles.simulacaoParcelas}>
+                      Cobrança Recorrente: R$ {simulacao.valorParcela.toFixed(2)} / mês
+                  </Text>
+              ) : (
+                  <Text style={styles.simulacaoParcelas}>
+                      Plano: {simulacao.numParcelas}x parcelas de R$ {simulacao.valorParcela.toFixed(2)}
+                  </Text>
+              )}
+            </View>
+
+            {/* 🔒 TRAVA: Botão com spinner de carregamento durante a validação */}
+            <TouchableOpacity style={styles.btnSalvar} onPress={handleSalvar} disabled={salvando || loadingPermissoes}>
+              {salvando || loadingPermissoes ? (
+                  <ActivityIndicator color="#FFF" />
+              ) : (
+                  <Text style={styles.txtSalvar}>
+                    {tipoOperacao === 'VENDA' ? t('novoContrato.btnConfirmarVenda') : t('novoContrato.btnConfirmarEmprestimo')}
+                  </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
 
-          <TouchableOpacity style={styles.btnCancelar} onPress={fechar}>
+          <TouchableOpacity style={styles.btnCancelar} onPress={fechar} disabled={salvando}>
              <Text style={{color:'#999'}}>{t('novoContrato.cancelar')}</Text>
           </TouchableOpacity>
         </View>
@@ -582,4 +715,15 @@ const styles = StyleSheet.create({
   btnDiaAtivo: { backgroundColor: '#2980B9', borderColor: '#2980B9' },
   txtDia: { fontSize: 12, fontWeight: 'bold', color: '#555' },
   txtDiaAtivo: { color: '#FFF' },
+
+  // Estilos da Simulação Visual
+  boxSimulacao: { backgroundColor: '#F4F6F7', padding: 15, borderRadius: 10, marginTop: 20, borderWidth: 1, borderColor: '#BDC3C7' },
+  simulacaoTitulo: { fontSize: 14, fontWeight: 'bold', color: '#2C3E50', marginBottom: 12, textAlign: 'center' },
+  simulacaoLinha: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  simulacaoLabel: { color: '#7F8C8D', fontSize: 13, fontWeight: '500' },
+  simulacaoValor: { color: '#34495E', fontWeight: 'bold', fontSize: 13 },
+  simulacaoDestaque: { borderTopWidth: 1, borderTopColor: '#DDD', paddingTop: 10, marginTop: 5 },
+  simulacaoLabelDestaque: { color: '#2C3E50', fontWeight: 'bold', fontSize: 14 },
+  simulacaoValorDestaque: { color: '#27AE60', fontWeight: 'bold', fontSize: 16 },
+  simulacaoParcelas: { textAlign: 'center', color: '#8E44AD', fontWeight: 'bold', marginTop: 12, fontSize: 14, backgroundColor: '#E8DAEF', padding: 8, borderRadius: 6 }
 });

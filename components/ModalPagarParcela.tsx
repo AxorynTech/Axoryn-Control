@@ -1,18 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Contrato } from '../types';
+
+// 🔒 IMPORT DA TRAVA DE PERMISSÃO
+import { usePermissoes } from '../hooks/usePermissoes';
 
 type Props = {
   visivel: boolean;
   contrato: Contrato | null;
   fechar: () => void;
   // 🚀 ADICIONADO: O confirmar agora envia a data E o valor final da multa
-  confirmar: (data: string, multaCobrada: number) => void;
+  confirmar: (data: string, multaCobrada: number) => Promise<void> | void;
 };
 
 export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar }: Props) {
   const { t } = useTranslation(); 
+  
+  // 🔒 PUXAR O VERIFICADOR EM TEMPO REAL
+  const { loadingPermissoes, verificarPermissaoRealTime } = usePermissoes();
+  const [salvando, setSalvando] = useState(false);
   
   const moeda = t('common.moeda', { defaultValue: 'R$' });
   const [data, setData] = useState('');
@@ -62,12 +69,33 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
     }
   }, [data, contrato]);
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
+      if (loadingPermissoes) return;
+      setSalvando(true);
+
+      // 🔒 CONSULTA EM TEMPO REAL NO SUPABASE PARA COBRAR
+      const temAcesso = await verificarPermissaoRealTime('cobrar');
+      if (!temAcesso) {
+          setSalvando(false);
+          if (Platform.OS === 'web') {
+              window.alert("Acesso Negado\nO seu líder não liberou permissão para baixar parcelas.");
+          } else {
+              Alert.alert("Acesso Negado", "O seu líder não liberou permissão para baixar parcelas.");
+          }
+          return;
+      }
+
       // Pega o valor que o usuário digitou (aceita vírgula ou ponto)
       let m = parseFloat(multaEditavel.replace(',', '.'));
       if (isNaN(m)) m = 0;
       
-      confirmar(data, m);
+      try {
+          await confirmar(data, m);
+      } catch (e) {
+          console.log("Erro no pagamento da parcela", e);
+      } finally {
+          setSalvando(false);
+      }
   };
 
   let valorExibicao = contrato?.valorParcela || 0;
@@ -150,11 +178,16 @@ export default function ModalPagarParcela({ visivel, contrato, fechar, confirmar
             <TouchableOpacity 
               style={styles.botaoConfirmar} 
               onPress={handleConfirmar}
+              disabled={salvando || loadingPermissoes}
             >
-              <Text style={styles.textoBotao}>{t('pagarParcela.btnReceber')}</Text>
+              {salvando || loadingPermissoes ? (
+                  <ActivityIndicator color="#FFF" />
+              ) : (
+                  <Text style={styles.textoBotao}>{t('pagarParcela.btnReceber')}</Text>
+              )}
             </TouchableOpacity>
             
-            <TouchableOpacity onPress={fechar} style={styles.botaoCancelar}>
+            <TouchableOpacity onPress={fechar} style={styles.botaoCancelar} disabled={salvando}>
               <Text style={styles.textoCancelar}>{t('common.cancelar')}</Text>
             </TouchableOpacity>
           </View>

@@ -40,12 +40,14 @@ export default function EquipeScreen() {
   const [permissoesAtuais, setPermissoesAtuais] = useState<string[]>([]);
   const [salvandoPermissoes, setSalvandoPermissoes] = useState(false);
 
-  // ✅ LISTA DE PERMISSÕES ATUALIZADA COM A CARTEIRA COMPARTILHADA
+  // ✅ LISTA DE PERMISSÕES ATUALIZADA COM A ABA DO CAIXA PESSOAL
   const OPCOES_PERMISSAO = [
       { id: 'compartilhar_carteira', label: t('equipe.permCarteira', 'Espelhar Visão do Líder (Carteira Compartilhada)') },
       { id: 'cadastrar_cliente', label: t('equipe.permCadastrar', 'Cadastrar e Editar Clientes') },
       { id: 'gerar_contrato', label: t('equipe.permContrato', 'Gerar Contratos') },
-      { id: 'cobrar', label: t('equipe.permCobrar', 'Realizar Cobranças e Baixas') }
+      { id: 'cobrar', label: t('equipe.permCobrar', 'Realizar Cobranças e Baixas') },
+      // 🚀 NOVA PERMISSÃO INJETADA ABAIXO
+      { id: 'acessar_caixa', label: t('equipe.permCaixa', 'Acessar Aba do Caixa Pessoal') }
   ];
 
   useEffect(() => {
@@ -499,7 +501,7 @@ const styles = StyleSheet.create({
   memberAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: '#EEE' },
   memberEmail: { fontSize: 14, fontWeight: '600', color: '#2C3E50' },
   memberRole: { fontSize: 12, color: '#7F8C8D' },
-  settingsBtn: { padding: 8 }, // Novo estilo para o ícone de engrenagem
+  settingsBtn: { padding: 8 }, 
   cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#2C3E50', marginBottom: 8 },
   cardDesc: { fontSize: 14, color: '#7F8C8D', marginBottom: 20, lineHeight: 20 },
   input: { backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D0D3D4', borderRadius: 10, padding: 14, fontSize: 16, marginBottom: 15, color: '#333' },

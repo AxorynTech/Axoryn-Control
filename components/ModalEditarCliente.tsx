@@ -19,18 +19,22 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../services/supabase';
 
-// 🚀 ARQUITETURA IOS: Removidos os imports do expo-file-system e base64-arraybuffer.
-// Vamos usar o FormData nativo.
+// 🔒 IMPORT DA TRAVA DE PERMISSÃO
+import { usePermissoes } from '../hooks/usePermissoes';
 
 type Props = {
   visivel: boolean;
   clienteOriginal: any;
   fechar: () => void;
-  salvar: (dadosAtualizados: any) => void;
+  salvar: (dadosAtualizados: any) => Promise<void> | void;
 };
 
 export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, salvar }: Props) {
   const { t } = useTranslation();
+  
+  // 🔒 PUXAR O VERIFICADOR EM TEMPO REAL
+  const { loadingPermissoes, verificarPermissaoRealTime } = usePermissoes();
+  
   const [nome, setNome] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [endereco, setEndereco] = useState('');
@@ -74,7 +78,9 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
           }
       };
       
-      if (visivel) carregarFotosAntigas();
+      if (visivel) {
+          carregarFotosAntigas();
+      }
 
     } else {
       setNome(''); setWhatsapp(''); setEndereco(''); setIndicacao(''); setReputacao('');
@@ -134,7 +140,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
       }
   };
 
-  // 🚀 ARQUITETURA IOS BLINDADA: Upload via FormData (Streaming Nativo resolve o "Network request failed")
   const realizarUploadArquivo = async (uri: string, prefixo: string, userId: string): Promise<string> => {
       let ext = uri.split('.').pop()?.toLowerCase() || 'jpeg';
       if (ext === 'jpg') ext = 'jpeg'; 
@@ -142,7 +147,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
       const path = `${userId}/${prefixo}_${Date.now()}.${ext}`;
       
       if (Platform.OS === 'web') {
-          // ✅ SOLUÇÃO APENAS PARA WEB: Transforma a URI (blob local) num arquivo (Blob) real para o Supabase
           const response = await fetch(uri);
           const blob = await response.blob();
           
@@ -152,7 +156,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
 
           if (error) throw error;
       } else {
-          // 🚀 ARQUITETURA IOS/ANDROID BLINDADA: SEU CÓDIGO INTACTO AQUI!
           const formData = new FormData();
           formData.append('file', {
               uri: uri, 
@@ -171,7 +174,25 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
   };
 
   const handleSalvar = async () => {
+    if (loadingPermissoes) return;
+
+    // 🔥 Gira a bolinha para esconder que está indo confirmar com o banco
+    setCarregandoUpload(true);
+
+    // 🔒 CONSULTA EM TEMPO REAL NO SUPABASE
+    const temAcesso = await verificarPermissaoRealTime('cadastrar_cliente');
+    if (!temAcesso) {
+        setCarregandoUpload(false);
+        if (Platform.OS === 'web') {
+            window.alert("Acesso Negado\nO seu líder não liberou permissão para editar clientes.");
+        } else {
+            Alert.alert("Acesso Negado", "O seu líder não liberou permissão para editar clientes.");
+        }
+        return;
+    }
+
     if (!nome.trim()) {
+        setCarregandoUpload(false);
         if (Platform.OS === 'web') {
             window.alert(`${t('common.erro')}\n${t('modalEditarCliente.erroNome')}`);
             return;
@@ -180,7 +201,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
         }
     }
     
-    setCarregandoUpload(true);
     let pathFotoComDoc = clienteOriginal.foto_com_documento; 
     let pathFotoApenasDoc = clienteOriginal.foto_apenas_documento; 
 
@@ -188,7 +208,6 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user) {
-            // 🚀 ARQUITETURA: Uploads em Paralelo
             const promessasUpload = [];
             
             if (uriFotoComDoc) {
@@ -208,26 +227,24 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
                 await Promise.all(promessasUpload);
             }
         }
+
+        // 🔥 ESPERA SALVAR PARA FECHAR
+        await salvar({ 
+            nome: nome.trim().toUpperCase(), 
+            whatsapp, 
+            endereco, 
+            indicacao, 
+            reputacao, 
+            segmento,
+            foto_com_documento: pathFotoComDoc,
+            foto_apenas_documento: pathFotoApenasDoc
+        });
+
     } catch (e) {
         console.log("Erro no upload ao editar", e);
-        if (Platform.OS === 'web') {
-            window.alert("Atenção\nProblema ao atualizar as fotos. Os outros dados serão salvos.");
-        } else {
-            Alert.alert("Atenção", "Problema ao atualizar as fotos. Os outros dados serão salvos.");
-        }
+    } finally {
+        setCarregandoUpload(false);
     }
-    setCarregandoUpload(false);
-
-    salvar({ 
-      nome: nome.trim().toUpperCase(), 
-      whatsapp, 
-      endereco, 
-      indicacao, 
-      reputacao, 
-      segmento,
-      foto_com_documento: pathFotoComDoc,
-      foto_apenas_documento: pathFotoApenasDoc
-    });
   };
 
   return (
@@ -338,15 +355,16 @@ export default function ModalEditarCliente({ visivel, clienteOriginal, fechar, s
                 </View>
             </View>
 
-            <TouchableOpacity style={styles.btnP} onPress={handleSalvar} disabled={carregandoUpload}>
-              {carregandoUpload ? (
+            {/* 🔒 TRAVA: Botão bloqueado enquanto carrega permissões iniciais */}
+            <TouchableOpacity style={styles.btnP} onPress={handleSalvar} disabled={carregandoUpload || loadingPermissoes}>
+              {carregandoUpload || loadingPermissoes ? (
                   <ActivityIndicator color="#FFF" />
               ) : (
                   <Text style={styles.btnTxt}>{t('modalEditarCliente.btnSalvarMudancas')}</Text>
               )}
             </TouchableOpacity>
             
-            <TouchableOpacity onPress={fechar} style={styles.btnCancel} disabled={carregandoUpload}>
+            <TouchableOpacity onPress={fechar} style={styles.btnCancel} disabled={carregandoUpload || loadingPermissoes}>
               <Text style={{color:'#999'}}>{t('common.cancelar')}</Text>
             </TouchableOpacity>
           </ScrollView>

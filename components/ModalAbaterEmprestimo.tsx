@@ -3,15 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Contrato } from '../types';
 
+// 🔒 IMPORT DA TRAVA DE PERMISSÃO
+import { usePermissoes } from '../hooks/usePermissoes';
+
 type Props = {
   visivel: boolean;
   contrato: Contrato | null;
   fechar: () => void;
-  salvar: (valorPago: number, multaAdicional: number, dataPagamento: string) => void;
+  salvar: (valorPago: number, multaAdicional: number, dataPagamento: string) => Promise<void> | void;
 };
 
 export default function ModalAbaterEmprestimo({ visivel, contrato, fechar, salvar }: Props) {
   const { t } = useTranslation();
+  
+  // 🔒 PUXAR O VERIFICADOR EM TEMPO REAL
+  const { loadingPermissoes, verificarPermissaoRealTime } = usePermissoes();
+  
   const [valorPago, setValorPago] = useState('');
   const [multaAdicional, setMultaAdicional] = useState('');
   const [dataPagamento, setDataPagamento] = useState('');
@@ -36,8 +43,8 @@ export default function ModalAbaterEmprestimo({ visivel, contrato, fechar, salva
       
   const dividaTotal = (contrato?.capital || 0) + jurosAtual;
 
-  const handleSalvar = () => {
-    if (salvando) return;
+  const handleSalvar = async () => {
+    if (salvando || loadingPermissoes) return;
     const valPago = parseFloat(valorPago.replace(',', '.')) || 0;
     const valMulta = parseFloat(multaAdicional.replace(',', '.')) || 0;
 
@@ -47,8 +54,22 @@ export default function ModalAbaterEmprestimo({ visivel, contrato, fechar, salva
     if (valPago >= dividaTotal) return Alert.alert(t('radar.atencao'), t('modalAcao.alertaQuitar', "Esse valor quita a dívida inteira. Use o botão 'Quitar' na tela anterior."));
 
     setSalvando(true);
+    
+    // 🔒 CONSULTA EM TEMPO REAL NO SUPABASE PARA COBRAR
+    const temAcesso = await verificarPermissaoRealTime('cobrar');
+    if (!temAcesso) {
+        setSalvando(false);
+        if (Platform.OS === 'web') {
+            window.alert("Acesso Negado\nO seu líder não liberou permissão para realizar abatimentos.");
+        } else {
+            Alert.alert("Acesso Negado", "O seu líder não liberou permissão para realizar abatimentos.");
+        }
+        return;
+    }
+    
     try {
-      salvar(valPago, valMulta, dataPagamento);
+      await salvar(valPago, valMulta, dataPagamento);
+      // Aqui a função fechar() deve ser chamada lá pelo Pai após o sucesso
     } catch(e) {
       setSalvando(false);
     }
@@ -76,11 +97,11 @@ export default function ModalAbaterEmprestimo({ visivel, contrato, fechar, salva
           <Text style={styles.label}>{t('pagarParcela.dataPagamento')}</Text>
           <TextInput placeholder="DD/MM/YYYY" style={styles.input} value={dataPagamento} onChangeText={setDataPagamento} />
 
-          <TouchableOpacity style={[styles.btnP, salvando && { opacity: 0.7 }]} onPress={handleSalvar} disabled={salvando}>
-            {salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>{t('modalAcao.btnConfirmar')}</Text>}
+          <TouchableOpacity style={[styles.btnP, (salvando || loadingPermissoes) && { opacity: 0.7 }]} onPress={handleSalvar} disabled={salvando || loadingPermissoes}>
+            {salvando || loadingPermissoes ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnTxt}>{t('modalAcao.btnConfirmar')}</Text>}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={fechar} style={styles.btnCancel} disabled={salvando}>
+          <TouchableOpacity onPress={fechar} style={styles.btnCancel} disabled={salvando || loadingPermissoes}>
             <Text style={{color:'#999'}}>{t('common.cancelar')}</Text>
           </TouchableOpacity>
         </View>

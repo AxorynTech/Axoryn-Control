@@ -1,4 +1,4 @@
-﻿import { Ionicons } from '@expo/vector-icons';
+﻿import { Ionicons } from '@expo/vector-icons'; // ⬅️ INJETADO PARA O ÍCONE DE ADICIONAR/REMOVER DATAS
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
@@ -242,7 +242,6 @@ export default function PastaCliente({
           <div class="item"><span>${t('pdf.valorParcela') || 'Valor Parcela'}:</span> <b>R$ ${(con.valorParcela || 0).toFixed(2)}</b></div>
         `;
       } else {
-        // 🚀 INJETADO AQUI NO PDF: MOSTRA O VALOR FIXO SE EXISTIR EM VEZ DA TAXA
         const jurosSalvoPDF = con.lucroJurosPorParcela || 0;
         if (jurosSalvoPDF > 0) {
             infoExtra = `
@@ -545,8 +544,22 @@ export default function PastaCliente({
           {cliente.contratos && cliente.contratos.map((con) => {
             const detalhes = getDetalhesContrato(con.garantia);
             
-            // 🚀 INJETADO AQUI NA RENDERIZAÇÃO: AVISA A TELA SE O CONTRATO É FIXO
+            const isFracionado = ['PARCELADO', 'SEMANAL', 'QUINZENAL', 'DIARIO'].includes(con.frequencia || '') || (con.totalParcelas || 0) > 1;
             const valorJurosSalvo = con.lucroJurosPorParcela || 0;
+            
+            // 🚀 AQUI É A MÁGICA DE EXIBIR O TOTAL CORRETAMENTE NA LISTA
+            let jurosTotalCalculado = 0;
+            if (isFracionado) {
+                jurosTotalCalculado = valorJurosSalvo * (con.totalParcelas || 1);
+            } else {
+                if (valorJurosSalvo > 0) {
+                    jurosTotalCalculado = valorJurosSalvo;
+                } else {
+                    jurosTotalCalculado = (con.capital || 0) * ((con.taxa || 0) / 100);
+                }
+            }
+            const dividaTotal = (con.capital || 0) + jurosTotalCalculado;
+
             const exibicaoJuros = valorJurosSalvo > 0 ? `R$ ${Number(valorJurosSalvo).toFixed(2)}` : `${con.taxa}%`;
 
             return (
@@ -554,7 +567,21 @@ export default function PastaCliente({
               <View style={styles.conHeader}>
                 <View>
                   <Text style={styles.conId}>{t('pastaCliente.contrato')} #{con.id}</Text>
-                  <Text style={styles.conValor}>R$ {con.capital?.toFixed(2)}</Text>
+                  
+                  {/* 🚀 EXIBIÇÃO DA DÍVIDA TOTAL 🚀 */}
+                  {con.status === 'QUITADO' ? (
+                     <Text style={styles.conValor}>R$ {con.capital?.toFixed(2)}</Text>
+                  ) : (
+                     <View>
+                         <Text style={[styles.conValor, {color: '#27AE60', fontSize: 18}]}>
+                             Total: R$ {dividaTotal.toFixed(2)}
+                         </Text>
+                         <Text style={{fontSize: 11, color: '#7F8C8D', marginTop: 2}}>
+                             Capital: R$ {con.capital?.toFixed(2)}
+                         </Text>
+                     </View>
+                  )}
+
                 </View>
                 <View style={{flexDirection:'row', alignItems:'center', gap: 10}}>
                   <View style={[styles.badge, con.status === 'QUITADO' ? {backgroundColor:'#CCC'} : con.status === 'PARCELADO' ? {backgroundColor:'#8E44AD'} : {backgroundColor:'#E67E22'}]}>
@@ -590,7 +617,6 @@ export default function PastaCliente({
                    </Text>
                  </View>
               ) : (
-                 // 🚀 INJETADO: Exibe a taxa ou o valor cravado se for FIXO
                  <Text style={styles.info}>{valorJurosSalvo > 0 ? t('pdf.taxaJuros', 'Lucro Fixo') : t('pastaCliente.juros')}: {exibicaoJuros} ({traduzirFrequencia(con.frequencia || 'MENSAL')})</Text>
               )}
 

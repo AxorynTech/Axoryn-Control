@@ -10,8 +10,8 @@ export function useClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // ✅ Puxando a verificação de permissão
-  const { temPermissao } = usePermissoes();
+  // ✅ Puxando a verificação de permissão (Adicionado o verificarPermissaoRealTime)
+  const { temPermissao, verificarPermissaoRealTime } = usePermissoes();
 
   // 🛡️ MATA DÍZIMAS INFINITAS
   const arredondarMoeda = (valor: number) => {
@@ -148,7 +148,14 @@ export function useClientes() {
         .eq('user_id', user.id)
         .single();
 
-    if (profile?.team_id && profile.permissoes?.includes('compartilhar_carteira')) {
+    // Proteção idêntica ao usePermissoes para Arrays
+    let arrayPermissoes = profile?.permissoes || [];
+    if (typeof arrayPermissoes === 'string') {
+        try { arrayPermissoes = JSON.parse(arrayPermissoes); } 
+        catch(e) { arrayPermissoes = []; }
+    }
+
+    if (profile?.team_id && arrayPermissoes.includes('compartilhar_carteira')) {
         const { data: team } = await supabase.from('teams').select('owner_id').eq('id', profile.team_id).single();
         if (team?.owner_id) {
             return team.owner_id; 
@@ -206,10 +213,11 @@ export function useClientes() {
     return { capital: arredondarMoeda(capitalTotal), lucro, multas, vendas };
   }, [clientes]);
 
-  // 🔒 TRAVA: CADASTRAR CLIENTE
+  // 🔒 TRAVA: CADASTRAR CLIENTE (Usando Real-time)
   const adicionarCliente = useCallback(async (dados: Partial<Cliente>) => {
-    if (!temPermissao('cadastrar_cliente')) {
-        return Alert.alert(t('common.erro'), "Você não tem permissão para cadastrar clientes.");
+    if (!(await verificarPermissaoRealTime('cadastrar_cliente'))) {
+        Alert.alert(t('common.erro'), "Você não tem permissão para cadastrar clientes.");
+        throw new Error("Acesso Negado"); // 🔥 Impede a tela de dar "sucesso"
     }
     try {
       const activeUserId = await getActiveUserId(); 
@@ -222,13 +230,17 @@ export function useClientes() {
       }]);
       if (error) throw error;
       await fetchData(); 
-    } catch (e) { Alert.alert(t('common.erro'), "Falha ao salvar"); }
-  }, [fetchData, t, temPermissao]);
+    } catch (e) { 
+        Alert.alert(t('common.erro'), "Falha ao salvar"); 
+        throw e; // 🔥 Repassa o erro para a TelaCadastro parar
+    }
+  }, [fetchData, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: EDITAR CLIENTE
+  // 🔒 TRAVA: EDITAR CLIENTE (Usando Real-time)
   const editarCliente = useCallback(async (nomeAntigo: string, dados: Partial<Cliente>) => {
-    if (!temPermissao('cadastrar_cliente')) {
-        return Alert.alert(t('common.erro'), "Você não tem permissão para editar clientes.");
+    if (!(await verificarPermissaoRealTime('cadastrar_cliente'))) {
+        Alert.alert(t('common.erro'), "Você não tem permissão para editar clientes.");
+        throw new Error("Acesso Negado");
     }
     const cliente = clientes.find(c => c.nome === nomeAntigo);
     if (!cliente?.id) return;
@@ -241,12 +253,15 @@ export function useClientes() {
         }).eq('id', cliente.id);
         if (error) throw error;
         await fetchData();
-    } catch(e) { Alert.alert(t('common.erro'), "Falha ao editar"); }
-  }, [clientes, fetchData, t, temPermissao]);
+    } catch(e) { 
+        Alert.alert(t('common.erro'), "Falha ao editar"); 
+        throw e;
+    }
+  }, [clientes, fetchData, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: EXCLUIR CLIENTE
+  // 🔒 TRAVA: EXCLUIR CLIENTE (Usando Real-time)
   const excluirCliente = useCallback(async (nomeCliente: string) => {
-    if (!temPermissao('cadastrar_cliente')) {
+    if (!(await verificarPermissaoRealTime('cadastrar_cliente'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para excluir clientes.");
     }
     const cliente = clientes.find(c => c.nome === nomeCliente);
@@ -259,11 +274,11 @@ export function useClientes() {
     } catch (e) {
         Alert.alert(t('common.erro'), "Falha ao excluir cliente. Tente novamente.");
     }
-  }, [clientes, fetchData, t, temPermissao]);
+  }, [clientes, fetchData, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: BLOQUEAR CLIENTE
+  // 🔒 TRAVA: BLOQUEAR CLIENTE (Usando Real-time)
   const alternarBloqueio = useCallback(async (cliente: Cliente) => {
-    if (!temPermissao('cadastrar_cliente')) {
+    if (!(await verificarPermissaoRealTime('cadastrar_cliente'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para bloquear clientes.");
     }
     try {
@@ -273,11 +288,11 @@ export function useClientes() {
         if (error) throw error;
         await refreshCliente(cliente.id);
     } catch (e) { Alert.alert(t('common.erro'), "Não foi possível alterar o bloqueio."); }
-  }, [refreshCliente, t, temPermissao]);
+  }, [refreshCliente, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: GERAR CONTRATO
+  // 🔒 TRAVA: GERAR CONTRATO (Usando Real-time)
   const adicionarContrato = useCallback(async (nomeCliente: string, novoContrato: any) => {
-    if (!temPermissao('gerar_contrato')) {
+    if (!(await verificarPermissaoRealTime('gerar_contrato'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para criar novos contratos.");
     }
     const cliente = clientes.find(c => c.nome === nomeCliente);
@@ -481,11 +496,11 @@ export function useClientes() {
 
         if (cliente.id) await refreshCliente(cliente.id); 
     } catch (e: any) { Alert.alert(t('common.erro'), e.message); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: RENOVAR/QUITAR (COBRAR)
+  // 🔒 TRAVA: RENOVAR/QUITAR (COBRAR) (Usando Real-time)
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string, multaCobrada?: number) => {
-    if (!temPermissao('cobrar')) {
+    if (!(await verificarPermissaoRealTime('cobrar'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para renovar ou quitar contratos.");
     }
     try {
@@ -616,11 +631,11 @@ export function useClientes() {
       Alert.alert(t('common.sucesso'), `${tipoTraduzido} ${t('common.sucesso')}!\n💰 R$ ${val.toFixed(2)}`);
 
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao processar."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: PAGAR PARCELA (COBRAR)
+  // 🔒 TRAVA: PAGAR PARCELA (COBRAR) (Usando Real-time)
   const pagarParcela = useCallback(async (nomeCliente: string, contrato: Contrato, dataPagamento: string, multaCobrada?: number) => {
-    if (!temPermissao('cobrar')) {
+    if (!(await verificarPermissaoRealTime('cobrar'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para baixar parcelas.");
     }
     try {
@@ -739,11 +754,11 @@ export function useClientes() {
 
       Alert.alert(t('common.sucesso'), `${t('pastaCliente.pagarParcela')} OK!\n💰 R$ ${(valorParc+vMulta).toFixed(2)}`);
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao pagar."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: CRIAR ACORDO (COBRAR)
+  // 🔒 TRAVA: CRIAR ACORDO (COBRAR) (Usando Real-time)
   const criarAcordo = useCallback(async (nomeCliente: string, contratoId: number, valorTotal: number, qtd: number, data: string, multaDiaria: number) => {
-    if (!temPermissao('cobrar')) {
+    if (!(await verificarPermissaoRealTime('cobrar'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para fazer acordos.");
     }
     try {
@@ -784,11 +799,11 @@ export function useClientes() {
 
         Alert.alert(t('common.sucesso'), "Acordo realizado!");
     } catch(e) { Alert.alert(t('common.erro'), "Falha no acordo"); }
-  }, [clientes, paraBancoISO, refreshCliente, t, temPermissao]);
+  }, [clientes, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
 
-  // 🔒 TRAVA: ABATER EMPRÉSTIMO (COBRAR)
+  // 🔒 TRAVA: ABATER EMPRÉSTIMO (COBRAR) (Usando Real-time)
   const abaterEmprestimo = useCallback(async (nomeCliente: string, contrato: Contrato, valorPago: number, multaPaga: number, dataPagamento: string) => {
-    if (!temPermissao('cobrar')) {
+    if (!(await verificarPermissaoRealTime('cobrar'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para realizar abatimentos.");
     }
     try {
@@ -890,11 +905,11 @@ export function useClientes() {
 
         Alert.alert(t('common.sucesso'), `Abatimento concluído!\nO Novo Capital Base é R$ ${novoCapital.toFixed(2)} e o vencimento foi atualizado.`);
     } catch (e) { Alert.alert(t('common.erro'), "Falha ao abater valor."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, temPermissao]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
   
-  // 🔒 TRAVA: EDITAR CONTRATO
+  // 🔒 TRAVA: EDITAR CONTRATO (Usando Real-time)
   const editarContrato = useCallback(async (nomeCliente: string, id: number, dados: any) => { 
-      if (!temPermissao('gerar_contrato')) {
+      if (!(await verificarPermissaoRealTime('gerar_contrato'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para editar contratos.");
       }
       try {
@@ -931,16 +946,16 @@ export function useClientes() {
       } catch (e) { 
           Alert.alert(t('common.erro'), "Falha ao editar empréstimo."); 
       }
-  }, [clientes, paraBancoISO, refreshCliente, t, temPermissao]);
+  }, [clientes, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
   
-  // 🔒 TRAVA: EXCLUIR CONTRATO
+  // 🔒 TRAVA: EXCLUIR CONTRATO (Usando Real-time)
   const excluirContrato = useCallback(async (id: number) => { 
-      if (!temPermissao('gerar_contrato')) {
+      if (!(await verificarPermissaoRealTime('gerar_contrato'))) {
         return Alert.alert(t('common.erro'), "Você não tem permissão para excluir contratos.");
       }
       const { error } = await supabase.from('contratos').delete().eq('id', id);
       if(!error) await fetchData(); 
-  }, [fetchData, temPermissao]);
+  }, [fetchData, verificarPermissaoRealTime]);
   
   const importarDados = useCallback((d: any) => {}, []);
 
