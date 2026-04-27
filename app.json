@@ -3,7 +3,7 @@
     "name": "Axoryn Control",
     "slug": "axoryn-control",
     "owner": "axoryntech",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "axoryn",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.axoryn.control",
-      "buildNumber": "18",
+      "buildNumber": "19",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIBackgroundModes": [
@@ -36,7 +36,7 @@
         "backgroundColor": "#1a2a3a"
       },
       "package": "com.axoryn.control",
-      "versionCode": 18,
+      "versionCode": 19,
       "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "permissions": [
