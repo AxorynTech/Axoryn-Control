@@ -248,6 +248,15 @@ export default function PlanosScreen() {
              </View>
           )}
 
+          {/* 🚀 BOTÃO DE SUPORTE WHATSAPP INJETADO AQUI */}
+          <TouchableOpacity 
+            style={styles.btnSuporte} 
+            onPress={() => Linking.openURL('https://wa.me/5515996292295?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20pagamento%20no%20app%20Axoryn%20Control.')}
+          >
+            <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
+            <Text style={styles.txtSuporte}>Precisa de ajuda com o pagamento?</Text>
+          </TouchableOpacity>
+
           <View style={styles.legalSection}>
              <Text style={styles.legalText}>
                 {t('planos.textoLegal')}
@@ -309,6 +318,10 @@ const styles = StyleSheet.create({
   section: { marginBottom: 25 },
   sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#7F8C8D', marginBottom: 12, textTransform: 'uppercase' },
   
+  // 🚀 ESTILOS DO BOTÃO DE SUPORTE WHATSAPP
+  btnSuporte: { flexDirection: 'row', backgroundColor: '#25D366', padding: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, marginBottom: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 3 },
+  txtSuporte: { color: '#FFF', fontWeight: 'bold', fontSize: 15 },
+
   legalSection: { marginTop: 10, paddingHorizontal: 10 },
   legalText: { fontSize: 11, color: '#95A5A6', textAlign: 'center', marginBottom: 10 },
   legalLinksRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },

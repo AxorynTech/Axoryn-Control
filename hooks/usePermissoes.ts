@@ -35,13 +35,27 @@ export function usePermissoes() {
           setPermissoes(['dono_absoluto']); // Dono tem acesso a tudo
         } else {
           setIsDono(false);
-          // 🔥 GARANTIA DE SEGURANÇA: Transforma string em Array se o DB falhar
-          let arrayPermissoes = profile.permissoes || [];
-          if (typeof arrayPermissoes === 'string') {
-              try { arrayPermissoes = JSON.parse(arrayPermissoes); } 
-              catch(e) { arrayPermissoes = []; }
+          
+          // 🔥 GARANTIA DE SEGURANÇA: Tradutor Universal de string para Array
+          let arrayLimpo: string[] = [];
+          const perm = profile.permissoes;
+
+          if (Array.isArray(perm)) {
+              arrayLimpo = perm;
+          } else if (typeof perm === 'string') {
+              try { 
+                  arrayLimpo = JSON.parse(perm); 
+              } catch(e) { 
+                  // Tradutor Universal
+                  if (perm.includes('cadastrar_cliente')) arrayLimpo.push('cadastrar_cliente');
+                  if (perm.includes('gerar_contrato')) arrayLimpo.push('gerar_contrato');
+                  if (perm.includes('cobrar')) arrayLimpo.push('cobrar');
+                  if (perm.includes('compartilhar_carteira')) arrayLimpo.push('compartilhar_carteira');
+                  if (perm.includes('acessar_caixa')) arrayLimpo.push('acessar_caixa');
+                  if (perm.includes('ver_dashboard')) arrayLimpo.push('ver_dashboard'); // 🚀 NOVO
+              }
           }
-          setPermissoes(arrayPermissoes);
+          setPermissoes(arrayLimpo);
         }
       } else {
         // Se não tem equipe, ele é o próprio dono da sua conta individual
@@ -55,16 +69,17 @@ export function usePermissoes() {
     }
   }
 
+  // ✅ Lista completa para o TypeScript aceitar (INJETADO O ver_dashboard)
+  type AcoesDisponiveis = 'cadastrar_cliente' | 'gerar_contrato' | 'cobrar' | 'compartilhar_carteira' | 'acessar_caixa' | 'ver_dashboard';
+
   // Usado para esconder botões visuais (Rápido, mas usa a memória)
-  // ✅ INJETADA A OPÇÃO 'acessar_caixa' ABAIXO
-  const temPermissao = (acao: 'cadastrar_cliente' | 'gerar_contrato' | 'cobrar' | 'compartilhar_carteira' | 'acessar_caixa') => {
+  const temPermissao = (acao: AcoesDisponiveis) => {
     if (isDono) return true; 
     return permissoes.includes(acao);
   };
 
   // 🔥 TRAVA DE SEGURANÇA EM TEMPO REAL (Ignora a memória e vai direto no Banco de Dados)
-  // ✅ INJETADA A OPÇÃO 'acessar_caixa' ABAIXO
-  const verificarPermissaoRealTime = async (acao: 'cadastrar_cliente' | 'gerar_contrato' | 'cobrar' | 'compartilhar_carteira' | 'acessar_caixa') => {
+  const verificarPermissaoRealTime = async (acao: AcoesDisponiveis) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
@@ -84,12 +99,19 @@ export function usePermissoes() {
 
         if (team?.owner_id === user.id) return true; // É o Dono
         
-        let arrayPermissoes = profile.permissoes || [];
-        if (typeof arrayPermissoes === 'string') {
-            try { arrayPermissoes = JSON.parse(arrayPermissoes); } 
-            catch(e) { arrayPermissoes = []; }
+        let arrayLimpo: string[] = [];
+        const perm = profile.permissoes;
+
+        if (Array.isArray(perm)) {
+            arrayLimpo = perm;
+        } else if (typeof perm === 'string') {
+            try { 
+                arrayLimpo = JSON.parse(perm); 
+            } catch(e) { 
+                if (perm.includes(acao)) arrayLimpo.push(acao);
+            }
         }
-        return arrayPermissoes.includes(acao);
+        return arrayLimpo.includes(acao);
       }
       
       return true; // Conta individual (Dono de si mesmo)

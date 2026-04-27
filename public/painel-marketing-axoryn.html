@@ -3,53 +3,438 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Axoryn - Marketing Push</title>
+    <title>Axoryn Control - Painel do CEO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #09090b; color: #f4f4f5; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .glass-card { background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .glow-text { text-shadow: 0 0 15px rgba(168, 85, 247, 0.5); }
+        
+        /* Oculta o painel principal até o login ser feito */
+        #painel-principal { display: none; }
+
+        /* Estilo da barra de rolagem da tabela */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #581c87; border-radius: 10px; }
+    </style>
 </head>
-<body class="bg-slate-900 flex items-center justify-center min-h-screen">
+<body class="min-h-screen p-6 md:p-10 flex flex-col items-center justify-center">
 
-    <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full border-t-8 border-purple-600">
-        <h2 class="text-2xl font-black text-center text-gray-800 mb-2 italic">AXORYN TECH</h2>
-        <p class="text-center text-gray-500 mb-8 uppercase text-xs tracking-widest font-bold">Central de Transmissão</p>
+    <div id="tela-login" class="w-full max-w-sm glass-card p-10 rounded-3xl shadow-[0_0_50px_rgba(168,85,247,0.1)] flex flex-col items-center transform transition-all duration-500">
+        <div class="bg-purple-600/20 p-4 rounded-full mb-6">
+            <i class="ph-fill ph-lock-key text-4xl text-purple-500"></i>
+        </div>
+        <h2 class="text-2xl font-black text-white italic tracking-wider mb-1">AXORYN <span class="text-purple-500">TECH</span></h2>
+        <p class="text-gray-400 uppercase text-xs tracking-widest font-bold mb-8">Acesso Restrito</p>
 
-        <div class="space-y-5">
+        <div class="w-full space-y-4">
             <div>
-                <label class="block text-xs font-black text-gray-400 uppercase mb-1">Título do Push</label>
-                <input type="text" id="titulo" placeholder="Ex: Novidade no Axoryn Control!" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none font-medium">
+                <input type="password" id="senhaAcesso" placeholder="Digite a Senha Mestra" class="w-full px-5 py-4 bg-[#09090b] border border-gray-700 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none text-white font-medium placeholder-gray-600 text-center tracking-[0.3em] transition-all">
             </div>
-
-            <div>
-                <label class="block text-xs font-black text-gray-400 uppercase mb-1">Mensagem para o Cliente</label>
-                <textarea id="mensagem" rows="4" placeholder="Escreva aqui..." class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none font-medium"></textarea>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-black text-gray-400 uppercase mb-1">Destinatário</label>
-                    <input type="text" id="destinatario" value="todos" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none font-bold text-purple-600">
-                </div>
-                <div>
-                    <label class="block text-xs font-black text-red-400 uppercase mb-1">Senha Mestra</label>
-                    <input type="password" id="senhaMestra" class="w-full px-4 py-3 bg-red-50 border border-red-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none">
-                </div>
-            </div>
-
-            <button id="btnEnviar" onclick="dispararNotificacao()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-4 px-4 rounded-xl transition duration-300 shadow-lg shadow-purple-200 uppercase tracking-tighter">
-                <span id="btnText">Enviar Notificação Agora</span>
+            <button onclick="validarLogin()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-4 px-4 rounded-xl transition duration-300 shadow-[0_0_15px_rgba(147,51,234,0.4)] uppercase tracking-tighter">
+                Desbloquear Painel
             </button>
         </div>
+        <p id="erroLogin" class="text-red-500 font-bold text-sm mt-4 hidden">Senha incorreta. Tente novamente.</p>
+    </div>
 
-        <div id="statusBox" class="mt-6 hidden p-4 rounded-xl text-sm text-center font-bold"></div>
+    <div id="painel-principal" class="w-full max-w-7xl flex-col items-center animate-fade-in hidden">
+        
+        <div class="w-full flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+            <div>
+                <h1 class="text-4xl font-black text-white italic tracking-wider glow-text">AXORYN <span class="text-purple-500">CONTROL</span></h1>
+                <p class="text-gray-400 uppercase tracking-widest text-xs font-bold mt-1 ml-1 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Centro de Comando Global
+                </p>
+            </div>
+            <div class="glass-card px-6 py-3 rounded-full flex gap-6 items-center">
+                <div class="text-center">
+                    <p class="text-[10px] text-gray-500 uppercase font-bold">Status do Banco</p>
+                    <p id="db-status" class="text-sm font-bold text-yellow-400">Conectando...</p>
+                </div>
+                <div class="w-px h-8 bg-gray-800"></div>
+                <div class="text-center">
+                    <p class="text-[10px] text-gray-500 uppercase font-bold">Data Atual</p>
+                    <p id="relogio" class="text-sm font-bold text-gray-200">...</p>
+                </div>
+                <div class="w-px h-8 bg-gray-800"></div>
+                <button onclick="sair()" class="text-red-400 hover:text-red-300 transition" title="Bloquear Painel">
+                    <i class="ph-bold ph-power text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            
+            <div class="glass-card p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 text-purple-500/10 group-hover:text-purple-500/20 transition-all duration-500">
+                    <i class="ph-fill ph-bank text-9xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="bg-purple-500/20 p-2 rounded-lg text-purple-400"><i class="ph ph-currency-dollar text-xl font-bold"></i></div>
+                        <p class="text-xs font-black text-gray-400 uppercase tracking-wider">Volume em Ativos</p>
+                    </div>
+                    <h3 id="metric-volume" class="text-3xl lg:text-4xl font-black text-white mt-2 tracking-tighter">R$ 0,00</h3>
+                    <p class="text-[10px] text-purple-400 font-bold uppercase mt-2">Soma global da plataforma</p>
+                </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 text-green-500/10 group-hover:text-green-500/20 transition-all duration-500">
+                    <i class="ph-fill ph-crown text-9xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="bg-green-500/20 p-2 rounded-lg text-green-400"><i class="ph ph-trend-up text-xl font-bold"></i></div>
+                        <p class="text-xs font-black text-gray-400 uppercase tracking-wider">Status dos Perfis</p>
+                    </div>
+                    <div class="flex items-end gap-2 mt-2">
+                        <h3 id="metric-ativos" class="text-3xl lg:text-4xl font-black text-green-400 tracking-tighter" title="Perfis Pagantes (Premium)">0</h3>
+                        <span class="text-gray-500 text-xl font-bold pb-1">/</span>
+                        <h3 id="metric-expirados" class="text-2xl font-bold text-red-400 pb-1" title="Perfis Não Pagantes">0</h3>
+                    </div>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase mt-2">Pagantes <span class="text-green-400">vs</span> Grátis (<span id="metric-conversao" class="text-white">0%</span> Conv.)</p>
+                </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 text-blue-500/10 group-hover:text-blue-500/20 transition-all duration-500">
+                    <i class="ph-fill ph-users text-9xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="bg-blue-500/20 p-2 rounded-lg text-blue-400"><i class="ph ph-user-focus text-xl font-bold"></i></div>
+                        <p class="text-xs font-black text-gray-400 uppercase tracking-wider">Total de Perfis</p>
+                    </div>
+                    <h3 id="metric-usuarios" class="text-3xl lg:text-4xl font-black text-white mt-2 tracking-tighter">0</h3>
+                    <p class="text-[10px] text-blue-400 font-bold uppercase mt-2">Contas criadas no App</p>
+                </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-6 -top-6 text-orange-500/10 group-hover:text-orange-500/20 transition-all duration-500">
+                    <i class="ph-fill ph-files text-9xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="bg-orange-500/20 p-2 rounded-lg text-orange-400"><i class="ph ph-address-book text-xl font-bold"></i></div>
+                        <p class="text-xs font-black text-gray-400 uppercase tracking-wider">Base de Clientes</p>
+                    </div>
+                    <h3 id="metric-contratos" class="text-3xl lg:text-4xl font-black text-white mt-2 tracking-tighter">0</h3>
+                    <p class="text-[10px] text-orange-400 font-bold uppercase mt-2"><span id="metric-clientes">0</span> Clientes finais gerados</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full grid grid-cols-1 lg:grid-cols-3 gap-8 pb-8">
+            
+            <div class="lg:col-span-2 flex flex-col gap-8">
+                <div class="glass-card p-6 rounded-2xl w-full h-[320px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-black text-white uppercase flex items-center gap-2">
+                            <i class="ph ph-chart-line-up text-purple-500"></i> Projeção de Uso (7 Dias)
+                        </h3>
+                    </div>
+                    <canvas id="graficoCrescimento"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl border-t-4 border-t-purple-600 flex flex-col h-[320px]">
+                <div class="flex items-center gap-2 mb-4 border-b border-gray-800 pb-3">
+                    <div class="bg-purple-600 p-2 rounded-xl text-white shadow-lg shadow-purple-500/50">
+                        <i class="ph ph-broadcast text-xl font-bold"></i>
+                    </div>
+                    <h3 class="text-lg font-black text-white uppercase tracking-tight">Marketing Push</h3>
+                </div>
+
+                <div class="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-2">
+                    <div>
+                        <input type="text" id="titulo" placeholder="Título. Ex: Oferta Especial!" class="w-full px-3 py-2 bg-[#09090b] border border-gray-700 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none text-white text-sm font-medium placeholder-gray-600 transition-all">
+                    </div>
+                    <div>
+                        <textarea id="mensagem" rows="2" placeholder="Escreva a mensagem..." class="w-full px-3 py-2 bg-[#09090b] border border-gray-700 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none text-white text-sm font-medium placeholder-gray-600 transition-all resize-none"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="destinatario" value="todos" class="w-full px-3 py-2 bg-purple-900/20 border border-purple-500/30 rounded-xl outline-none text-purple-400 font-bold text-center uppercase text-xs" title="Público Alvo">
+                        <input type="password" id="senhaMestra" placeholder="Senha do Push" class="w-full px-3 py-2 bg-red-900/10 border border-red-500/30 rounded-xl focus:border-red-500 outline-none text-white text-center text-xs tracking-widest">
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button id="btnEnviar" onclick="dispararNotificacao()" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-3 px-4 rounded-xl transition duration-300 shadow-[0_0_20px_rgba(147,51,234,0.3)] uppercase tracking-tighter flex justify-center items-center gap-2">
+                        <i class="ph ph-paper-plane-tilt text-lg"></i>
+                        <span id="btnText" class="text-sm">Disparar para a Base</span>
+                    </button>
+                </div>
+                <div id="statusBox" class="mt-2 hidden p-2 rounded-xl text-xs text-center font-bold border"></div>
+            </div>
+        </div>
+
+        <div class="glass-card rounded-2xl w-full flex flex-col mb-10 overflow-hidden">
+            <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-black/20">
+                <h3 class="text-lg font-black text-white uppercase flex items-center gap-2">
+                    <i class="ph ph-radar text-blue-500"></i> Radar de Clientes (App Users)
+                </h3>
+            </div>
+            
+            <div class="overflow-x-auto max-h-[500px] custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-900/50 text-gray-400 text-xs uppercase tracking-wider font-bold">
+                            <th class="px-6 py-4">Usuário (E-mail)</th>
+                            <th class="px-6 py-4 text-center">Status</th>
+                            <th class="px-6 py-4 text-center">Vencimento</th>
+                            <th class="px-6 py-4 text-right">Volume AUM (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-usuarios" class="text-sm divide-y divide-gray-800">
+                        <tr>
+                            <td colspan="4" class="px-6 py-10 text-center text-gray-500 font-bold">
+                                <i class="ph ph-spinner animate-spin text-2xl mb-2"></i><br>Carregando inteligência de dados...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        // Credenciais Axoryn configuradas
+        // ==========================================
+        // 🔒 CONFIGURAÇÃO DE SEGURANÇA (MUDE AQUI)
+        // ==========================================
+        const SENHA_DO_PAINEL = "admin123"; 
+
+        // Suas Credenciais do Banco
         const SUPABASE_URL = 'https://pcbywklgjmampecvgkqf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBjYnl3a2xnam1hbXBlY3Zna3FmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODA5NzU2NiwiZXhwIjoyMDgzNjczNTY2fQ.YcbGbOdTTJv4eVVUuNZ3JuC39oL20oAcXKuJON1ITac';
 
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let graficoInstance = null;
 
+        // --- SISTEMA DE LOGIN ---
+        function validarLogin() {
+            const input = document.getElementById('senhaAcesso').value;
+            const msgErro = document.getElementById('erroLogin');
+            
+            if (input === SENHA_DO_PAINEL) {
+                document.getElementById('tela-login').style.display = 'none';
+                const painel = document.getElementById('painel-principal');
+                painel.style.display = 'flex';
+                carregarCentroDeComando();
+            } else {
+                msgErro.classList.remove('hidden');
+                setTimeout(() => msgErro.classList.add('hidden'), 3000);
+            }
+        }
+
+        document.getElementById('senhaAcesso').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') validarLogin();
+        });
+
+        function sair() {
+            document.getElementById('senhaAcesso').value = '';
+            document.getElementById('painel-principal').style.display = 'none';
+            document.getElementById('tela-login').style.display = 'flex';
+        }
+
+        setInterval(() => {
+            const el = document.getElementById('relogio');
+            if(el) el.innerText = new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR');
+        }, 1000);
+
+        const formatarMoeda = (valor) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+        };
+
+        // --- BUSCA DE DADOS ---
+        async function carregarCentroDeComando() {
+            const statusDB = document.getElementById('db-status');
+            try {
+                // 1. CONTAGEM EXATA (Quebra a barreira dos 1000)
+                const [{count: qtdUser}, {count: qtdCli}, {count: qtdCon}] = await Promise.all([
+                    _supabase.from('profiles').select('*', { count: 'exact', head: true }),
+                    _supabase.from('clientes').select('*', { count: 'exact', head: true }),
+                    _supabase.from('contratos').select('*', { count: 'exact', head: true })
+                ]);
+
+                // Atualiza cards de totais instantaneamente
+                document.getElementById('metric-usuarios').innerText = qtdUser || '0';
+                document.getElementById('metric-clientes').innerText = qtdCli || '0';
+                document.getElementById('metric-contratos').innerText = qtdCon || '0';
+
+                // 2. DOWNLOAD DOS DADOS PARA O RADAR (Limpando o limite de 1000 para 100.000)
+                const [
+                    { data: profilesDB }, 
+                    { data: teamsDB }, 
+                    { data: clientesDB }, 
+                    { data: contratosDB }
+                ] = await Promise.all([
+                    _supabase.from('profiles').select('user_id, email, team_id').limit(100000),
+                    _supabase.from('teams').select('id, is_premium, data_vencimento, validade').limit(100000),
+                    _supabase.from('clientes').select('id, user_id').limit(100000),
+                    _supabase.from('contratos').select('capital, status, data_inicio, cliente_id').limit(100000)
+                ]);
+
+                // 3. MAPEAR RELAÇÕES
+                const mapTeams = {};
+                if (teamsDB) teamsDB.forEach(t => mapTeams[t.id] = t);
+
+                const mapCliUser = {};
+                if (clientesDB) clientesDB.forEach(c => mapCliUser[c.id] = c.user_id);
+
+                // 4. PROCESSAR FINANCEIRO E GRÁFICO
+                let volumeTotalGlobal = 0;
+                const volumePorUser = {};
+                let contagemPorDia = {};
+
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    contagemPorDia[d.toISOString().split('T')[0]] = 0;
+                }
+
+                if (contratosDB) {
+                    contratosDB.forEach(con => {
+                        const capital = Number(con.capital || 0);
+                        
+                        if (con.status === 'ATIVO' || con.status === 'PARCELADO') {
+                            volumeTotalGlobal += capital;
+                            const uid = mapCliUser[con.cliente_id];
+                            if (uid) {
+                                volumePorUser[uid] = (volumePorUser[uid] || 0) + capital;
+                            }
+                        }
+
+                        if (con.data_inicio) {
+                            let dtFormato = con.data_inicio;
+                            if (dtFormato.includes('/')) {
+                                const p = dtFormato.split('/');
+                                dtFormato = `${p[2]}-${p[1]}-${p[0]}`;
+                            }
+                            if (contagemPorDia[dtFormato] !== undefined) {
+                                contagemPorDia[dtFormato]++;
+                            }
+                        }
+                    });
+                }
+
+                document.getElementById('metric-volume').innerText = formatarMoeda(volumeTotalGlobal);
+
+                // 5. PROCESSAR PERFIS (PAGANTES VS FREE) E MONTAR A TABELA
+                let perfisPagantes = 0;
+                let perfisFree = 0;
+                let listaRadar = [];
+
+                if (profilesDB) {
+                    profilesDB.forEach(p => {
+                        const team = mapTeams[p.team_id];
+                        const isPremium = team ? team.is_premium : false;
+                        
+                        if (isPremium) perfisPagantes++;
+                        else perfisFree++;
+
+                        let vencimentoTxt = 'Livre / Grátis';
+                        if (isPremium) {
+                            vencimentoTxt = team.data_vencimento || team.validade || '<span class="text-[10px] text-gray-500">Apple/Google</span>';
+                        }
+
+                        listaRadar.push({
+                            email: p.email || 'Usuário Sem E-mail',
+                            premium: isPremium,
+                            vencimento: vencimentoTxt,
+                            volume: volumePorUser[p.user_id] || 0
+                        });
+                    });
+                }
+
+                // Atualizar Placar de Conversão
+                const totalPerfis = perfisPagantes + perfisFree;
+                const taxaConversao = totalPerfis > 0 ? ((perfisPagantes / totalPerfis) * 100).toFixed(1) : 0;
+
+                document.getElementById('metric-ativos').innerText = perfisPagantes;
+                document.getElementById('metric-expirados').innerText = perfisFree;
+                document.getElementById('metric-conversao').innerText = taxaConversao + '%';
+
+                // 6. RENDERIZAR TABELA
+                listaRadar.sort((a, b) => b.volume - a.volume);
+                
+                const tabelaHtml = listaRadar.map(u => `
+                    <tr class="hover:bg-white/5 transition duration-200">
+                        <td class="px-6 py-4 font-medium text-gray-200">${u.email}</td>
+                        <td class="px-6 py-4 text-center">
+                            ${u.premium 
+                                ? '<span class="px-2 py-1 bg-green-500/20 text-green-400 rounded-lg text-xs font-bold uppercase tracking-wider">Pagante</span>' 
+                                : '<span class="px-2 py-1 bg-red-500/20 text-red-400 rounded-lg text-xs font-bold uppercase tracking-wider">Free / Expirado</span>'}
+                        </td>
+                        <td class="px-6 py-4 text-center text-gray-400 text-sm font-medium">${u.vencimento}</td>
+                        <td class="px-6 py-4 text-right font-black ${u.volume > 0 ? 'text-purple-400' : 'text-gray-600'}">${formatarMoeda(u.volume)}</td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('tabela-usuarios').innerHTML = listaRadar.length > 0 ? tabelaHtml : '<tr><td colspan="4" class="text-center py-6 text-gray-500">Nenhum dado encontrado.</td></tr>';
+
+                desenharGrafico(contagemPorDia);
+
+                statusDB.innerText = 'ONLINE';
+                statusDB.className = 'text-sm font-bold text-green-400';
+
+            } catch (error) {
+                console.error("Erro Fatal no Dashboard:", error);
+                statusDB.innerText = 'FALHA DE CONEXÃO';
+                statusDB.className = 'text-sm font-bold text-red-500';
+                document.getElementById('tabela-usuarios').innerHTML = '<tr><td colspan="4" class="text-center py-6 text-red-500">Erro ao carregar dados.</td></tr>';
+            }
+        }
+
+        function desenharGrafico(dadosPorDia) {
+            const ctx = document.getElementById('graficoCrescimento').getContext('2d');
+            const labels = Object.keys(dadosPorDia).map(d => `${d.split('-')[2]}/${d.split('-')[1]}`);
+            const valores = Object.values(dadosPorDia);
+
+            if (graficoInstance) graficoInstance.destroy();
+
+            let gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(168, 85, 247, 0.5)'); 
+            gradient.addColorStop(1, 'rgba(168, 85, 247, 0.0)');
+
+            graficoInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Novos Contratos',
+                        data: valores,
+                        borderColor: '#A855F7',
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#A855F7',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF', stepSize: 1 } },
+                        x: { grid: { display: false }, ticks: { color: '#9CA3AF' } }
+                    }
+                }
+            });
+        }
+
+        // --- DISPARO DO PUSH ---
         async function dispararNotificacao() {
             const titulo = document.getElementById('titulo').value;
             const mensagem = document.getElementById('mensagem').value;
@@ -57,17 +442,17 @@
             const senhaMestra = document.getElementById('senhaMestra').value;
             const btn = document.getElementById('btnEnviar');
             const btnText = document.getElementById('btnText');
-            const statusBox = document.getElementById('statusBox');
 
             if (!titulo || !mensagem || !senhaMestra) {
-                mostrarStatus('Preencha todos os campos!', 'bg-red-100 text-red-700');
+                mostrarStatus('Preencha os campos obrigatórios!', 'border-red-500 bg-red-500/10 text-red-400');
                 return;
             }
 
-            if (!confirm("Confirmar disparo para a base de dados?")) return;
+            if (!confirm("Disparar notificação global?")) return;
 
             btn.disabled = true;
             btnText.innerText = 'PROCESSANDO...';
+            btn.classList.add('opacity-70', 'cursor-not-allowed');
 
             try {
                 const { data, error } = await _supabase.functions.invoke('push-manual', {
@@ -75,20 +460,25 @@
                 });
 
                 if (error) throw new Error(error.message);
-                mostrarStatus(`SUCESSO! Enviado para ${data.disparos} dispositivos.`, 'bg-green-100 text-green-700');
+                
+                mostrarStatus(`SUCESSO! Push atingiu ${data.disparos} dispositivos.`, 'border-green-500 bg-green-500/10 text-green-400');
+                document.getElementById('titulo').value = '';
+                document.getElementById('mensagem').value = '';
             } catch (err) {
-                mostrarStatus(`ERRO: ${err.message}`, 'bg-red-100 text-red-700');
+                mostrarStatus(`FALHA: ${err.message}`, 'border-red-500 bg-red-500/10 text-red-400');
             } finally {
                 btn.disabled = false;
-                btnText.innerText = 'Enviar Notificação Agora';
+                btnText.innerText = 'Disparar para a Base';
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
             }
         }
 
         function mostrarStatus(texto, classes) {
             const statusBox = document.getElementById('statusBox');
-            statusBox.className = `mt-6 p-4 rounded-xl text-sm text-center font-bold ${classes}`;
+            statusBox.className = `mt-2 p-2 rounded-xl text-xs text-center font-bold border transition-all ${classes}`;
             statusBox.innerText = texto;
             statusBox.classList.remove('hidden');
+            setTimeout(() => statusBox.classList.add('hidden'), 5000);
         }
     </script>
 </body>

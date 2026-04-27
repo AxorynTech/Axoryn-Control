@@ -101,12 +101,57 @@ export function useClientes() {
       };
   }, [formatarDataDoBanco]);
 
+  // 🔥 MÁGICA DA CARTEIRA MOVIDA PARA CIMA PARA BLOQUEAR A LISTAGEM CORRETAMENTE 🧱
+  const getActiveUserId = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // 1. Descobre se o usuário tem equipe
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('team_id, permissoes')
+        .eq('user_id', user.id)
+        .single();
+
+    if (!profile?.team_id) return user.id; // Conta Avulsa (Isolado)
+
+    const { data: team } = await supabase.from('teams').select('owner_id').eq('id', profile.team_id).single();
+
+    // 2. Se for o próprio LÍDER logado, ele SEMPRE vê a carteira dele
+    if (team?.owner_id === user.id) {
+        return user.id; 
+    }
+
+    // 3. Se for FUNCIONÁRIO, analisa se tem a permissão ligada com tradutor universal
+    const perm = profile?.permissoes;
+    let temEspelhamento = false;
+
+    if (Array.isArray(perm)) {
+        temEspelhamento = perm.includes('compartilhar_carteira');
+    } else if (typeof perm === 'string') {
+        temEspelhamento = perm.includes('compartilhar_carteira'); 
+    }
+
+    if (temEspelhamento) {
+        return team?.owner_id; // 🔓 Espelha a carteira do Líder
+    }
+    
+    // ⛔ CORTA O ESPELHAMENTO: Retorna o ID do funcionário e esconde os clientes do líder
+    return user.id; 
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+
+      // 🚀 BUSCA A CARTEIRA ATUAL BASEADA NA CHAVE DO LÍDER!
+      const activeUserId = await getActiveUserId();
+      if (!activeUserId) return;
+
       const { data, error } = await supabase
         .from('clientes')
         .select('*, contratos(*)')
+        .eq('user_id', activeUserId) // 🔒 BLOQUEIO ABSOLUTO: CORTA O ESPELHAMENTO AQUI!
         .order('nome');
 
       if (error) throw error;
@@ -118,16 +163,20 @@ export function useClientes() {
     } finally {
       setLoading(false);
     }
-  }, [processarClienteRaw]);
+  }, [processarClienteRaw, getActiveUserId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const refreshCliente = useCallback(async (clienteId: string) => {
       try {
+          const activeUserId = await getActiveUserId();
+          if (!activeUserId) return;
+
           const { data, error } = await supabase
             .from('clientes')
             .select('*, contratos(*)')
             .eq('id', clienteId)
+            .eq('user_id', activeUserId) // 🔒 Garante proteção ao atualizar cliente avulso
             .single();
           
           if (!error && data) {
@@ -135,37 +184,9 @@ export function useClientes() {
               setClientes(prev => prev.map(c => c.id === clienteId ? clienteAtualizado : c));
           }
       } catch (e) { console.log("Erro refreshCliente", e); }
-  }, [processarClienteRaw]);
+  }, [processarClienteRaw, getActiveUserId]);
 
-  // 🔥 MÁGICA DA CARTEIRA
-  const getActiveUserId = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('team_id, permissoes')
-        .eq('user_id', user.id)
-        .single();
-
-    // Proteção idêntica ao usePermissoes para Arrays
-    let arrayPermissoes = profile?.permissoes || [];
-    if (typeof arrayPermissoes === 'string') {
-        try { arrayPermissoes = JSON.parse(arrayPermissoes); } 
-        catch(e) { arrayPermissoes = []; }
-    }
-
-    if (profile?.team_id && arrayPermissoes.includes('compartilhar_carteira')) {
-        const { data: team } = await supabase.from('teams').select('owner_id').eq('id', profile.team_id).single();
-        if (team?.owner_id) {
-            return team.owner_id; 
-        }
-    }
-    
-    return user.id; 
-  };
-
-  const garantirCarteira = async () => {
+  const garantirCarteira = useCallback(async () => {
     try {
         const userId = await getActiveUserId(); 
         if (!userId) return null;
@@ -192,7 +213,7 @@ export function useClientes() {
         if (nova?.id) return nova.id;
     } catch (e) { console.log("Erro carteira:", e); }
     return null;
-  };
+  }, [getActiveUserId]);
 
   const totais = useMemo(() => {
     let capitalTotal = 0, lucro = 0, multas = 0, vendas = 0;
@@ -234,7 +255,7 @@ export function useClientes() {
         Alert.alert(t('common.erro'), "Falha ao salvar"); 
         throw e; // 🔥 Repassa o erro para a TelaCadastro parar
     }
-  }, [fetchData, t, verificarPermissaoRealTime]);
+  }, [fetchData, t, verificarPermissaoRealTime, getActiveUserId]);
 
   // 🔒 TRAVA: EDITAR CLIENTE (Usando Real-time)
   const editarCliente = useCallback(async (nomeAntigo: string, dados: Partial<Cliente>) => {
@@ -496,7 +517,7 @@ export function useClientes() {
 
         if (cliente.id) await refreshCliente(cliente.id); 
     } catch (e: any) { Alert.alert(t('common.erro'), e.message); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime, garantirCarteira, getActiveUserId]);
 
   // 🔒 TRAVA: RENOVAR/QUITAR (COBRAR) (Usando Real-time)
   const acaoRenovarQuitar = useCallback(async (tipo: string, contrato: Contrato, nomeCliente: string, dataInformada: string, multaCobrada?: number) => {
@@ -631,7 +652,7 @@ export function useClientes() {
       Alert.alert(t('common.sucesso'), `${tipoTraduzido} ${t('common.sucesso')}!\n💰 R$ ${val.toFixed(2)}`);
 
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao processar."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime, garantirCarteira, getActiveUserId]);
 
   // 🔒 TRAVA: PAGAR PARCELA (COBRAR) (Usando Real-time)
   const pagarParcela = useCallback(async (nomeCliente: string, contrato: Contrato, dataPagamento: string, multaCobrada?: number) => {
@@ -754,7 +775,7 @@ export function useClientes() {
 
       Alert.alert(t('common.sucesso'), `${t('pastaCliente.pagarParcela')} OK!\n💰 R$ ${(valorParc+vMulta).toFixed(2)}`);
     } catch (e) { Alert.alert(t('common.erro'), "Erro ao pagar."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime, garantirCarteira, getActiveUserId]);
 
   // 🔒 TRAVA: CRIAR ACORDO (COBRAR) (Usando Real-time)
   const criarAcordo = useCallback(async (nomeCliente: string, contratoId: number, valorTotal: number, qtd: number, data: string, multaDiaria: number) => {
@@ -905,7 +926,7 @@ export function useClientes() {
 
         Alert.alert(t('common.sucesso'), `Abatimento concluído!\nO Novo Capital Base é R$ ${novoCapital.toFixed(2)} e o vencimento foi atualizado.`);
     } catch (e) { Alert.alert(t('common.erro'), "Falha ao abater valor."); }
-  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime]);
+  }, [clientes, i18n.language, lerDataLocal, paraBancoISO, refreshCliente, t, verificarPermissaoRealTime, garantirCarteira, getActiveUserId]);
   
   // 🔒 TRAVA: EDITAR CONTRATO (Usando Real-time)
   const editarContrato = useCallback(async (nomeCliente: string, id: number, dados: any) => { 

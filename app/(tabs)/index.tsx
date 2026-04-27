@@ -24,6 +24,9 @@ import { verificarNotificacoes } from '@/services/NotificacaoService';
 // Hook de Assinatura (A NOVA LÓGICA DE BLOQUEIO)
 import { useAssinatura } from '@/hooks/useAssinatura';
 
+// 🔒 IMPORT DA TRAVA DE PERMISSÕES INJETADO AQUI
+import { usePermissoes } from '@/hooks/usePermissoes';
+
 // Componentes
 import { BarraPesquisa } from '@/components/BarraPesquisa';
 import Dashboard from '@/components/Dashboard';
@@ -51,9 +54,14 @@ export default function VertoApp() {
   const { t } = useTranslation();
 
   // --- CONTROLE DE ACESSO VIA HOOK ---
-  // ATUALIZAÇÃO DELICADA: Adicionei o 'refresh' aqui
   const { isPremium, loading: loadingAssinatura, refresh } = useAssinatura();
   const [acessoLiberado, setAcessoLiberado] = useState(false);
+
+  // 🔒 PUXANDO A VERIFICAÇÃO ABSOLUTA (IGNORA A MEMÓRIA DO CELULAR)
+  const { verificarPermissaoRealTime } = usePermissoes();
+  const [verificandoAcessos, setVerificandoAcessos] = useState(true);
+  const [acessoDashboard, setAcessoDashboard] = useState(false);
+  const [acessoCaixa, setAcessoCaixa] = useState(false);
 
   const { 
     clientes, totais, loading, fetchData, 
@@ -67,6 +75,21 @@ export default function VertoApp() {
   const [aba, setAba] = useState('carteira');
   const [pastasAbertas, setPastasAbertas] = useState<any>({});
   const [textoBusca, setTextoBusca] = useState('');
+
+  // 🚀 NOVA FUNÇÃO BLINDADA: Vai ao banco verificar na mesma hora
+  const checarAcessosRigido = async () => {
+    setVerificandoAcessos(true);
+    const dashLiberado = await verificarPermissaoRealTime('ver_dashboard');
+    const caixaLiberado = await verificarPermissaoRealTime('acessar_caixa');
+    setAcessoDashboard(dashLiberado);
+    setAcessoCaixa(caixaLiberado);
+    setVerificandoAcessos(false);
+  };
+
+  const atualizarTudoManualmente = async () => {
+    await checarAcessosRigido(); // Força a ler a chave nova do banco
+    await fetchData();           // Força a ler os clientes
+  };
 
   // --- ✅ FUNÇÃO: SALVAR TOKEN NO SUPABASE ---
   async function registrarTokenDeNotificacao() {
@@ -90,12 +113,13 @@ export default function VertoApp() {
     }
   }
 
-  // --- 1. LÓGICA DE PROTEÇÃO (ATUALIZADA PARA FORÇAR REFRESH) ---
+  // --- 1. LÓGICA DE PROTEÇÃO (ATUALIZADA PARA FORÇAR REFRESH E CHAVES RIGIDAS) ---
   useFocusEffect(
     useCallback(() => {
       // Assim que a tela ganha foco, força a verificação no RevenueCat/Banco
-      // Isso resolve o problema da tela não liberar logo após a compra
       refresh();
+      // Bate na porta do servidor do Supabase para saber se a chave mudou
+      checarAcessosRigido(); 
     }, [])
   );
 
@@ -213,22 +237,30 @@ export default function VertoApp() {
         <ScrollView 
           style={styles.content}
           contentContainerStyle={{ paddingBottom: 100 }}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchData} />}
+          // 🚀 ATUALIZADO: O puxão agora chama o atualizarTudoManualmente que quebra o cache
+          refreshControl={<RefreshControl refreshing={loading || verificandoAcessos} onRefresh={atualizarTudoManualmente} />}
           keyboardShouldPersistTaps="handled"
         >
           {aba === 'carteira' && (
             <>
-              <Dashboard 
-                capital={totais.capital} 
-                lucro={totais.lucro} 
-                multas={totais.multas} 
-                vendas={totais.vendas} 
-              />
-              
-              <TouchableOpacity style={styles.btnRelatorio} onPress={() => setModalRelatorio(true)}>
-                <Ionicons name="stats-chart" size={20} color="#2C3E50" style={{ marginRight: 8 }} />
-                <Text style={{ fontWeight: 'bold', color: '#2C3E50' }}>{t('index.gerarRelatorio') || "Gerar Relatório Financeiro"}</Text>
-              </TouchableOpacity>
+              {/* 🚀 TRAVA ATUALIZADA: LÊ DIRETO DO BANCO DE DADOS, SEM CACHE */}
+              {verificandoAcessos ? (
+                 <ActivityIndicator size="small" color="#2980B9" style={{ marginBottom: 15 }} />
+              ) : acessoDashboard && (
+                  <View style={{ marginBottom: 15 }}>
+                      <Dashboard 
+                        capital={totais.capital} 
+                        lucro={totais.lucro} 
+                        multas={totais.multas} 
+                        vendas={totais.vendas} 
+                      />
+                      
+                      <TouchableOpacity style={styles.btnRelatorio} onPress={() => setModalRelatorio(true)}>
+                        <Ionicons name="stats-chart" size={20} color="#2C3E50" style={{ marginRight: 8 }} />
+                        <Text style={{ fontWeight: 'bold', color: '#2C3E50' }}>{t('index.gerarRelatorio') || "Gerar Relatório Financeiro"}</Text>
+                      </TouchableOpacity>
+                  </View>
+              )}
 
               <BarraPesquisa texto={textoBusca} aoDigitar={setTextoBusca} />
 
@@ -253,7 +285,24 @@ export default function VertoApp() {
             </>
           )}
 
-          {aba === 'pessoal' && <TelaFluxoPessoal />}
+          {/* 🔒 TRAVA DO CAIXA PESSOAL TAMBÉM SEM CACHE */}
+          {aba === 'pessoal' && (
+              verificandoAcessos ? (
+                  <ActivityIndicator size="large" color="#2980B9" style={{ marginTop: 50 }} />
+              ) : acessoCaixa ? (
+                  <TelaFluxoPessoal />
+              ) : (
+                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 }}>
+                      <Ionicons name="lock-closed" size={60} color="#BDC3C7" />
+                      <Text style={{ marginTop: 10, color: '#7F8C8D', fontSize: 16, fontWeight: 'bold' }}>
+                          Acesso Bloqueado
+                      </Text>
+                      <Text style={{ textAlign: 'center', marginTop: 5, color: '#95A5A6', paddingHorizontal: 20 }}>
+                          O seu líder não liberou o acesso ao fluxo de caixa.
+                      </Text>
+                  </View>
+              )
+          )}
 
           {aba === 'cadastro' && <TelaCadastro aoSalvar={salvarNovoCliente} />}
           

@@ -40,14 +40,14 @@ export default function EquipeScreen() {
   const [permissoesAtuais, setPermissoesAtuais] = useState<string[]>([]);
   const [salvandoPermissoes, setSalvandoPermissoes] = useState(false);
 
-  // ✅ LISTA DE PERMISSÕES ATUALIZADA COM A ABA DO CAIXA PESSOAL
+  // 🚀 LISTA DE PERMISSÕES ATUALIZADA COM A ABA DO CAIXA PESSOAL E DASHBOARD
   const OPCOES_PERMISSAO = [
       { id: 'compartilhar_carteira', label: t('equipe.permCarteira', 'Espelhar Visão do Líder (Carteira Compartilhada)') },
       { id: 'cadastrar_cliente', label: t('equipe.permCadastrar', 'Cadastrar e Editar Clientes') },
       { id: 'gerar_contrato', label: t('equipe.permContrato', 'Gerar Contratos') },
       { id: 'cobrar', label: t('equipe.permCobrar', 'Realizar Cobranças e Baixas') },
-      // 🚀 NOVA PERMISSÃO INJETADA ABAIXO
-      { id: 'acessar_caixa', label: t('equipe.permCaixa', 'Acessar Aba do Caixa Pessoal') }
+      { id: 'acessar_caixa', label: t('equipe.permCaixa', 'Acessar Aba do Caixa Pessoal') },
+      { id: 'ver_dashboard', label: t('equipe.permDashboard', 'Visualizar Dashboard e Relatórios') } // 🚀 NOVO
   ];
 
   useEffect(() => {
@@ -225,11 +225,30 @@ export default function EquipeScreen() {
     if (minhaEquipe?.id) await Share.share({ message: `Código da Equipe Axoryn: ${minhaEquipe.id}` });
   };
 
-  // ✅ FUNÇÕES DE GESTÃO DE PERMISSÕES
+  // 🛡️ MÁGICA DE TRADUÇÃO DE DADOS ATUALIZADA (EVITA O BUG SILENCIOSO)
   function abrirModalPermissoes(membro: any) {
       setMembroSelecionado(membro);
-      // Carrega as permissões do banco, ou vazio se for a primeira vez
-      setPermissoesAtuais(membro.permissoes || []); 
+      
+      let arrayLimpo: string[] = [];
+      const perm = membro.permissoes;
+
+      if (Array.isArray(perm)) {
+          arrayLimpo = perm;
+      } else if (typeof perm === 'string') {
+          try {
+              arrayLimpo = JSON.parse(perm);
+          } catch (e) {
+              // Se o banco mandou como string pura
+              if (perm.includes('compartilhar_carteira')) arrayLimpo.push('compartilhar_carteira');
+              if (perm.includes('cadastrar_cliente')) arrayLimpo.push('cadastrar_cliente');
+              if (perm.includes('gerar_contrato')) arrayLimpo.push('gerar_contrato');
+              if (perm.includes('cobrar')) arrayLimpo.push('cobrar');
+              if (perm.includes('acessar_caixa')) arrayLimpo.push('acessar_caixa');
+              if (perm.includes('ver_dashboard')) arrayLimpo.push('ver_dashboard'); // 🚀 NOVO
+          }
+      }
+      
+      setPermissoesAtuais(arrayLimpo); 
       setModalPermissoesVisivel(true);
   }
 
