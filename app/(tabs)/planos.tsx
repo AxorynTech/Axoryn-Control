@@ -251,7 +251,10 @@ export default function PlanosScreen() {
           {/* 🚀 BOTÃO DE SUPORTE WHATSAPP INJETADO AQUI */}
           <TouchableOpacity 
             style={styles.btnSuporte} 
-            onPress={() => Linking.openURL('https://wa.me/5515996292295?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20pagamento%20no%20app%20Axoryn%20Control.')}
+            onPress={() => {
+              const mensagem = 'Olá! Preciso de ajuda com o pagamento no app Axoryn Control.';
+              Linking.openURL(`https://wa.me/5515996292295?text=${encodeURIComponent(mensagem)}`);
+            }}
           >
             <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
             <Text style={styles.txtSuporte}>Precisa de ajuda com o pagamento?</Text>
